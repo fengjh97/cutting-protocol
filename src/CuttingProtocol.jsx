@@ -544,8 +544,8 @@ export default function CuttingProtocol() {
 
   // 两页翻页:配置(输入+零食) / 晚餐(处方+明细+采购)
   const PAGES = [
-    { zh: '配置', en: 'Setup' },
-    { zh: '晚餐', en: 'Dinner' },
+    { zh: '配餐', en: 'Plan' },
+    { zh: '明细', en: 'Detail' },
   ];
   const [page, setPage] = useState(0);
   const go = (i) => setPage(Math.max(0, Math.min(PAGES.length - 1, i)));
@@ -1047,7 +1047,7 @@ export default function CuttingProtocol() {
                   <div className="text-[12px] text-inksoft font-cjk leading-relaxed">{dinnerSummary}</div>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => go(1)} className="flex-1 px-4 py-2.5 rounded-full bg-terra text-card text-xs font-mono tracking-wider shadow-warm active:scale-95 transition-all">查看调整后的晚餐 →</button>
+                  <button onClick={() => document.getElementById('dinner')?.scrollIntoView({ behavior: 'smooth' })} className="flex-1 px-4 py-2.5 rounded-full bg-terra text-card text-xs font-mono tracking-wider shadow-warm active:scale-95 transition-all">看调整后的晚餐 ↓</button>
                   <button onClick={() => { setSnack(null); setSnackErr(''); }} className="px-4 py-2.5 rounded-full border border-line bg-card text-inksoft text-xs font-mono tracking-wider hover:border-terra hover:text-terra transition-all">清除</button>
                 </div>
               </div>
@@ -1084,11 +1084,9 @@ export default function CuttingProtocol() {
           </Card>
         </section>
 
-        </>)}
-
-        {page === 1 && (<>
-        {/* ============ DINNER PROTOCOL ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '0ms' }}>
+        {/* ============ 06 · DINNER(配置页底部直接出菜单,免翻页)============ */}
+        <section id="dinner" className="rise mb-4 scroll-mt-4" style={{ animationDelay: '480ms' }}>
+          <SectionHead no="06" zh="今晚的晚餐" en="Tonight's Dinner" />
           <Card className="overflow-hidden">
             <div className="relative">
               <img src={asset('dinner.jpg')} alt="今晚的晚餐" className="w-full h-40 object-cover" loading="lazy" />
@@ -1114,8 +1112,35 @@ export default function CuttingProtocol() {
               <FoodItem icon="07" name="オイコス 砂糖不使用" sub="OIKOS Plain · Dessert" qty={result.plan.oikos || 0} unit="PCS" />
             </div>
           </Card>
+          {/* 紧凑全天小结,免翻页也能看是否达标 */}
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            {[
+              { k: '蛋白', v: result.total.p, t: targets.p, u: 'g' },
+              { k: '碳水', v: result.total.c, t: targets.c, u: 'g' },
+              { k: '脂肪', v: result.total.f, t: targets.f, u: 'g' },
+              { k: '热量', v: result.total.kcal, t: targets.kcal, u: '' },
+            ].map((m) => {
+              const diff = m.v - m.t;
+              const ok = Math.abs(diff) <= (m.u === '' ? Math.max(80, m.t * 0.05) : Math.max(8, m.t * 0.08));
+              return (
+                <div key={m.k} className="rounded-2xl bg-card border border-line p-2.5 text-center shadow-warm">
+                  <div className="text-[9px] font-mono text-inkfaint tracking-wider mb-0.5">{m.k}</div>
+                  <div className="font-display text-xl text-ink tnum" style={{ fontWeight: 400 }}>{Math.round(m.v)}</div>
+                  <div className="text-[9px] font-mono tnum" style={{ color: ok ? '#5F6B3E' : '#B07B16' }}>
+                    {diff >= 0 ? '+' : ''}{Math.round(diff)}{m.u}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <button onClick={() => go(1)} className="mt-3 w-full px-4 py-2.5 rounded-full border border-line bg-card text-inksoft text-xs font-mono tracking-wider hover:border-terra hover:text-terra transition-all">
+            验算 / 明细 / 采购清单 →
+          </button>
         </section>
 
+        </>)}
+
+        {page === 1 && (<>
         {/* ============ 04 · MACRO VERIFICATION ============ */}
         <section className="rise mb-9" style={{ animationDelay: '90ms' }}>
           <SectionHead no="04" zh="全天营养验算" en="Macro Check" accent="sage" />
