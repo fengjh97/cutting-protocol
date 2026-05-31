@@ -684,28 +684,6 @@ export default function CuttingProtocol() {
         <main key={page} className="min-h-[44vh]">
 
         {page === 0 && (<>
-        {/* ============ ✱ · TARGETS ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '40ms' }}>
-          <SectionHead no="✱" zh="目标设定" en="Targets" accent="sage" />
-          <Card className="p-5 sm:p-6">
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
-              <TargetInput label="总消耗" en="TDEE" value={tdee} unit="kcal" onChange={(v) => setTdee(Math.max(0, Math.min(8000, Number(v) || 0)))} />
-              <TargetInput label="目标" en="kcal" value={targets.kcal} unit="kcal" accent onChange={(v) => setTarget('kcal', v, 8000)} />
-              <TargetInput label="蛋白" en="P" value={targets.p} unit="g" onChange={(v) => setTarget('p', v, 500)} />
-              <TargetInput label="碳水" en="C" value={targets.c} unit="g" onChange={(v) => setTarget('c', v, 800)} />
-              <TargetInput label="脂肪" en="F" value={targets.f} unit="g" onChange={(v) => setTarget('f', v, 300)} />
-            </div>
-            <div className="mt-4 pt-3 border-t border-linesoft flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] font-mono text-inksoft">
-              {tdee > targets.kcal && <span>赤字 ≈ <span className="text-terradeep">{Math.round(tdee - targets.kcal)} kcal/天</span></span>}
-              <span>宏量热量合计 <span className={Math.abs(targets.p * 4 + targets.c * 4 + targets.f * 9 - targets.kcal) <= 60 ? 'text-sagedeep' : 'text-honey'}>{Math.round(targets.p * 4 + targets.c * 4 + targets.f * 9)}</span> kcal</span>
-              <button
-                onClick={() => { setTargets({ ...DEFAULT_TARGETS }); setTdee(DEFAULT_TDEE); }}
-                className="text-terradeep hover:underline ml-auto"
-              >↺ 恢复默认</button>
-            </div>
-          </Card>
-        </section>
-
         {/* ============ 00 · PRE-WORKOUT ============ */}
         <section className="rise mb-9" style={{ animationDelay: '80ms' }}>
           <SectionHead no="00" zh="训练前加餐" en="Pre-Workout" />
@@ -1141,6 +1119,28 @@ export default function CuttingProtocol() {
         </>)}
 
         {page === 1 && (<>
+        {/* ============ ✱ · TARGETS ============ */}
+        <section className="rise mb-9" style={{ animationDelay: '0ms' }}>
+          <SectionHead no="✱" zh="目标设定" en="Targets" accent="sage" />
+          <Card className="p-5 sm:p-6">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
+              <TargetInput label="总消耗" en="TDEE" value={tdee} unit="kcal" onChange={(v) => setTdee(Math.max(0, Math.min(8000, Number(v) || 0)))} />
+              <TargetInput label="目标" en="kcal" value={targets.kcal} unit="kcal" accent onChange={(v) => setTarget('kcal', v, 8000)} />
+              <TargetInput label="蛋白" en="P" value={targets.p} unit="g" onChange={(v) => setTarget('p', v, 500)} />
+              <TargetInput label="碳水" en="C" value={targets.c} unit="g" onChange={(v) => setTarget('c', v, 800)} />
+              <TargetInput label="脂肪" en="F" value={targets.f} unit="g" onChange={(v) => setTarget('f', v, 300)} />
+            </div>
+            <div className="mt-4 pt-3 border-t border-linesoft flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] font-mono text-inksoft">
+              {tdee > targets.kcal && <span>赤字 ≈ <span className="text-terradeep">{Math.round(tdee - targets.kcal)} kcal/天</span></span>}
+              <span>宏量热量合计 <span className={Math.abs(targets.p * 4 + targets.c * 4 + targets.f * 9 - targets.kcal) <= 60 ? 'text-sagedeep' : 'text-honey'}>{Math.round(targets.p * 4 + targets.c * 4 + targets.f * 9)}</span> kcal</span>
+              <button
+                onClick={() => { setTargets({ ...DEFAULT_TARGETS }); setTdee(DEFAULT_TDEE); }}
+                className="text-terradeep hover:underline ml-auto"
+              >↺ 恢复默认</button>
+            </div>
+          </Card>
+        </section>
+
         {/* ============ 04 · MACRO VERIFICATION ============ */}
         <section className="rise mb-9" style={{ animationDelay: '90ms' }}>
           <SectionHead no="04" zh="全天营养验算" en="Macro Check" accent="sage" />
