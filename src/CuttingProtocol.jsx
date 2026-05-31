@@ -491,38 +491,68 @@ export default function CuttingProtocol() {
 
   const fasted = preChicken === 0 && preEggs === 0 && preBanana === 0;
 
+  // 多翻页:把长滚动拆成 4 页,顶部标签 + 翻页按钮切换
+  const PAGES = [
+    { zh: '配置', en: 'Setup' },
+    { zh: '晚餐', en: 'Dinner' },
+    { zh: '明细', en: 'Log' },
+    { zh: '采购', en: 'Shop' },
+  ];
+  const [page, setPage] = useState(0);
+  const go = (i) => setPage(Math.max(0, Math.min(PAGES.length - 1, i)));
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, [page]);
+
   return (
     <div className="grain relative min-h-screen text-ink font-sans">
       <div className="relative z-10 max-w-2xl mx-auto px-5 sm:px-7 py-8 sm:py-12">
 
-        {/* ============ HERO ============ */}
-        <header className="rise mb-12" style={{ animationDelay: '0ms' }}>
-          <div className="relative overflow-hidden rounded-3xl shadow-warmlg border border-line">
+        {/* ============ 紧凑头部 ============ */}
+        <header className="rise mb-5" style={{ animationDelay: '0ms' }}>
+          <div className="relative overflow-hidden rounded-3xl shadow-warm border border-line">
             <img
               src={asset('hero.jpg')}
               alt="温暖的减脂餐食材平铺"
-              className="w-full h-52 sm:h-64 object-cover"
+              className="w-full h-28 sm:h-32 object-cover object-center"
               loading="eager"
             />
             <div
               className="absolute inset-0"
-              style={{ background: 'linear-gradient(180deg, rgba(251,243,231,0) 35%, rgba(251,243,231,0.55) 70%, rgba(251,243,231,0.96) 100%)' }}
+              style={{ background: 'linear-gradient(180deg, rgba(251,243,231,0.05) 0%, rgba(251,243,231,0.5) 55%, rgba(251,243,231,0.95) 100%)' }}
             />
-            <div className="absolute inset-x-0 bottom-0 p-5 sm:p-7">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] tracking-[0.3em] font-mono uppercase text-terradeep">Protocol · 减脂指南</span>
-                <span className="text-[10px] tracking-[0.2em] font-mono text-inksoft">v2.0 / 16:8 IF</span>
-              </div>
-              <h1 className="font-display text-5xl sm:text-6xl text-ink leading-[0.95]" style={{ fontWeight: 400 }}>
+            <div className="absolute inset-x-0 bottom-0 px-5 sm:px-6 py-3 flex items-end justify-between">
+              <h1 className="font-display text-4xl sm:text-5xl text-ink leading-none" style={{ fontWeight: 400 }}>
                 晚餐<span className="text-terra">·</span><span style={{ fontStyle: 'italic' }}>处方</span>
               </h1>
+              <span className="text-[10px] tracking-[0.2em] font-mono text-inksoft mb-1">v2.0 / 16:8 IF</span>
             </div>
           </div>
-          <p className="mt-4 text-[11px] sm:text-xs font-mono tracking-wider text-inksoft text-center sm:text-left">
-            83 kg · 25% BF · TDEE ≈ 2900 kcal · <span className="text-terradeep">每日目标 2000 kcal</span>
+          <p className="mt-3 text-[10px] sm:text-[11px] font-mono tracking-wider text-inksoft text-center">
+            83 kg · 25% BF · TDEE ≈ 2900 · <span className="text-terradeep">目标 2000 kcal</span>
           </p>
         </header>
 
+        {/* ============ 翻页标签(吸顶)============ */}
+        <nav className="rise sticky top-3 z-20 mb-7" style={{ animationDelay: '60ms' }}>
+          <div className="flex gap-1 p-1 rounded-full bg-card/90 backdrop-blur border border-line shadow-warm">
+            {PAGES.map((pg, i) => (
+              <button
+                key={i}
+                onClick={() => go(i)}
+                className={`flex-1 px-2 py-2 rounded-full transition-all ${
+                  page === i ? 'bg-terra text-card shadow-warm' : 'text-inksoft hover:text-ink'
+                }`}
+              >
+                <span className="font-cjk font-medium text-[13px]">{pg.zh}</span>
+                <span className="hidden sm:inline ml-1.5 text-[10px] font-mono uppercase tracking-wider opacity-70">{pg.en}</span>
+              </button>
+            ))}
+          </div>
+        </nav>
+
+        {/* ============ 页面内容(按 page 切换)============ */}
+        <main key={page} className="min-h-[44vh]">
+
+        {page === 0 && (<>
         {/* ============ 00 · PRE-WORKOUT ============ */}
         <section className="rise mb-9" style={{ animationDelay: '80ms' }}>
           <SectionHead no="00" zh="训练前加餐" en="Pre-Workout" />
@@ -778,8 +808,11 @@ export default function CuttingProtocol() {
           </Card>
         </section>
 
+        </>)}
+
+        {page === 1 && (<>
         {/* ============ DINNER PROTOCOL ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '400ms' }}>
+        <section className="rise mb-9" style={{ animationDelay: '0ms' }}>
           <Card className="overflow-hidden">
             <div className="relative">
               <img src={asset('dinner.jpg')} alt="今晚的晚餐" className="w-full h-40 object-cover" loading="lazy" />
@@ -808,7 +841,7 @@ export default function CuttingProtocol() {
         </section>
 
         {/* ============ 04 · MACRO VERIFICATION ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '480ms' }}>
+        <section className="rise mb-9" style={{ animationDelay: '90ms' }}>
           <SectionHead no="04" zh="全天营养验算" en="Macro Check" accent="sage" />
           <Card className="p-5 sm:p-7">
             <MacroBar label="蛋白" en="Protein" value={result.total.p} target={TARGETS.p} unit="g" />
@@ -832,8 +865,11 @@ export default function CuttingProtocol() {
           </Card>
         </section>
 
+        </>)}
+
+        {page === 2 && (<>
         {/* ============ 05 · FOOD LOG ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '560ms' }}>
+        <section className="rise mb-9" style={{ animationDelay: '0ms' }}>
           <SectionHead no="05" zh="今日食物明细" en="Food Log" />
           <Card className="overflow-hidden">
             <div className="grid grid-cols-12 gap-0 bg-paper2 px-4 py-2.5 text-[9px] font-mono tracking-widest text-inksoft uppercase">
@@ -902,7 +938,7 @@ export default function CuttingProtocol() {
         </section>
 
         {/* ============ DAILY SCHEDULE ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '600ms' }}>
+        <section className="rise mb-9" style={{ animationDelay: '90ms' }}>
           <Card className="p-5 sm:p-6">
             <div className="text-[10px] font-mono tracking-[0.25em] text-honey mb-4">DAILY SCHEDULE · 16:8 IF</div>
             <div className="space-y-3 font-mono text-xs">
@@ -922,8 +958,11 @@ export default function CuttingProtocol() {
           </Card>
         </section>
 
+        </>)}
+
+        {page === 3 && (<>
         {/* ============ 06 · SHOPPING LIST ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '680ms' }}>
+        <section className="rise mb-9" style={{ animationDelay: '0ms' }}>
           <SectionHead no="06" zh="超市采购清单" en="Weekly Shopping" />
           <div className="space-y-3">
             <ShopGroup title="PROTEIN · 蛋白源" items={[
@@ -958,7 +997,7 @@ export default function CuttingProtocol() {
         </section>
 
         {/* ============ MEMO ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '760ms' }}>
+        <section className="rise mb-9" style={{ animationDelay: '90ms' }}>
           <Card className="p-6">
             <div className="flex items-center gap-3 mb-4">
               <img src={asset('pre.jpg')} alt="" className="w-12 h-12 rounded-2xl object-cover border border-line" loading="lazy" />
@@ -982,8 +1021,36 @@ export default function CuttingProtocol() {
           </Card>
         </section>
 
+        </>)}
+
+        {/* ============ 翻页器 ============ */}
+        <div className="rise flex items-center justify-between gap-3 mt-8" style={{ animationDelay: '160ms' }}>
+          <button
+            disabled={page === 0}
+            onClick={() => go(page - 1)}
+            className="px-4 py-2.5 rounded-full border border-line bg-card text-inksoft text-xs font-mono tracking-wider transition-all disabled:opacity-30 enabled:hover:border-terra enabled:hover:text-terra enabled:active:scale-95"
+          >← 上一页</button>
+          <div className="flex items-center gap-1.5">
+            {PAGES.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => go(i)}
+                aria-label={`第 ${i + 1} 页`}
+                className={`h-2 rounded-full transition-all ${page === i ? 'w-6 bg-terra' : 'w-2 bg-line hover:bg-terra/50'}`}
+              />
+            ))}
+          </div>
+          <button
+            disabled={page === PAGES.length - 1}
+            onClick={() => go(page + 1)}
+            className="px-4 py-2.5 rounded-full border border-line bg-card text-inksoft text-xs font-mono tracking-wider transition-all disabled:opacity-30 enabled:hover:border-terra enabled:hover:text-terra enabled:active:scale-95"
+          >下一页 →</button>
+        </div>
+
+        </main>
+
         {/* ============ FOOTER ============ */}
-        <footer className="rise pt-8 mt-4 border-t border-line text-center" style={{ animationDelay: '840ms' }}>
+        <footer className="pt-8 mt-4 border-t border-line text-center">
           <div className="text-[9px] font-mono tracking-[0.28em] text-inkfaint uppercase">
             Based on Helms 2014 · Jäger 2017 ISSN · Mettler 2010 · Moro 2016
           </div>
