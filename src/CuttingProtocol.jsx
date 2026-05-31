@@ -558,6 +558,7 @@ export default function CuttingProtocol() {
   const [keyEditing, setKeyEditing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [snackErr, setSnackErr] = useState('');
+  const [snackOpen, setSnackOpen] = useState(false); // 加餐抽屉:默认收起,点小球才展开
 
   const saveKey = (k) => {
     setApiKey(k);
@@ -971,96 +972,6 @@ export default function CuttingProtocol() {
           </Card>
         </section>
 
-        {/* ============ 05 · SNACK (Gemini) ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '440ms' }}>
-          <SectionHead no="05" zh="零食加餐" en="Snack · AI 识别" accent="honey" />
-          <Card className="p-5 sm:p-6">
-            {!snack && (
-              <>
-                <p className="text-[12px] text-inksoft leading-relaxed mb-4 font-cjk">
-                  想吃点别的?拍一张零食包装<span className="text-terradeep">背面的成分表</span>,Gemini 自动识别营养、计入今天,并帮你重算晚餐。
-                </p>
-                <label className={`flex items-center justify-center gap-2.5 px-5 py-5 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${analyzing ? 'border-honey/50 bg-honey/[0.05]' : 'border-line hover:border-terra hover:bg-terra/[0.04]'}`}>
-                  <input
-                    type="file" accept="image/*" capture="environment" className="hidden" disabled={analyzing}
-                    onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; analyzeSnack(f); }}
-                  />
-                  <span className="text-2xl">{analyzing ? '🍳' : '📷'}</span>
-                  <span className="text-sm font-cjk text-ink" style={{ fontWeight: 500 }}>{analyzing ? 'Gemini 识别中…' : '拍 / 选 成分表照片'}</span>
-                </label>
-                {analyzing && (
-                  <div className="mt-3 h-1.5 rounded-full bg-paper2 overflow-hidden">
-                    <div className="h-full w-2/3 bg-honey animate-pulse rounded-full" />
-                  </div>
-                )}
-              </>
-            )}
-
-            {snack && (
-              <div>
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="min-w-0">
-                    <div className="text-base font-cjk text-ink truncate" style={{ fontWeight: 600 }}>{snack.name}</div>
-                    {snack.serving && <div className="text-[11px] text-inkfaint font-mono mt-0.5">按 {snack.serving} 计</div>}
-                  </div>
-                  <span className={`text-[9px] font-mono px-2 py-1 rounded-full tracking-wider shrink-0 ${snack.confidence === 'high' ? 'bg-sage/15 text-sagedeep' : snack.confidence === 'low' ? 'bg-terra/15 text-terradeep' : 'bg-honey/15 text-honey'}`}>
-                    {snack.confidence === 'high' ? '识别可信' : snack.confidence === 'low' ? '仅供参考' : '大致估算'}
-                  </span>
-                </div>
-                {snack.note && <p className="text-[12px] text-inksoft leading-relaxed mb-4 font-cjk">💬 {snack.note}</p>}
-                <div className="grid grid-cols-4 gap-2 mb-4">
-                  {[['kcal', '热量', 'kcal'], ['p', '蛋白', 'g'], ['c', '碳水', 'g'], ['f', '脂肪', 'g']].map(([k, zh, u]) => (
-                    <div key={k} className="rounded-2xl bg-paper border border-line p-2.5 text-center">
-                      <div className="text-[9px] font-mono text-inkfaint tracking-wider mb-1">{zh}</div>
-                      <input
-                        type="number" value={snack[k]} onChange={(e) => setSnackField(k, e.target.value)}
-                        className="w-full bg-transparent outline-none text-center font-display text-2xl text-ink tnum" style={{ fontWeight: 400 }}
-                      />
-                      <div className="text-[8px] font-mono text-inkfaint">{u}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="rounded-2xl bg-terra/[0.06] border border-terra/30 p-3.5 mb-3">
-                  <div className="text-[10px] font-mono text-terradeep tracking-wider mb-1.5">→ 晚餐已自动调整</div>
-                  <div className="text-[12px] text-inksoft font-cjk leading-relaxed">{dinnerSummary}</div>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => document.getElementById('dinner')?.scrollIntoView({ behavior: 'smooth' })} className="flex-1 px-4 py-2.5 rounded-full bg-terra text-card text-xs font-mono tracking-wider shadow-warm active:scale-95 transition-all">看调整后的晚餐 ↓</button>
-                  <button onClick={() => { setSnack(null); setSnackErr(''); }} className="px-4 py-2.5 rounded-full border border-line bg-card text-inksoft text-xs font-mono tracking-wider hover:border-terra hover:text-terra transition-all">清除</button>
-                </div>
-              </div>
-            )}
-
-            {snackErr && <div className="mt-3 text-[11px] font-mono text-terradeep leading-relaxed">⚠ {snackErr}</div>}
-
-            {/* Gemini API Key(仅存本机浏览器)*/}
-            <div className="mt-4 pt-4 border-t border-linesoft">
-              {!keyEditing && apiKey && (
-                <div className="flex items-center justify-between text-[10px] font-mono text-inkfaint">
-                  <span>🔑 Gemini Key 已保存 · 仅存于本机浏览器</span>
-                  <button onClick={() => setKeyEditing(true)} className="text-terradeep hover:underline">更换</button>
-                </div>
-              )}
-              {(keyEditing || !apiKey) && (
-                <div>
-                  <div className="text-[10px] font-mono text-inkfaint mb-2 leading-relaxed">
-                    填入你的 Gemini API Key（<a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-terradeep underline">aistudio.google.com/apikey</a>）。只保存在本机浏览器,不上传、不进仓库。
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="password" defaultValue={apiKey} placeholder="AIza..." id="gk"
-                      className="flex-1 bg-paper border border-line rounded-xl px-3 py-2 text-xs font-mono text-ink outline-none focus:border-terra"
-                    />
-                    <button
-                      onClick={() => { const v = document.getElementById('gk').value.trim(); saveKey(v); setKeyEditing(false); }}
-                      className="px-4 py-2 rounded-xl bg-terra text-card text-xs font-mono shrink-0"
-                    >保存</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </Card>
-        </section>
 
         {/* ============ 06 · DINNER(配置页底部直接出菜单,免翻页)============ */}
         <section id="dinner" className="rise mb-4 scroll-mt-4" style={{ animationDelay: '480ms' }}>
@@ -1356,6 +1267,129 @@ export default function CuttingProtocol() {
         </footer>
 
       </div>
+
+      {/* ============ 加餐小球(FAB)============ */}
+      <button
+        onClick={() => setSnackOpen(true)}
+        aria-label="零食加餐"
+        className="snack-fab fixed z-40 bottom-6 right-5 w-14 h-14 rounded-full bg-terra text-card shadow-warmlg grid place-items-center text-2xl active:scale-90"
+      >
+        🍪
+        {snack && <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-sage border-2 border-paper" />}
+      </button>
+
+      {/* ============ 加餐抽屉(侧滑)============ */}
+      {snackOpen && (
+        <div className="fixed inset-0 z-50">
+          <div className="snack-backdrop absolute inset-0 bg-ink/30 backdrop-blur-[2px]" onClick={() => setSnackOpen(false)} />
+          <div className="snack-panel absolute inset-y-0 right-0 w-[min(420px,92vw)] bg-paper shadow-warmlg flex flex-col">
+            {/* 抓手 + 标题 */}
+            <div className="relative flex items-center justify-between px-5 pt-5 pb-3 border-b border-line">
+              <span className="absolute left-1/2 -translate-x-1/2 top-1.5 w-10 h-1 rounded-full bg-line" />
+              <div className="flex items-center gap-2.5">
+                <span className="grid place-items-center w-9 h-9 rounded-full bg-honey/15 text-honey text-base">🍪</span>
+                <div>
+                  <div className="font-display text-lg text-ink leading-none" style={{ fontWeight: 500 }}>零食加餐</div>
+                  <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-inkfaint mt-1">Snack · AI 识别</div>
+                </div>
+              </div>
+              <button onClick={() => setSnackOpen(false)} aria-label="关闭" className="w-9 h-9 grid place-items-center rounded-full border border-line text-inksoft hover:border-terra hover:text-terra transition-all">✕</button>
+            </div>
+
+            {/* 内容(可滚动)*/}
+            <div className="flex-1 overflow-y-auto p-5">
+              {!snack && (
+                <>
+                  <p className="text-[12px] text-inksoft leading-relaxed mb-4 font-cjk">
+                    想吃点别的?拍一张零食包装<span className="text-terradeep">背面的成分表</span>,Gemini 自动识别营养、计入今天,并帮你重算晚餐。
+                  </p>
+                  <label className={`flex flex-col items-center justify-center gap-2 px-5 py-8 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${analyzing ? 'border-honey/50 bg-honey/[0.05]' : 'border-line hover:border-terra hover:bg-terra/[0.04]'}`}>
+                    <input
+                      type="file" accept="image/*" capture="environment" className="hidden" disabled={analyzing}
+                      onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; analyzeSnack(f); }}
+                    />
+                    <span className="text-4xl">{analyzing ? '🍳' : '📷'}</span>
+                    <span className="text-sm font-cjk text-ink" style={{ fontWeight: 500 }}>{analyzing ? 'Gemini 识别中…' : '拍 / 选 成分表照片'}</span>
+                  </label>
+                  {analyzing && (
+                    <div className="mt-3 h-1.5 rounded-full bg-paper2 overflow-hidden">
+                      <div className="h-full w-2/3 bg-honey animate-pulse rounded-full" />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {snack && (
+                <div>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="min-w-0">
+                      <div className="text-base font-cjk text-ink truncate" style={{ fontWeight: 600 }}>{snack.name}</div>
+                      {snack.serving && <div className="text-[11px] text-inkfaint font-mono mt-0.5">按 {snack.serving} 计</div>}
+                    </div>
+                    <span className={`text-[9px] font-mono px-2 py-1 rounded-full tracking-wider shrink-0 ${snack.confidence === 'high' ? 'bg-sage/15 text-sagedeep' : snack.confidence === 'low' ? 'bg-terra/15 text-terradeep' : 'bg-honey/15 text-honey'}`}>
+                      {snack.confidence === 'high' ? '识别可信' : snack.confidence === 'low' ? '仅供参考' : '大致估算'}
+                    </span>
+                  </div>
+                  {snack.note && <p className="text-[12px] text-inksoft leading-relaxed mb-4 font-cjk">💬 {snack.note}</p>}
+                  <div className="grid grid-cols-4 gap-2 mb-4">
+                    {[['kcal', '热量', 'kcal'], ['p', '蛋白', 'g'], ['c', '碳水', 'g'], ['f', '脂肪', 'g']].map(([k, zh, u]) => (
+                      <div key={k} className="rounded-2xl bg-card border border-line p-2.5 text-center">
+                        <div className="text-[9px] font-mono text-inkfaint tracking-wider mb-1">{zh}</div>
+                        <input
+                          type="number" value={snack[k]} onChange={(e) => setSnackField(k, e.target.value)}
+                          className="w-full bg-transparent outline-none text-center font-display text-2xl text-ink tnum" style={{ fontWeight: 400 }}
+                        />
+                        <div className="text-[8px] font-mono text-inkfaint">{u}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-2xl bg-terra/[0.06] border border-terra/30 p-3.5 mb-3">
+                    <div className="text-[10px] font-mono text-terradeep tracking-wider mb-1.5">→ 晚餐已自动调整</div>
+                    <div className="text-[12px] text-inksoft font-cjk leading-relaxed">{dinnerSummary}</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setSnackOpen(false); go(0); setTimeout(() => document.getElementById('dinner')?.scrollIntoView({ behavior: 'smooth' }), 380); }}
+                      className="flex-1 px-4 py-2.5 rounded-full bg-terra text-card text-xs font-mono tracking-wider shadow-warm active:scale-95 transition-all"
+                    >看调整后的晚餐 →</button>
+                    <button onClick={() => { setSnack(null); setSnackErr(''); }} className="px-4 py-2.5 rounded-full border border-line bg-card text-inksoft text-xs font-mono tracking-wider hover:border-terra hover:text-terra transition-all">清除</button>
+                  </div>
+                </div>
+              )}
+
+              {snackErr && <div className="mt-3 text-[11px] font-mono text-terradeep leading-relaxed">⚠ {snackErr}</div>}
+
+              {/* Gemini API Key(仅存本机浏览器)*/}
+              <div className="mt-5 pt-4 border-t border-linesoft">
+                {!keyEditing && apiKey && (
+                  <div className="flex items-center justify-between text-[10px] font-mono text-inkfaint">
+                    <span>🔑 Gemini Key 已保存 · 仅存本机</span>
+                    <button onClick={() => setKeyEditing(true)} className="text-terradeep hover:underline">更换</button>
+                  </div>
+                )}
+                {(keyEditing || !apiKey) && (
+                  <div>
+                    <div className="text-[10px] font-mono text-inkfaint mb-2 leading-relaxed">
+                      填入你的 Gemini API Key（<a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-terradeep underline">aistudio.google.com/apikey</a>）。只保存在本机浏览器,不上传、不进仓库。
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="password" defaultValue={apiKey} placeholder="AIza..." id="gk"
+                        className="flex-1 bg-card border border-line rounded-xl px-3 py-2 text-xs font-mono text-ink outline-none focus:border-terra"
+                      />
+                      <button
+                        onClick={() => { const v = document.getElementById('gk').value.trim(); saveKey(v); setKeyEditing(false); }}
+                        className="px-4 py-2 rounded-xl bg-terra text-card text-xs font-mono shrink-0"
+                      >保存</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -41,6 +41,24 @@ body {
 
 .tnum { font-variant-numeric: tabular-nums; }
 
+/* 加餐小球:轻轻上下跳,吸引注意;hover 暂停 */
+@keyframes fab-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
+}
+.snack-fab { animation: fab-bob 2.8s ease-in-out infinite; box-shadow: 0 10px 28px -6px rgba(178, 78, 42, 0.5); }
+.snack-fab:hover { animation-play-state: paused; }
+
+/* 抽屉:从右侧滑入 + 背景淡入 */
+@keyframes panel-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes bd-in { from { opacity: 0; } to { opacity: 1; } }
+.snack-panel { animation: panel-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.snack-backdrop { animation: bd-in 0.25s ease forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .snack-fab { animation: none; }
+}
+
 ::selection { background: rgba(210, 104, 63, 0.22); }
 
 /* number input:去掉默认上下箭头 */
