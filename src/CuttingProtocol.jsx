@@ -482,25 +482,117 @@ export default function CuttingProtocol() {
     [lunchKcal, lunchProtein, lunchCarb]
   );
 
+  // 零食(成分表识别结果);并入今日固定摄入,晚餐据此回算
+  const [snack, setSnack] = useState(null); // {name,serving,note,confidence,p,c,f,kcal}
+  const effectivePre = useMemo(() => {
+    if (!snack) return preWorkout;
+    return {
+      p: preWorkout.p + snack.p,
+      c: preWorkout.c + snack.c,
+      f: preWorkout.f + snack.f,
+      kcal: preWorkout.kcal + snack.kcal,
+    };
+  }, [preWorkout, snack]);
+
   const result = useMemo(() => {
     const override = lunchMode === 'designer'
       ? { p: lunchDesign.total.p, c: lunchDesign.total.c, f: lunchDesign.total.f, kcal: lunchDesign.total.kcal }
       : null;
-    return calculate(lunchKcal, planKey, override, beefFat, preWorkout, dinnerOikos);
-  }, [lunchKcal, planKey, lunchMode, lunchDesign, beefFat, preWorkout, dinnerOikos]);
+    return calculate(lunchKcal, planKey, override, beefFat, effectivePre, dinnerOikos);
+  }, [lunchKcal, planKey, lunchMode, lunchDesign, beefFat, effectivePre, dinnerOikos]);
 
   const fasted = preChicken === 0 && preEggs === 0 && preBanana === 0;
 
-  // 多翻页:把长滚动拆成 4 页,顶部标签 + 翻页按钮切换
+  // 两页翻页:配置(输入+零食) / 晚餐(处方+明细+采购)
   const PAGES = [
     { zh: '配置', en: 'Setup' },
     { zh: '晚餐', en: 'Dinner' },
-    { zh: '明细', en: 'Log' },
-    { zh: '采购', en: 'Shop' },
   ];
   const [page, setPage] = useState(0);
   const go = (i) => setPage(Math.max(0, Math.min(PAGES.length - 1, i)));
   useEffect(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, [page]);
+
+  // ===== 零食加餐:拍成分表 → Gemini 识别 → 计入今日并自动调整晚餐 =====
+  const [apiKey, setApiKey] = useState(() => {
+    try { return localStorage.getItem('gemini_key') || ''; } catch { return ''; }
+  });
+  const [keyEditing, setKeyEditing] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [snackErr, setSnackErr] = useState('');
+
+  const saveKey = (k) => {
+    setApiKey(k);
+    try { k ? localStorage.setItem('gemini_key', k) : localStorage.removeItem('gemini_key'); } catch {}
+  };
+
+  const fileToBase64 = (file) => new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+
+  const analyzeSnack = async (file) => {
+    if (!file) return;
+    const key = apiKey.trim();
+    if (!key) { setSnackErr('请先填入 Gemini API Key'); setKeyEditing(true); return; }
+    setSnackErr(''); setAnalyzing(true);
+    try {
+      const data = await fileToBase64(file);
+      const body = {
+        contents: [{ parts: [
+          { text: '你是营养师。这是一张零食包装背面的成分表照片(可能是日文 栄養成分表示 或中文)。请提取整个包装(1袋/1个/单份)的营养:热量kcal、蛋白质p、碳水c、脂肪f(单位克,数字)。若标注的是每100g而净重不同,请按净重换算成整袋/整份。name给出中文零食名称猜测,serving说明你按多少量计算,note用一句中文点评它对减脂期是否友好,confidence取 high/medium/low。' },
+          { inline_data: { mime_type: file.type || 'image/jpeg', data } },
+        ] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' }, serving: { type: 'string' },
+              kcal: { type: 'number' }, p: { type: 'number' }, c: { type: 'number' }, f: { type: 'number' },
+              confidence: { type: 'string' }, note: { type: 'string' },
+            },
+            required: ['kcal', 'p', 'c', 'f', 'name', 'serving', 'note', 'confidence'],
+          },
+        },
+      };
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error?.message || `请求失败 (HTTP ${res.status})`);
+      const txt = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!txt) throw new Error('未能识别成分表,请换一张更清晰的照片');
+      const o = JSON.parse(txt);
+      const num = (x) => Math.max(0, Math.round((Number(x) || 0) * 10) / 10);
+      setSnack({
+        name: o.name || '零食', serving: o.serving || '', note: o.note || '', confidence: o.confidence || '',
+        p: num(o.p), c: num(o.c), f: num(o.f), kcal: Math.max(0, Math.round(Number(o.kcal) || 0)),
+      });
+    } catch (e) {
+      setSnackErr(e?.message || '识别失败,请重试');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const setSnackField = (k, v) => setSnack((s) => s ? { ...s, [k]: Math.max(0, Number(v) || 0) } : s);
+
+  // 调整后晚餐一句话菜单
+  const dinnerSummary = useMemo(() => {
+    const p = result.plan;
+    const parts = [];
+    if (p.beef > 0) parts.push(`牛肉 ${p.beef}g`);
+    if (p.pasta > 0) parts.push(`意面 ${p.pasta}g`);
+    if (p.nissin > 0) parts.push(`日清 ${p.nissin}包`);
+    if (p.pho > 0) parts.push(`米粉 ${p.pho}包`);
+    if (p.sauce > 0) parts.push(`酱 ${p.sauce}包`);
+    if ((p.oikos || 0) > 0) parts.push(`Oikos ${p.oikos}个`);
+    const over = result.total.kcal > 2005;
+    return (parts.join(' · ') || '晚餐已砍到最低') + ` ｜ 全天 ${Math.round(result.total.kcal)} kcal` + (over ? '(已超 2000,见晚餐页提示)' : '');
+  }, [result]);
 
   return (
     <div className="grain relative min-h-screen text-ink font-sans">
@@ -808,6 +900,97 @@ export default function CuttingProtocol() {
           </Card>
         </section>
 
+        {/* ============ 04 · SNACK (Gemini) ============ */}
+        <section className="rise mb-9" style={{ animationDelay: '400ms' }}>
+          <SectionHead no="04" zh="零食加餐" en="Snack · AI 识别" accent="honey" />
+          <Card className="p-5 sm:p-6">
+            {!snack && (
+              <>
+                <p className="text-[12px] text-inksoft leading-relaxed mb-4 font-cjk">
+                  想吃点别的?拍一张零食包装<span className="text-terradeep">背面的成分表</span>,Gemini 自动识别营养、计入今天,并帮你重算晚餐。
+                </p>
+                <label className={`flex items-center justify-center gap-2.5 px-5 py-5 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${analyzing ? 'border-honey/50 bg-honey/[0.05]' : 'border-line hover:border-terra hover:bg-terra/[0.04]'}`}>
+                  <input
+                    type="file" accept="image/*" capture="environment" className="hidden" disabled={analyzing}
+                    onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; analyzeSnack(f); }}
+                  />
+                  <span className="text-2xl">{analyzing ? '🍳' : '📷'}</span>
+                  <span className="text-sm font-cjk text-ink" style={{ fontWeight: 500 }}>{analyzing ? 'Gemini 识别中…' : '拍 / 选 成分表照片'}</span>
+                </label>
+                {analyzing && (
+                  <div className="mt-3 h-1.5 rounded-full bg-paper2 overflow-hidden">
+                    <div className="h-full w-2/3 bg-honey animate-pulse rounded-full" />
+                  </div>
+                )}
+              </>
+            )}
+
+            {snack && (
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0">
+                    <div className="text-base font-cjk text-ink truncate" style={{ fontWeight: 600 }}>{snack.name}</div>
+                    {snack.serving && <div className="text-[11px] text-inkfaint font-mono mt-0.5">按 {snack.serving} 计</div>}
+                  </div>
+                  <span className={`text-[9px] font-mono px-2 py-1 rounded-full tracking-wider shrink-0 ${snack.confidence === 'high' ? 'bg-sage/15 text-sagedeep' : snack.confidence === 'low' ? 'bg-terra/15 text-terradeep' : 'bg-honey/15 text-honey'}`}>
+                    {snack.confidence === 'high' ? '识别可信' : snack.confidence === 'low' ? '仅供参考' : '大致估算'}
+                  </span>
+                </div>
+                {snack.note && <p className="text-[12px] text-inksoft leading-relaxed mb-4 font-cjk">💬 {snack.note}</p>}
+                <div className="grid grid-cols-4 gap-2 mb-4">
+                  {[['kcal', '热量', 'kcal'], ['p', '蛋白', 'g'], ['c', '碳水', 'g'], ['f', '脂肪', 'g']].map(([k, zh, u]) => (
+                    <div key={k} className="rounded-2xl bg-paper border border-line p-2.5 text-center">
+                      <div className="text-[9px] font-mono text-inkfaint tracking-wider mb-1">{zh}</div>
+                      <input
+                        type="number" value={snack[k]} onChange={(e) => setSnackField(k, e.target.value)}
+                        className="w-full bg-transparent outline-none text-center font-display text-2xl text-ink tnum" style={{ fontWeight: 400 }}
+                      />
+                      <div className="text-[8px] font-mono text-inkfaint">{u}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-2xl bg-terra/[0.06] border border-terra/30 p-3.5 mb-3">
+                  <div className="text-[10px] font-mono text-terradeep tracking-wider mb-1.5">→ 晚餐已自动调整</div>
+                  <div className="text-[12px] text-inksoft font-cjk leading-relaxed">{dinnerSummary}</div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => go(1)} className="flex-1 px-4 py-2.5 rounded-full bg-terra text-card text-xs font-mono tracking-wider shadow-warm active:scale-95 transition-all">查看调整后的晚餐 →</button>
+                  <button onClick={() => { setSnack(null); setSnackErr(''); }} className="px-4 py-2.5 rounded-full border border-line bg-card text-inksoft text-xs font-mono tracking-wider hover:border-terra hover:text-terra transition-all">清除</button>
+                </div>
+              </div>
+            )}
+
+            {snackErr && <div className="mt-3 text-[11px] font-mono text-terradeep leading-relaxed">⚠ {snackErr}</div>}
+
+            {/* Gemini API Key(仅存本机浏览器)*/}
+            <div className="mt-4 pt-4 border-t border-linesoft">
+              {!keyEditing && apiKey && (
+                <div className="flex items-center justify-between text-[10px] font-mono text-inkfaint">
+                  <span>🔑 Gemini Key 已保存 · 仅存于本机浏览器</span>
+                  <button onClick={() => setKeyEditing(true)} className="text-terradeep hover:underline">更换</button>
+                </div>
+              )}
+              {(keyEditing || !apiKey) && (
+                <div>
+                  <div className="text-[10px] font-mono text-inkfaint mb-2 leading-relaxed">
+                    填入你的 Gemini API Key（<a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-terradeep underline">aistudio.google.com/apikey</a>）。只保存在本机浏览器,不上传、不进仓库。
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="password" defaultValue={apiKey} placeholder="AIza..." id="gk"
+                      className="flex-1 bg-paper border border-line rounded-xl px-3 py-2 text-xs font-mono text-ink outline-none focus:border-terra"
+                    />
+                    <button
+                      onClick={() => { const v = document.getElementById('gk').value.trim(); saveKey(v); setKeyEditing(false); }}
+                      className="px-4 py-2 rounded-xl bg-terra text-card text-xs font-mono shrink-0"
+                    >保存</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+        </section>
+
         </>)}
 
         {page === 1 && (<>
@@ -852,7 +1035,7 @@ export default function CuttingProtocol() {
             <div className="mt-7 grid grid-cols-3 gap-2.5 text-[11px] font-mono">
               {[
                 { t: 'LUNCH', k: Math.round(result.lunch.kcal), m: `P${Math.round(result.lunch.p)} · C${Math.round(result.lunch.c)} · F${Math.round(result.lunch.f)}`, hl: false },
-                { t: 'PRE-W/O', k: preWorkout.kcal, m: `P${preWorkout.p} · C${Math.round(preWorkout.c)} · F${preWorkout.f}`, hl: false },
+                { t: snack ? 'PRE+零食' : 'PRE-W/O', k: Math.round(result.preWorkout.kcal), m: `P${Math.round(result.preWorkout.p)} · C${Math.round(result.preWorkout.c)} · F${Math.round(result.preWorkout.f)}`, hl: false },
                 { t: 'DINNER', k: Math.round(result.dinner.kcal), m: `P${Math.round(result.dinner.p)} · C${Math.round(result.dinner.c)} · F${Math.round(result.dinner.f)}`, hl: true },
               ].map((x) => (
                 <div key={x.t} className={`rounded-2xl p-3 border ${x.hl ? 'border-terra bg-terra/[0.06]' : 'border-line bg-paper'}`}>
@@ -865,9 +1048,6 @@ export default function CuttingProtocol() {
           </Card>
         </section>
 
-        </>)}
-
-        {page === 2 && (<>
         {/* ============ 05 · FOOD LOG ============ */}
         <section className="rise mb-9" style={{ animationDelay: '0ms' }}>
           <SectionHead no="05" zh="今日食物明细" en="Food Log" />
@@ -888,6 +1068,9 @@ export default function CuttingProtocol() {
 
             <LogGroup label={`LUNCH · ${lunchMode === 'designer' ? '自制' : '食堂'}`} />
             <LogRow name={`${lunchMode === 'designer' ? '午餐设计' : '食堂'} ~${lunchKcal}kcal`} p={Math.round(result.lunch.p)} c={Math.round(result.lunch.c)} f={Math.round(result.lunch.f)} k={Math.round(result.lunch.kcal)} />
+
+            {snack && <LogGroup label="SNACK · 加餐" />}
+            {snack && <LogRow name={snack.name} p={Math.round(snack.p)} c={Math.round(snack.c)} f={Math.round(snack.f)} k={Math.round(snack.kcal)} />}
 
             <LogGroup label="DINNER" />
             {result.plan.beef > 0 && <LogRow name={`牛肉 ${result.plan.beef}g`} p={Math.round(result.plan.beef * 0.19)} c={0} f={Math.round(result.plan.beef * beefFat * 0.8 / 100)} k={Math.round(result.plan.beef * 0.19 * 4 + result.plan.beef * beefFat * 0.8 / 100 * 9)} />}
@@ -958,9 +1141,6 @@ export default function CuttingProtocol() {
           </Card>
         </section>
 
-        </>)}
-
-        {page === 3 && (<>
         {/* ============ 06 · SHOPPING LIST ============ */}
         <section className="rise mb-9" style={{ animationDelay: '0ms' }}>
           <SectionHead no="06" zh="超市采购清单" en="Weekly Shopping" />
