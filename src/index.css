@@ -5,5 +5,45 @@
 html, body, #root {
   margin: 0;
   min-height: 100%;
-  background: #0f0a07;
 }
+
+body {
+  background-color: #FBF3E7;
+  /* 温暖的光晕:顶部蜂蜜暖光 + 角落赤陶晕染,告别一片灰黑 */
+  background-image:
+    radial-gradient(120% 80% at 50% -10%, rgba(224, 162, 61, 0.18) 0%, rgba(224, 162, 61, 0) 55%),
+    radial-gradient(90% 60% at 100% 0%, rgba(210, 104, 63, 0.12) 0%, rgba(210, 104, 63, 0) 50%),
+    radial-gradient(80% 70% at 0% 100%, rgba(126, 140, 86, 0.10) 0%, rgba(126, 140, 86, 0) 55%);
+  background-attachment: fixed;
+}
+
+/* 细腻纸纹噪点,增加手作质感 */
+.grain::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+}
+
+/* 入场:柔和上浮 + 淡入 */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.rise {
+  opacity: 0;
+  animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.tnum { font-variant-numeric: tabular-nums; }
+
+::selection { background: rgba(210, 104, 63, 0.22); }
+
+/* number input:去掉默认上下箭头 */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }

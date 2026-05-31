@@ -335,76 +335,127 @@ function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkou
   return { plan, lunch, dinner, total, beefFatPer100g, preWorkout, oikosKcal: oikosCount * 71 };
 }
 
-// ============ UI 组件 ============
-const MacroBar = ({ label, value, target, unit = 'g', accent }) => {
-  const pct = Math.min((value / target) * 100, 130);
-  const diff = value - target;
-  const status = Math.abs(diff) <= target * 0.05 ? 'ok' : (diff < 0 ? 'under' : 'over');
-  const colors = {
-    ok: '#7da671',
-    under: '#c4a55a',
-    over: '#c4402e',
-  };
+
+// ============ 素材引用 ============
+const asset = (n) => `${import.meta.env.BASE_URL}assets/${n}`;
+
+// ============ 通用小组件 ============
+const SectionHead = ({ no, zh, en, accent = 'terra' }) => (
+  <div className="flex items-center gap-3.5 mb-6">
+    <span
+      className={`grid place-items-center w-8 h-8 rounded-full text-[11px] font-mono font-medium shrink-0 ${
+        accent === 'sage' ? 'bg-sage/15 text-sagedeep' : 'bg-terra/15 text-terradeep'
+      }`}
+    >
+      {no}
+    </span>
+    <div className="leading-tight">
+      <h2 className="font-display text-xl text-ink" style={{ fontWeight: 500 }}>{zh}</h2>
+      {en && <div className="text-[10px] font-mono uppercase tracking-[0.22em] text-inkfaint mt-0.5">{en}</div>}
+    </div>
+  </div>
+);
+
+const Card = ({ className = '', children }) => (
+  <div className={`rounded-3xl bg-card border border-line shadow-warm ${className}`}>{children}</div>
+);
+
+// 加减步进器(训练前加餐 / Oikos 共用)
+const Stepper = ({ zh, en, value, set, max = 5, accent = 'terra' }) => {
+  const ring = accent === 'honey' ? 'hover:border-honey hover:text-honey' : 'hover:border-terra hover:text-terra';
   return (
-    <div className="mb-5">
-      <div className="flex items-baseline justify-between mb-1.5">
-        <div className="flex items-baseline gap-3">
-          <span className="text-[10px] tracking-[0.25em] uppercase text-[#7a6e5a] font-mono">{label}</span>
-          <span className="text-[11px] text-[#7a6e5a] font-mono">target {target}{unit}</span>
-        </div>
-        <div className="font-mono">
-          <span className="text-2xl text-[#efe5d6]">{Math.round(value)}</span>
-          <span className="text-xs text-[#7a6e5a] ml-1">{unit}</span>
-          <span 
-            className="text-[10px] ml-3 font-mono"
-            style={{ color: colors[status] }}
-          >
-            {diff >= 0 ? '+' : ''}{Math.round(diff)}
-          </span>
-        </div>
-      </div>
-      <div className="relative h-[3px] bg-[#251c14] overflow-hidden">
-        <div 
-          className="absolute h-full transition-all duration-500"
-          style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: colors[status] }}
-        />
-        {pct > 100 && (
-          <div 
-            className="absolute h-full"
-            style={{ left: '100%', width: `${pct - 100}%`, backgroundColor: '#c4402e', opacity: 0.6 }}
-          />
-        )}
-        <div className="absolute top-0 right-0 w-px h-full bg-[#3a2e22]" style={{ right: 0 }} />
+    <div className="flex-1 min-w-[120px]">
+      <div className="text-[10px] font-mono tracking-[0.18em] uppercase text-inkfaint mb-2.5">{zh} / {en}</div>
+      <div className="flex items-center gap-2.5">
+        <button
+          onClick={() => set(Math.max(0, value - 1))}
+          aria-label={`减少${zh}`}
+          className={`w-9 h-9 grid place-items-center rounded-full border border-line text-inksoft bg-card transition-all active:scale-90 ${ring}`}
+        >−</button>
+        <span className="font-display text-3xl w-9 text-center text-ink tnum" style={{ fontWeight: 400 }}>{value}</span>
+        <button
+          onClick={() => set(Math.min(max, value + 1))}
+          aria-label={`增加${zh}`}
+          className={`w-9 h-9 grid place-items-center rounded-full border border-line text-inksoft bg-card transition-all active:scale-90 ${ring}`}
+        >+</button>
       </div>
     </div>
   );
 };
 
-const FoodItem = ({ icon, name, sub, qty, unit, highlight }) => {
-  if (qty <= 0) return null;
+const STATUS = {
+  ok:    { bar: '#7E8C56', text: '#5F6B3E' },
+  under: { bar: '#E0A23D', text: '#B07B16' },
+  over:  { bar: '#D2683F', text: '#B14E2A' },
+};
+
+const MacroBar = ({ label, en, value, target, unit = 'g' }) => {
+  const pct = Math.min((value / target) * 100, 130);
+  const diff = value - target;
+  const status = Math.abs(diff) <= target * 0.05 ? 'ok' : diff < 0 ? 'under' : 'over';
+  const c = STATUS[status];
   return (
-    <div className="flex items-baseline justify-between py-4 border-b border-[#251c14] last:border-b-0">
-      <div className="flex-1">
+    <div className="mb-6 last:mb-0">
+      <div className="flex items-end justify-between mb-2">
+        <div className="flex items-baseline gap-2.5">
+          <span className="text-[11px] font-mono tracking-[0.16em] uppercase text-inksoft">{en}</span>
+          <span className="text-[11px] text-inkfaint">{label} · 目标 {target}{unit}</span>
+        </div>
         <div className="flex items-baseline gap-2">
-          <span className="text-[10px] font-mono text-[#7a6e5a] tracking-widest">{icon}</span>
-          <span className="text-base text-[#efe5d6]" style={{ fontFamily: "'Noto Sans SC', sans-serif" }}>
-            {name}
+          <span className="font-display text-3xl text-ink tnum" style={{ fontWeight: 400 }}>{Math.round(value)}</span>
+          <span className="text-[11px] text-inkfaint">{unit}</span>
+          <span className="text-[11px] font-mono tnum ml-1" style={{ color: c.text }}>
+            {diff >= 0 ? '+' : ''}{Math.round(diff)}
           </span>
         </div>
-        {sub && <div className="text-[10px] text-[#5a5040] mt-1 font-mono uppercase tracking-wider ml-7">{sub}</div>}
       </div>
-      <div className="flex items-baseline gap-1.5">
-        <span 
-          className="text-4xl text-[#efe5d6]"
-          style={{ fontFamily: "'Newsreader', serif", fontWeight: 300 }}
-        >
-          {qty}
-        </span>
-        <span className="text-xs text-[#7a6e5a] font-mono uppercase tracking-wider">{unit}</span>
+      <div className="relative h-2.5 rounded-full bg-paper2 overflow-hidden">
+        <div
+          className="absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out"
+          style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: c.bar }}
+        />
+        {pct > 100 && (
+          <div
+            className="absolute inset-y-0 rounded-r-full"
+            style={{ left: '100%', width: `${Math.min(pct - 100, 30)}%`, backgroundColor: '#D2683F', opacity: 0.55 }}
+          />
+        )}
       </div>
     </div>
   );
 };
+
+const FoodItem = ({ icon, name, sub, qty, unit }) => {
+  if (qty <= 0) return null;
+  return (
+    <div className="flex items-center justify-between gap-4 py-3.5 px-4 rounded-2xl hover:bg-paper/70 transition-colors">
+      <div className="flex items-center gap-3.5 min-w-0">
+        <span className="grid place-items-center w-7 h-7 rounded-full bg-terra/10 text-terradeep text-[10px] font-mono shrink-0">{icon}</span>
+        <div className="min-w-0">
+          <div className="text-[15px] text-ink font-cjk truncate" style={{ fontWeight: 500 }}>{name}</div>
+          {sub && <div className="text-[10px] text-inkfaint font-mono uppercase tracking-wider mt-0.5 truncate">{sub}</div>}
+        </div>
+      </div>
+      <div className="flex items-baseline gap-1.5 shrink-0">
+        <span className="font-display text-3xl text-ink tnum" style={{ fontWeight: 400 }}>{qty}</span>
+        <span className="text-[11px] text-inkfaint font-mono uppercase tracking-wider">{unit}</span>
+      </div>
+    </div>
+  );
+};
+
+const Pill = ({ active, onClick, children, small }) => (
+  <button
+    onClick={onClick}
+    className={`${small ? 'px-3 py-1.5 text-[11px]' : 'px-3.5 py-2 text-xs'} rounded-full font-mono tracking-wider transition-all border ${
+      active
+        ? 'border-terra bg-terra text-card shadow-warm'
+        : 'border-line bg-card text-inksoft hover:border-terra/50 hover:text-ink'
+    }`}
+  >
+    {children}
+  </button>
+);
 
 // ============ 主组件 ============
 export default function CuttingProtocol() {
@@ -438,223 +489,84 @@ export default function CuttingProtocol() {
     return calculate(lunchKcal, planKey, override, beefFat, preWorkout, dinnerOikos);
   }, [lunchKcal, planKey, lunchMode, lunchDesign, beefFat, preWorkout, dinnerOikos]);
 
-  useEffect(() => {
-    const link = document.createElement('link');
-    link.href = 'https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,300;0,400;0,500;1,400&family=DM+Sans:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500&display=swap';
-    link.rel = 'stylesheet';
-    document.head.appendChild(link);
-  }, []);
+  const fasted = preChicken === 0 && preEggs === 0 && preBanana === 0;
 
   return (
-    <div 
-      className="min-h-screen bg-[#0f0a07] text-[#efe5d6] py-10 px-5 sm:px-8"
-      style={{ fontFamily: "'DM Sans', 'Noto Sans SC', sans-serif" }}
-    >
-      <div className="max-w-2xl mx-auto">
-        
-        {/* ============ HEADER ============ */}
-        <header className="mb-12 pb-8 border-b border-[#251c14]">
-          <div className="flex items-baseline justify-between mb-3">
-            <span className="text-[10px] tracking-[0.3em] text-[#c4402e] font-mono uppercase">
-              Protocol · 减脂指南
-            </span>
-            <span className="text-[10px] tracking-[0.2em] text-[#5a5040] font-mono">
-              v2.0 / 16:8 IF
-            </span>
+    <div className="grain relative min-h-screen text-ink font-sans">
+      <div className="relative z-10 max-w-2xl mx-auto px-5 sm:px-7 py-8 sm:py-12">
+
+        {/* ============ HERO ============ */}
+        <header className="rise mb-12" style={{ animationDelay: '0ms' }}>
+          <div className="relative overflow-hidden rounded-3xl shadow-warmlg border border-line">
+            <img
+              src={asset('hero.jpg')}
+              alt="温暖的减脂餐食材平铺"
+              className="w-full h-52 sm:h-64 object-cover"
+              loading="eager"
+            />
+            <div
+              className="absolute inset-0"
+              style={{ background: 'linear-gradient(180deg, rgba(251,243,231,0) 35%, rgba(251,243,231,0.55) 70%, rgba(251,243,231,0.96) 100%)' }}
+            />
+            <div className="absolute inset-x-0 bottom-0 p-5 sm:p-7">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] tracking-[0.3em] font-mono uppercase text-terradeep">Protocol · 减脂指南</span>
+                <span className="text-[10px] tracking-[0.2em] font-mono text-inksoft">v2.0 / 16:8 IF</span>
+              </div>
+              <h1 className="font-display text-5xl sm:text-6xl text-ink leading-[0.95]" style={{ fontWeight: 400 }}>
+                晚餐<span className="text-terra">·</span><span style={{ fontStyle: 'italic' }}>处方</span>
+              </h1>
+            </div>
           </div>
-          <h1 
-            className="text-5xl sm:text-6xl leading-[0.95] text-[#efe5d6] mb-3"
-            style={{ fontFamily: "'Newsreader', serif", fontWeight: 300, fontStyle: 'italic' }}
-          >
-            晚餐<span style={{ fontStyle: 'normal' }}>·</span>处方
-          </h1>
-          <p className="text-[11px] text-[#7a6e5a] font-mono tracking-wider uppercase">
-            83 kg · 25% BF · TDEE ≈ 2900 kcal · Daily Target 2000 kcal
+          <p className="mt-4 text-[11px] sm:text-xs font-mono tracking-wider text-inksoft text-center sm:text-left">
+            83 kg · 25% BF · TDEE ≈ 2900 kcal · <span className="text-terradeep">每日目标 2000 kcal</span>
           </p>
         </header>
 
-        {/* ============ PRE-WORKOUT CONFIG ============ */}
-        <section className="mb-10">
-          <div className="flex items-center gap-3 mb-5">
-            <span className="text-[10px] font-mono text-[#c4402e] tracking-[0.25em]">00</span>
-            <h2 className="text-xs font-mono tracking-[0.25em] uppercase text-[#7a6e5a]">
-              训练前加餐 · Pre-Workout
-            </h2>
-          </div>
-
-          <div className="flex gap-8 items-start flex-wrap">
-            <div>
-              <div className="text-[9px] font-mono text-[#5a5040] tracking-widest uppercase mb-2">鸡胸 / Chicken</div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPreChicken(Math.max(0, preChicken - 1))}
-                  className="w-8 h-8 border border-[#3a2e22] text-[#7a6e5a] hover:border-[#c4402e] hover:text-[#c4402e] transition-all font-mono text-lg"
-                >−</button>
-                <span
-                  className="text-3xl w-8 text-center text-[#efe5d6]"
-                  style={{ fontFamily: "'Newsreader', serif", fontWeight: 300 }}
-                >{preChicken}</span>
-                <button
-                  onClick={() => setPreChicken(Math.min(5, preChicken + 1))}
-                  className="w-8 h-8 border border-[#3a2e22] text-[#7a6e5a] hover:border-[#c4402e] hover:text-[#c4402e] transition-all font-mono text-lg"
-                >+</button>
-                <span className="text-[9px] text-[#5a5040] font-mono ml-1">块</span>
-              </div>
+        {/* ============ 00 · PRE-WORKOUT ============ */}
+        <section className="rise mb-9" style={{ animationDelay: '80ms' }}>
+          <SectionHead no="00" zh="训练前加餐" en="Pre-Workout" />
+          <Card className="p-5 sm:p-6">
+            <div className="flex gap-x-6 gap-y-5 flex-wrap">
+              <Stepper zh="鸡胸" en="Chicken" value={preChicken} set={setPreChicken} />
+              <Stepper zh="全蛋" en="Eggs" value={preEggs} set={setPreEggs} />
+              <Stepper zh="香蕉" en="Banana" value={preBanana} set={setPreBanana} />
+              <Stepper zh="Oikos" en="晚餐" value={dinnerOikos} set={setDinnerOikos} accent="honey" />
             </div>
-
-            <div>
-              <div className="text-[9px] font-mono text-[#5a5040] tracking-widest uppercase mb-2">全蛋 / Eggs</div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPreEggs(Math.max(0, preEggs - 1))}
-                  className="w-8 h-8 border border-[#3a2e22] text-[#7a6e5a] hover:border-[#c4402e] hover:text-[#c4402e] transition-all font-mono text-lg"
-                >−</button>
-                <span
-                  className="text-3xl w-8 text-center text-[#efe5d6]"
-                  style={{ fontFamily: "'Newsreader', serif", fontWeight: 300 }}
-                >{preEggs}</span>
-                <button
-                  onClick={() => setPreEggs(Math.min(5, preEggs + 1))}
-                  className="w-8 h-8 border border-[#3a2e22] text-[#7a6e5a] hover:border-[#c4402e] hover:text-[#c4402e] transition-all font-mono text-lg"
-                >+</button>
-                <span className="text-[9px] text-[#5a5040] font-mono ml-1">个</span>
-              </div>
+            <div className="mt-5 pt-4 border-t border-linesoft flex items-center gap-4 flex-wrap">
+              <span className="text-xs font-mono text-inksoft tracking-wide">
+                → P{preWorkout.p} · C{Math.round(preWorkout.c)} · F{preWorkout.f} =
+                <span className="text-ink font-medium"> {preWorkout.kcal} kcal</span>
+              </span>
+              {fasted && (
+                <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-honey/15 text-honey tracking-wider">空腹训练</span>
+              )}
             </div>
-
-            <div>
-              <div className="text-[9px] font-mono text-[#5a5040] tracking-widest uppercase mb-2">香蕉 / Banana</div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPreBanana(Math.max(0, preBanana - 1))}
-                  className="w-8 h-8 border border-[#3a2e22] text-[#7a6e5a] hover:border-[#c4402e] hover:text-[#c4402e] transition-all font-mono text-lg"
-                >−</button>
-                <span
-                  className="text-3xl w-8 text-center text-[#efe5d6]"
-                  style={{ fontFamily: "'Newsreader', serif", fontWeight: 300 }}
-                >{preBanana}</span>
-                <button
-                  onClick={() => setPreBanana(Math.min(5, preBanana + 1))}
-                  className="w-8 h-8 border border-[#3a2e22] text-[#7a6e5a] hover:border-[#c4402e] hover:text-[#c4402e] transition-all font-mono text-lg"
-                >+</button>
-                <span className="text-[9px] text-[#5a5040] font-mono ml-1">根</span>
-              </div>
-            </div>
-
-            <div>
-              <div className="text-[9px] font-mono text-[#c4a55a] tracking-widest uppercase mb-2">Oikos / 晚餐</div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setDinnerOikos(Math.max(0, dinnerOikos - 1))}
-                  className="w-8 h-8 border border-[#3a2e22] text-[#7a6e5a] hover:border-[#c4a55a] hover:text-[#c4a55a] transition-all font-mono text-lg"
-                >−</button>
-                <span
-                  className="text-3xl w-8 text-center text-[#efe5d6]"
-                  style={{ fontFamily: "'Newsreader', serif", fontWeight: 300 }}
-                >{dinnerOikos}</span>
-                <button
-                  onClick={() => setDinnerOikos(Math.min(5, dinnerOikos + 1))}
-                  className="w-8 h-8 border border-[#3a2e22] text-[#7a6e5a] hover:border-[#c4a55a] hover:text-[#c4a55a] transition-all font-mono text-lg"
-                >+</button>
-                <span className="text-[9px] text-[#5a5040] font-mono ml-1">個</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-baseline gap-4">
-            <div className="text-[10px] font-mono text-[#7a6e5a] tracking-wider">
-              → P{preWorkout.p} · C{Math.round(preWorkout.c)} · F{preWorkout.f} = <span className="text-[#efe5d6]">{preWorkout.kcal} kcal</span>
-            </div>
-            {preChicken === 0 && preEggs === 0 && (
-              <span className="text-[9px] font-mono text-[#c4a55a]">空腹训练</span>
-            )}
-          </div>
+          </Card>
         </section>
 
-        {/* ============ INPUT SECTION ============ */}
-        <section className="mb-10">
-          <div className="flex items-center gap-3 mb-5">
-            <span className="text-[10px] font-mono text-[#c4402e] tracking-[0.25em]">01</span>
-            <h2 className="text-xs font-mono tracking-[0.25em] uppercase text-[#7a6e5a]">
-              中午摄入
-            </h2>
-          </div>
+        {/* ============ 01 · LUNCH ============ */}
+        <section className="rise mb-9" style={{ animationDelay: '160ms' }}>
+          <SectionHead no="01" zh="中午摄入" en="Lunch Intake" />
+          <Card className="p-5 sm:p-6">
+            {/* Mode Toggle */}
+            <div className="flex p-1 rounded-full bg-paper2 mb-6">
+              {[['quick', '直接输入 / Quick'], ['designer', '设计午餐 / Designer']].map(([k, t]) => (
+                <button
+                  key={k}
+                  onClick={() => setLunchMode(k)}
+                  className={`flex-1 px-4 py-2 rounded-full text-[11px] font-mono tracking-[0.12em] uppercase transition-all ${
+                    lunchMode === k ? 'bg-card text-terradeep shadow-warm' : 'text-inksoft hover:text-ink'
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
 
-          {/* Mode Toggle */}
-          <div className="flex gap-0 mb-6 border border-[#251c14]">
-            <button
-              onClick={() => setLunchMode('quick')}
-              className={`flex-1 px-4 py-2.5 text-[10px] font-mono tracking-[0.25em] uppercase transition-all ${
-                lunchMode === 'quick'
-                  ? 'bg-[#c4402e] text-[#0f0a07]'
-                  : 'text-[#7a6e5a] hover:text-[#efe5d6]'
-              }`}
-            >
-              直接输入 / Quick
-            </button>
-            <button
-              onClick={() => setLunchMode('designer')}
-              className={`flex-1 px-4 py-2.5 text-[10px] font-mono tracking-[0.25em] uppercase transition-all border-l border-[#251c14] ${
-                lunchMode === 'designer'
-                  ? 'bg-[#c4402e] text-[#0f0a07]'
-                  : 'text-[#7a6e5a] hover:text-[#efe5d6]'
-              }`}
-            >
-              设计午餐 / Designer
-            </button>
-          </div>
-
-          {/* === Quick Mode === */}
-          {lunchMode === 'quick' && (
-            <>
-              <div className="flex items-baseline gap-3 mb-6">
-                <input
-                  type="number"
-                  value={lunchKcal}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === '') { setLunchKcal(0); return; }
-                    const n = Number(v);
-                    setLunchKcal(Number.isFinite(n) ? Math.min(5000, Math.max(0, n)) : 0);
-                  }}
-                  className="bg-transparent border-b border-[#3a2e22] focus:border-[#c4402e] outline-none text-6xl sm:text-7xl text-[#efe5d6] w-48 pb-1 transition-colors"
-                  style={{ fontFamily: "'Newsreader', serif", fontWeight: 300 }}
-                  step={1}
-                />
-                <span className="text-sm font-mono text-[#7a6e5a] tracking-widest">KCAL</span>
-              </div>
-
-              <div className="flex gap-2 flex-wrap items-center">
-                <span className="text-[9px] font-mono text-[#5a5040] tracking-widest uppercase mr-1">Quick</span>
-                {[600, 700, 800, 900, 1000].map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => setLunchKcal(v)}
-                    className={`px-3 py-1.5 text-xs font-mono tracking-wider transition-all border ${
-                      lunchKcal === v
-                        ? 'border-[#c4402e] text-[#c4402e] bg-[#1a0f0a]'
-                        : 'border-[#3a2e22] text-[#7a6e5a] hover:border-[#5a5040] hover:text-[#efe5d6]'
-                    }`}
-                  >
-                    {v}
-                  </button>
-                ))}
-              </div>
-
-              {(lunchKcal < 500 || lunchKcal > 1100) && lunchKcal > 0 && (
-                <div className="mt-4 text-[10px] font-mono text-[#c4a55a] tracking-wider">
-                  ⚠ {lunchKcal < 500 ? '中午吃得偏少,晚上配方按外推计算' : '中午吃得偏多,赤字会被压缩,晚上配方按外推计算'}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* === Designer Mode === */}
-          {lunchMode === 'designer' && (
-            <div className="space-y-6">
-              {/* 目标热量 */}
-              <div>
-                <div className="flex items-baseline gap-3 mb-3">
-                  <span className="text-[9px] font-mono text-[#5a5040] tracking-[0.25em] uppercase">Target</span>
+            {lunchMode === 'quick' && (
+              <>
+                <div className="flex items-baseline gap-3 mb-5">
                   <input
                     type="number"
                     value={lunchKcal}
@@ -664,403 +576,267 @@ export default function CuttingProtocol() {
                       const n = Number(v);
                       setLunchKcal(Number.isFinite(n) ? Math.min(5000, Math.max(0, n)) : 0);
                     }}
-                    className="bg-transparent border-b border-[#3a2e22] focus:border-[#c4402e] outline-none text-5xl text-[#efe5d6] w-36 pb-1 transition-colors"
-                    style={{ fontFamily: "'Newsreader', serif", fontWeight: 300 }}
+                    className="bg-transparent border-b-2 border-line focus:border-terra outline-none font-display text-6xl sm:text-7xl text-ink w-44 pb-1 transition-colors tnum"
+                    style={{ fontWeight: 400 }}
                     step={1}
                   />
-                  <span className="text-xs font-mono text-[#7a6e5a] tracking-widest">KCAL</span>
+                  <span className="text-sm font-mono text-inksoft tracking-widest">KCAL</span>
                 </div>
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex gap-2 flex-wrap items-center">
+                  <span className="text-[10px] font-mono text-inkfaint tracking-widest uppercase mr-1">Quick</span>
                   {[600, 700, 800, 900, 1000].map((v) => (
-                    <button
-                      key={v}
-                      onClick={() => setLunchKcal(v)}
-                      className={`px-2.5 py-1 text-[10px] font-mono tracking-wider transition-all border ${
-                        lunchKcal === v
-                          ? 'border-[#c4402e] text-[#c4402e] bg-[#1a0f0a]'
-                          : 'border-[#3a2e22] text-[#7a6e5a] hover:border-[#5a5040]'
-                      }`}
-                    >
-                      {v}
-                    </button>
+                    <Pill key={v} small active={lunchKcal === v} onClick={() => setLunchKcal(v)}>{v}</Pill>
                   ))}
                 </div>
-              </div>
-
-              {/* 蛋白源选择 */}
-              <div>
-                <div className="text-[9px] font-mono text-[#5a5040] tracking-[0.25em] uppercase mb-3">
-                  Protein Source · 蛋白源
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {Object.entries(LUNCH_PROTEINS).map(([key, prot]) => (
-                    <button
-                      key={key}
-                      onClick={() => setLunchProtein(key)}
-                      className={`text-left p-3 border transition-all ${
-                        lunchProtein === key
-                          ? 'border-[#c4402e] bg-[#1a0f0a]'
-                          : 'border-[#251c14] hover:border-[#5a5040]'
-                      }`}
-                    >
-                      <div className="text-[8px] font-mono tracking-[0.25em] text-[#c4402e] mb-1">
-                        {prot.tag}
-                      </div>
-                      <div
-                        className="text-sm text-[#efe5d6] mb-1"
-                        style={{ fontFamily: "'Noto Sans SC', sans-serif" }}
-                      >
-                        {prot.label}
-                      </div>
-                      <div className="text-[9px] text-[#7a6e5a]">{prot.note}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 碳水源选择 */}
-              <div>
-                <div className="text-[9px] font-mono text-[#5a5040] tracking-[0.25em] uppercase mb-3">
-                  Carb Source · 碳水源
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {Object.entries(LUNCH_CARBS).map(([key, carb]) => (
-                    <button
-                      key={key}
-                      onClick={() => setLunchCarb(key)}
-                      className={`text-left p-3 border transition-all ${
-                        lunchCarb === key
-                          ? 'border-[#c4402e] bg-[#1a0f0a]'
-                          : 'border-[#251c14] hover:border-[#5a5040]'
-                      }`}
-                    >
-                      <div className="text-[10px] text-[#efe5d6]" style={{ fontFamily: "'Noto Sans SC', sans-serif" }}>
-                        {carb.label}
-                      </div>
-                      <div className="text-[8px] text-[#5a5040] mt-1 font-mono uppercase">{carb.sub}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 午餐方案输出 */}
-              <div className="p-5 bg-[#13100c] border-l-2 border-[#c4a55a]">
-                <div className="flex items-baseline justify-between mb-4">
-                  <div className="text-[9px] font-mono text-[#c4a55a] tracking-[0.3em]">
-                    LUNCH · COMPOSITION
-                  </div>
-                  <div className="text-right">
-                    <span
-                      className="text-2xl text-[#efe5d6]"
-                      style={{ fontFamily: "'Newsreader', serif", fontWeight: 300 }}
-                    >
-                      {Math.round(lunchDesign.total.kcal)}
-                    </span>
-                    <span className="text-[10px] text-[#7a6e5a] ml-1 font-mono">KCAL</span>
-                  </div>
-                </div>
-
-                {/* 蛋白源输出 */}
-                <div className="flex items-baseline justify-between py-3 border-b border-[#251c14]">
-                  <div className="flex-1">
-                    <div className="text-[9px] font-mono text-[#5a5040] tracking-widest mb-0.5">
-                      01 · PROTEIN
-                    </div>
-                    <div className="text-sm text-[#efe5d6]" style={{ fontFamily: "'Noto Sans SC', sans-serif" }}>
-                      {lunchDesign.protein.label}
-                    </div>
-                  </div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span
-                      className="text-3xl text-[#efe5d6]"
-                      style={{ fontFamily: "'Newsreader', serif", fontWeight: 300 }}
-                    >
-                      {lunchProtein === 'chicken'
-                        ? Math.round(lunchDesign.protein.grams / LUNCH_PROTEINS.chicken.perPiece)
-                        : lunchDesign.protein.grams}
-                    </span>
-                    <span className="text-[10px] text-[#7a6e5a] font-mono uppercase">
-                      {lunchDesign.protein.pieceUnitEn}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 碳水源输出 */}
-                <div className="flex items-baseline justify-between py-3">
-                  <div className="flex-1">
-                    <div className="text-[9px] font-mono text-[#5a5040] tracking-widest mb-0.5">
-                      02 · CARB
-                    </div>
-                    <div className="text-sm text-[#efe5d6]" style={{ fontFamily: "'Noto Sans SC', sans-serif" }}>
-                      {lunchDesign.carb.label}
-                    </div>
-                  </div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span
-                      className="text-3xl text-[#efe5d6]"
-                      style={{ fontFamily: "'Newsreader', serif", fontWeight: 300 }}
-                    >
-                      {lunchDesign.carb.isDiscrete ? lunchDesign.carb.packs : lunchDesign.carb.grams}
-                    </span>
-                    <span className="text-[10px] text-[#7a6e5a] font-mono uppercase">
-                      {lunchDesign.carb.isDiscrete ? 'PACK' : 'GRAM'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 午餐宏量 */}
-                <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-[#251c14]">
-                  <div className="text-center">
-                    <div className="text-[9px] font-mono text-[#7a6e5a] tracking-widest">蛋白</div>
-                    <div className="font-mono text-base text-[#efe5d6] mt-0.5">
-                      {Math.round(lunchDesign.total.p)}<span className="text-[10px] text-[#5a5040] ml-0.5">g</span>
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-[9px] font-mono text-[#7a6e5a] tracking-widest">碳水</div>
-                    <div className="font-mono text-base text-[#efe5d6] mt-0.5">
-                      {Math.round(lunchDesign.total.c)}<span className="text-[10px] text-[#5a5040] ml-0.5">g</span>
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-[9px] font-mono text-[#7a6e5a] tracking-widest">脂肪</div>
-                    <div className="font-mono text-base text-[#efe5d6] mt-0.5">
-                      {Math.round(lunchDesign.total.f)}<span className="text-[10px] text-[#5a5040] ml-0.5">g</span>
-                    </div>
-                  </div>
-                </div>
-
-                {lunchProtein === 'salmon' && (
-                  <div className="mt-3 text-[10px] font-mono text-[#c4a55a] tracking-wider leading-relaxed">
-                    ⓘ 三文鱼天然高脂(13g/100g),晚上脂肪空间会被挤压,推荐选 <span className="text-[#c4402e]">日清</span> 或 <span className="text-[#c4402e]">米粉</span> 方案。
+                {(lunchKcal < 500 || lunchKcal > 1100) && lunchKcal > 0 && (
+                  <div className="mt-4 text-[11px] font-mono text-honey tracking-wide flex items-start gap-1.5">
+                    <span>⚠</span>
+                    <span>{lunchKcal < 500 ? '中午吃得偏少,晚上配方按外推计算' : '中午吃得偏多,赤字会被压缩,晚上配方按外推计算'}</span>
                   </div>
                 )}
+              </>
+            )}
+
+            {lunchMode === 'designer' && (
+              <div className="space-y-6">
+                <div>
+                  <div className="flex items-baseline gap-3 mb-3">
+                    <span className="text-[10px] font-mono text-inkfaint tracking-[0.22em] uppercase">Target</span>
+                    <input
+                      type="number"
+                      value={lunchKcal}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === '') { setLunchKcal(0); return; }
+                        const n = Number(v);
+                        setLunchKcal(Number.isFinite(n) ? Math.min(5000, Math.max(0, n)) : 0);
+                      }}
+                      className="bg-transparent border-b-2 border-line focus:border-terra outline-none font-display text-5xl text-ink w-32 pb-1 transition-colors tnum"
+                      style={{ fontWeight: 400 }}
+                      step={1}
+                    />
+                    <span className="text-xs font-mono text-inksoft tracking-widest">KCAL</span>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {[600, 700, 800, 900, 1000].map((v) => (
+                      <Pill key={v} small active={lunchKcal === v} onClick={() => setLunchKcal(v)}>{v}</Pill>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[10px] font-mono text-inkfaint tracking-[0.22em] uppercase mb-3">Protein Source · 蛋白源</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {Object.entries(LUNCH_PROTEINS).map(([key, prot]) => (
+                      <button
+                        key={key}
+                        onClick={() => setLunchProtein(key)}
+                        className={`text-left p-3.5 rounded-2xl border transition-all ${
+                          lunchProtein === key ? 'border-terra bg-terra/[0.06] shadow-warm' : 'border-line bg-card hover:border-terra/40'
+                        }`}
+                      >
+                        <div className="text-[8px] font-mono tracking-[0.22em] text-terradeep mb-1">{prot.tag}</div>
+                        <div className="text-sm text-ink font-cjk mb-1" style={{ fontWeight: 500 }}>{prot.label}</div>
+                        <div className="text-[10px] text-inkfaint">{prot.note}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[10px] font-mono text-inkfaint tracking-[0.22em] uppercase mb-3">Carb Source · 碳水源</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {Object.entries(LUNCH_CARBS).map(([key, carb]) => (
+                      <button
+                        key={key}
+                        onClick={() => setLunchCarb(key)}
+                        className={`text-left p-3 rounded-2xl border transition-all ${
+                          lunchCarb === key ? 'border-terra bg-terra/[0.06] shadow-warm' : 'border-line bg-card hover:border-terra/40'
+                        }`}
+                      >
+                        <div className="text-[11px] text-ink font-cjk" style={{ fontWeight: 500 }}>{carb.label}</div>
+                        <div className="text-[8px] text-inkfaint mt-1 font-mono uppercase">{carb.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-paper border border-line p-5">
+                  <div className="flex items-baseline justify-between mb-4">
+                    <div className="text-[10px] font-mono text-honey tracking-[0.28em]">LUNCH · COMPOSITION</div>
+                    <div className="text-right">
+                      <span className="font-display text-2xl text-ink tnum" style={{ fontWeight: 400 }}>{Math.round(lunchDesign.total.kcal)}</span>
+                      <span className="text-[10px] text-inkfaint ml-1 font-mono">KCAL</span>
+                    </div>
+                  </div>
+                  <div className="flex items-baseline justify-between py-3 border-b border-linesoft">
+                    <div>
+                      <div className="text-[9px] font-mono text-inkfaint tracking-widest mb-0.5">01 · PROTEIN</div>
+                      <div className="text-sm text-ink font-cjk" style={{ fontWeight: 500 }}>{lunchDesign.protein.label}</div>
+                    </div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-display text-3xl text-ink tnum" style={{ fontWeight: 400 }}>
+                        {lunchProtein === 'chicken'
+                          ? Math.round(lunchDesign.protein.grams / LUNCH_PROTEINS.chicken.perPiece)
+                          : lunchDesign.protein.grams}
+                      </span>
+                      <span className="text-[10px] text-inkfaint font-mono uppercase">{lunchDesign.protein.pieceUnitEn}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-baseline justify-between py-3">
+                    <div>
+                      <div className="text-[9px] font-mono text-inkfaint tracking-widest mb-0.5">02 · CARB</div>
+                      <div className="text-sm text-ink font-cjk" style={{ fontWeight: 500 }}>{lunchDesign.carb.label}</div>
+                    </div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-display text-3xl text-ink tnum" style={{ fontWeight: 400 }}>
+                        {lunchDesign.carb.isDiscrete ? lunchDesign.carb.packs : lunchDesign.carb.grams}
+                      </span>
+                      <span className="text-[10px] text-inkfaint font-mono uppercase">{lunchDesign.carb.isDiscrete ? 'PACK' : 'GRAM'}</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-linesoft">
+                    {[['蛋白', lunchDesign.total.p], ['碳水', lunchDesign.total.c], ['脂肪', lunchDesign.total.f]].map(([k, v]) => (
+                      <div key={k} className="text-center">
+                        <div className="text-[9px] font-mono text-inkfaint tracking-widest">{k}</div>
+                        <div className="font-mono text-base text-ink mt-0.5 tnum">{Math.round(v)}<span className="text-[10px] text-inkfaint ml-0.5">g</span></div>
+                      </div>
+                    ))}
+                  </div>
+                  {lunchProtein === 'salmon' && (
+                    <div className="mt-3 text-[10px] font-mono text-honey tracking-wide leading-relaxed">
+                      ⓘ 三文鱼天然高脂(13g/100g),晚上脂肪空间会被挤压,推荐选 <span className="text-terradeep">日清</span> 或 <span className="text-terradeep">米粉</span> 方案。
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </Card>
         </section>
 
-        {/* ============ PLAN SELECTOR ============ */}
-        <section className="mb-10">
-          <div className="flex items-center gap-3 mb-5">
-            <span className="text-[10px] font-mono text-[#c4402e] tracking-[0.25em]">02</span>
-            <h2 className="text-xs font-mono tracking-[0.25em] uppercase text-[#7a6e5a]">
-              选择方案
-            </h2>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {/* ============ 02 · PLAN SELECTOR ============ */}
+        <section className="rise mb-9" style={{ animationDelay: '240ms' }}>
+          <SectionHead no="02" zh="选择方案" en="Choose Plan" />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {Object.entries(PLANS).map(([key, plan]) => (
               <button
                 key={key}
                 onClick={() => setPlanKey(key)}
-                className={`text-left p-4 border transition-all ${
-                  planKey === key
-                    ? 'border-[#c4402e] bg-[#1a0f0a]'
-                    : 'border-[#251c14] hover:border-[#5a5040]'
+                className={`text-left p-4 rounded-2xl border transition-all ${
+                  planKey === key ? 'border-terra bg-terra/[0.06] shadow-warm -translate-y-0.5' : 'border-line bg-card hover:border-terra/40 hover:-translate-y-0.5'
                 }`}
               >
-                <div className="text-[9px] font-mono tracking-[0.25em] text-[#c4402e] mb-1.5">
-                  {plan.tagline}
-                </div>
-                <div 
-                  className="text-lg text-[#efe5d6] mb-1.5"
-                  style={{ fontFamily: "'Newsreader', serif", fontWeight: 400 }}
-                >
-                  {plan.name}
-                </div>
-                <div className="text-[10px] text-[#7a6e5a] leading-relaxed">
-                  {plan.desc}
-                </div>
+                <div className="text-[9px] font-mono tracking-[0.22em] text-terradeep mb-1.5">{plan.tagline}</div>
+                <div className="font-display text-lg text-ink mb-1.5" style={{ fontWeight: 500 }}>{plan.name}</div>
+                <div className="text-[11px] text-inksoft leading-relaxed">{plan.desc}</div>
               </button>
             ))}
           </div>
         </section>
 
-        {/* ============ BEEF FAT CALIBRATION ============ */}
-        <section className="mb-10">
-          <div className="flex items-center gap-3 mb-5">
-            <span className="text-[10px] font-mono text-[#c4402e] tracking-[0.25em]">03</span>
-            <h2 className="text-xs font-mono tracking-[0.25em] uppercase text-[#7a6e5a]">
-              牛肉脂肪校准 · Beef Fat
-            </h2>
-          </div>
-
-          <div className="text-[10px] text-[#7a6e5a] mb-4 leading-relaxed">
-            查看包装背面「脂質」一行,输入或选择档位。<span className="text-[#c4402e]">酱固定 ≤1 包,脂肪缺口由牛肉补。</span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-            {[
-              { v: 5,  label: '5g 极瘦',  sub: 'もも赤身' },
-              { v: 9,  label: '9g 标准',   sub: 'もも / 混合' },
-              { v: 13, label: '13g 偏肥',  sub: '肩 / 肩ロース' },
-              { v: 18, label: '18g 较肥',  sub: 'バラ混合' },
-            ].map(opt => (
-              <button
-                key={opt.v}
-                onClick={() => setBeefFat(opt.v)}
-                className={`text-left p-3 border transition-all ${
-                  beefFat === opt.v
-                    ? 'border-[#c4402e] bg-[#1a0f0a]'
-                    : 'border-[#251c14] hover:border-[#5a5040]'
-                }`}
-              >
-                <div className="text-sm text-[#efe5d6] font-mono">{opt.label}</div>
-                <div className="text-[8px] text-[#5a5040] mt-0.5 font-mono uppercase">{opt.sub}</div>
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-[9px] font-mono text-[#5a5040] tracking-wider">自定义</span>
-            <input
-              type="number"
-              value={beefFat}
-              onChange={(e) => setBeefFat(Math.max(0, Math.min(40, Number(e.target.value) || 0)))}
-              className="bg-transparent border-b border-[#3a2e22] focus:border-[#c4402e] outline-none text-xl text-[#efe5d6] w-16 pb-0.5 transition-colors font-mono text-center"
-              step={1}
-            />
-            <span className="text-[9px] font-mono text-[#5a5040] tracking-wider">g / 100g (raw)</span>
-            <span className="text-[9px] font-mono text-[#c4a55a] tracking-wider ml-2">
-              → 水煮后 {(beefFat * 0.8).toFixed(1)}g
-            </span>
-          </div>
-
-          <div className="mt-3 text-[10px] font-mono text-[#5a5040] leading-relaxed">
-            水煮脂肪保留率 ≈ 80% · 酱固定 ≤1 包 · 脂肪缺口由牛肉补: 当前牛肉 <span className="text-[#c4402e]">{result.plan.beef}g</span> / 酱 <span className="text-[#c4402e]">{result.plan.sauce}包</span>
-          </div>
+        {/* ============ 03 · BEEF FAT ============ */}
+        <section className="rise mb-9" style={{ animationDelay: '320ms' }}>
+          <SectionHead no="03" zh="牛肉脂肪校准" en="Beef Fat" />
+          <Card className="p-5 sm:p-6">
+            <div className="text-[11px] text-inksoft mb-4 leading-relaxed">
+              查看包装背面「脂質」一行,输入或选择档位。<span className="text-terradeep">酱固定 ≤1 包,脂肪缺口由牛肉补。</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
+              {[
+                { v: 5, label: '5g 极瘦', sub: 'もも赤身' },
+                { v: 9, label: '9g 标准', sub: 'もも / 混合' },
+                { v: 13, label: '13g 偏肥', sub: '肩 / 肩ロース' },
+                { v: 18, label: '18g 较肥', sub: 'バラ混合' },
+              ].map((opt) => (
+                <button
+                  key={opt.v}
+                  onClick={() => setBeefFat(opt.v)}
+                  className={`text-left p-3 rounded-2xl border transition-all ${
+                    beefFat === opt.v ? 'border-terra bg-terra/[0.06] shadow-warm' : 'border-line bg-card hover:border-terra/40'
+                  }`}
+                >
+                  <div className="text-sm text-ink font-mono">{opt.label}</div>
+                  <div className="text-[8px] text-inkfaint mt-0.5 font-mono uppercase">{opt.sub}</div>
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-[10px] font-mono text-inkfaint tracking-wider">自定义</span>
+              <input
+                type="number"
+                value={beefFat}
+                onChange={(e) => setBeefFat(Math.max(0, Math.min(40, Number(e.target.value) || 0)))}
+                className="bg-paper border border-line rounded-xl focus:border-terra outline-none text-xl text-ink w-16 py-1 transition-colors font-mono text-center tnum"
+                step={1}
+              />
+              <span className="text-[10px] font-mono text-inkfaint tracking-wider">g / 100g (raw)</span>
+              <span className="text-[10px] font-mono text-honey tracking-wider">→ 水煮后 {(beefFat * 0.8).toFixed(1)}g</span>
+            </div>
+            <div className="mt-3 text-[11px] font-mono text-inkfaint leading-relaxed">
+              水煮脂肪保留率 ≈ 80% · 当前牛肉 <span className="text-terradeep">{result.plan.beef}g</span> / 酱 <span className="text-terradeep">{result.plan.sauce}包</span>
+            </div>
+          </Card>
         </section>
 
         {/* ============ DINNER PROTOCOL ============ */}
-        <section className="mb-10 p-6 sm:p-8 bg-[#13100c] border-l-2 border-[#c4402e]">
-          <div className="flex items-baseline justify-between mb-6">
-            <div>
-              <div className="text-[9px] font-mono tracking-[0.3em] text-[#c4402e] mb-1.5">
-                TONIGHT · 训练后晚餐
-              </div>
-              <h2 
-                className="text-3xl text-[#efe5d6]"
-                style={{ fontFamily: "'Newsreader', serif", fontWeight: 300, fontStyle: 'italic' }}
-              >
-                Dinner Composition
-              </h2>
-            </div>
-            <div className="text-right">
-              <div className="text-[9px] font-mono tracking-widest text-[#7a6e5a] mb-1">DINNER KCAL</div>
-              <div 
-                className="text-3xl text-[#efe5d6]"
-                style={{ fontFamily: "'Newsreader', serif", fontWeight: 300 }}
-              >
-                {Math.round(result.dinner.kcal)}
+        <section className="rise mb-9" style={{ animationDelay: '400ms' }}>
+          <Card className="overflow-hidden">
+            <div className="relative">
+              <img src={asset('dinner.jpg')} alt="今晚的晚餐" className="w-full h-40 object-cover" loading="lazy" />
+              <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(255,252,246,0) 30%, rgba(255,252,246,0.7) 75%, rgba(255,252,246,1) 100%)' }} />
+              <div className="absolute inset-x-0 bottom-0 px-5 sm:px-7 pb-4 flex items-end justify-between">
+                <div>
+                  <div className="text-[9px] font-mono tracking-[0.28em] text-terradeep mb-1">TONIGHT · 训练后晚餐</div>
+                  <h2 className="font-display text-3xl text-ink" style={{ fontWeight: 400, fontStyle: 'italic' }}>Dinner</h2>
+                </div>
+                <div className="text-right">
+                  <div className="text-[9px] font-mono tracking-widest text-inksoft mb-0.5">DINNER KCAL</div>
+                  <div className="font-display text-3xl text-ink tnum" style={{ fontWeight: 400 }}>{Math.round(result.dinner.kcal)}</div>
+                </div>
               </div>
             </div>
-          </div>
-          
-          <div className="space-y-0">
-            <FoodItem 
-              icon="01" 
-              name="牛肉 切り落とし(生)" 
-              sub="Australian Beef · Boiled" 
-              qty={result.plan.beef} 
-              unit="GRAM" 
-            />
-            <FoodItem 
-              icon="02" 
-              name="干意面" 
-              sub="Dry Pasta · 100g portion" 
-              qty={result.plan.pasta} 
-              unit="GRAM" 
-            />
-            <FoodItem 
-              icon="03" 
-              name="日清非油炸泡面" 
-              sub="Non-fried Ramen" 
-              qty={result.plan.nissin} 
-              unit="PACK" 
-            />
-            <FoodItem 
-              icon="04" 
-              name="越南米粉" 
-              sub="Vietnamese Pho · 60g" 
-              qty={result.plan.pho} 
-              unit="PACK" 
-            />
-            <FoodItem 
-              icon="05" 
-              name="ペペロンチーノ酱" 
-              sub="Garlic Oil Sauce · S&B" 
-              qty={result.plan.sauce} 
-              unit="PACK" 
-            />
-            <FoodItem 
-              icon="06" 
-              name="香蕉(中)" 
-              sub="Banana · Medium" 
-              qty={result.plan.banana} 
-              unit="PCS" 
-            />
-            <FoodItem 
-              icon="07" 
-              name="オイコス 砂糖不使用" 
-              sub="OIKOS Plain · Dessert" 
-              qty={result.plan.oikos || 0} 
-              unit="PCS" 
-            />
-          </div>
+            <div className="p-3 sm:p-4">
+              <FoodItem icon="01" name="牛肉 切り落とし(生)" sub="Australian Beef · Boiled" qty={result.plan.beef} unit="GRAM" />
+              <FoodItem icon="02" name="干意面" sub="Dry Pasta · 100g portion" qty={result.plan.pasta} unit="GRAM" />
+              <FoodItem icon="03" name="日清非油炸泡面" sub="Non-fried Ramen" qty={result.plan.nissin} unit="PACK" />
+              <FoodItem icon="04" name="越南米粉" sub="Vietnamese Pho · 60g" qty={result.plan.pho} unit="PACK" />
+              <FoodItem icon="05" name="ペペロンチーノ酱" sub="Garlic Oil Sauce · S&B" qty={result.plan.sauce} unit="PACK" />
+              <FoodItem icon="06" name="香蕉(中)" sub="Banana · Medium" qty={result.plan.banana} unit="PCS" />
+              <FoodItem icon="07" name="オイコス 砂糖不使用" sub="OIKOS Plain · Dessert" qty={result.plan.oikos || 0} unit="PCS" />
+            </div>
+          </Card>
         </section>
 
-        {/* ============ MACRO VERIFICATION ============ */}
-        <section className="mb-10">
-          <div className="flex items-center gap-3 mb-6">
-            <span className="text-[10px] font-mono text-[#c4402e] tracking-[0.25em]">04</span>
-            <h2 className="text-xs font-mono tracking-[0.25em] uppercase text-[#7a6e5a]">
-              全天营养验算
-            </h2>
-          </div>
-          
-          <MacroBar label="Protein 蛋白" value={result.total.p} target={TARGETS.p} unit="g" />
-          <MacroBar label="Carbs 碳水" value={result.total.c} target={TARGETS.c} unit="g" />
-          <MacroBar label="Fat 脂肪" value={result.total.f} target={TARGETS.f} unit="g" />
-          <MacroBar label="Calories 热量" value={result.total.kcal} target={TARGETS.kcal} unit="kcal" />
-          
-          <div className="mt-8 grid grid-cols-3 gap-3 text-[10px] font-mono">
-            <div className="border border-[#251c14] p-3">
-              <div className="text-[#7a6e5a] mb-1 tracking-wider">LUNCH</div>
-              <div className="text-[#efe5d6] text-base">{Math.round(result.lunch.kcal)} kcal</div>
-              <div className="text-[#5a5040] mt-1 text-[9px]">
-                P{Math.round(result.lunch.p)} · C{Math.round(result.lunch.c)} · F{Math.round(result.lunch.f)}
-              </div>
+        {/* ============ 04 · MACRO VERIFICATION ============ */}
+        <section className="rise mb-9" style={{ animationDelay: '480ms' }}>
+          <SectionHead no="04" zh="全天营养验算" en="Macro Check" accent="sage" />
+          <Card className="p-5 sm:p-7">
+            <MacroBar label="蛋白" en="Protein" value={result.total.p} target={TARGETS.p} unit="g" />
+            <MacroBar label="碳水" en="Carbs" value={result.total.c} target={TARGETS.c} unit="g" />
+            <MacroBar label="脂肪" en="Fat" value={result.total.f} target={TARGETS.f} unit="g" />
+            <MacroBar label="热量" en="Calories" value={result.total.kcal} target={TARGETS.kcal} unit="kcal" />
+
+            <div className="mt-7 grid grid-cols-3 gap-2.5 text-[11px] font-mono">
+              {[
+                { t: 'LUNCH', k: Math.round(result.lunch.kcal), m: `P${Math.round(result.lunch.p)} · C${Math.round(result.lunch.c)} · F${Math.round(result.lunch.f)}`, hl: false },
+                { t: 'PRE-W/O', k: preWorkout.kcal, m: `P${preWorkout.p} · C${Math.round(preWorkout.c)} · F${preWorkout.f}`, hl: false },
+                { t: 'DINNER', k: Math.round(result.dinner.kcal), m: `P${Math.round(result.dinner.p)} · C${Math.round(result.dinner.c)} · F${Math.round(result.dinner.f)}`, hl: true },
+              ].map((x) => (
+                <div key={x.t} className={`rounded-2xl p-3 border ${x.hl ? 'border-terra bg-terra/[0.06]' : 'border-line bg-paper'}`}>
+                  <div className={`mb-1 tracking-wider ${x.hl ? 'text-terradeep' : 'text-inksoft'}`}>{x.t}</div>
+                  <div className="text-ink text-base tnum">{x.k} kcal</div>
+                  <div className="text-inkfaint mt-1 text-[9px]">{x.m}</div>
+                </div>
+              ))}
             </div>
-            <div className="border border-[#251c14] p-3">
-              <div className="text-[#7a6e5a] mb-1 tracking-wider">PRE-W/O</div>
-              <div className="text-[#efe5d6] text-base">{preWorkout.kcal} kcal</div>
-              <div className="text-[#5a5040] mt-1 text-[9px]">
-                P{preWorkout.p} · C{Math.round(preWorkout.c)} · F{preWorkout.f}
-              </div>
-            </div>
-            <div className="border border-[#c4402e] p-3 bg-[#1a0f0a]">
-              <div className="text-[#c4402e] mb-1 tracking-wider">DINNER</div>
-              <div className="text-[#efe5d6] text-base">{Math.round(result.dinner.kcal)} kcal</div>
-              <div className="text-[#5a5040] mt-1 text-[9px]">
-                P{Math.round(result.dinner.p)} · C{Math.round(result.dinner.c)} · F{Math.round(result.dinner.f)}
-              </div>
-            </div>
-          </div>
+          </Card>
         </section>
 
-        {/* ============ TODAY'S FOOD LOG ============ */}
-        <section className="mb-10">
-          <div className="flex items-center gap-3 mb-5">
-            <span className="text-[10px] font-mono text-[#c4402e] tracking-[0.25em]">05</span>
-            <h2 className="text-xs font-mono tracking-[0.25em] uppercase text-[#7a6e5a]">
-              今日食物明细 · Food Log
-            </h2>
-          </div>
-
-          <div className="border border-[#251c14] overflow-hidden">
-            {/* Header */}
-            <div className="grid grid-cols-12 gap-0 bg-[#1a120c] px-3 py-2 text-[9px] font-mono tracking-widest text-[#7a6e5a] uppercase">
+        {/* ============ 05 · FOOD LOG ============ */}
+        <section className="rise mb-9" style={{ animationDelay: '560ms' }}>
+          <SectionHead no="05" zh="今日食物明细" en="Food Log" />
+          <Card className="overflow-hidden">
+            <div className="grid grid-cols-12 gap-0 bg-paper2 px-4 py-2.5 text-[9px] font-mono tracking-widest text-inksoft uppercase">
               <div className="col-span-5">Item</div>
               <div className="col-span-2 text-right">P</div>
               <div className="col-span-2 text-right">C</div>
@@ -1068,346 +844,190 @@ export default function CuttingProtocol() {
               <div className="col-span-2 text-right">kcal</div>
             </div>
 
-            {/* 训练前 */}
-            <div className="px-3 py-1.5 bg-[#13100c] text-[9px] font-mono text-[#c4402e] tracking-widest uppercase">PRE-WORKOUT</div>
-            {preChicken > 0 && (
-              <div className="grid grid-cols-12 gap-0 px-3 py-1.5 border-t border-[#1a120c] text-xs">
-                <div className="col-span-5 text-[#efe5d6]">鸡胸 × {preChicken}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{preChicken * 22}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{preChicken * 1}</div>
-                <div className="col-span-1 text-right font-mono text-[#7a6e5a]">{preChicken * 2}</div>
-                <div className="col-span-2 text-right font-mono text-[#efe5d6]">{preChicken * 110}</div>
-              </div>
-            )}
-            {preEggs > 0 && (
-              <div className="grid grid-cols-12 gap-0 px-3 py-1.5 border-t border-[#1a120c] text-xs">
-                <div className="col-span-5 text-[#efe5d6]">全蛋 × {preEggs}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{preEggs * 6}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{Math.round(preEggs * 0.5)}</div>
-                <div className="col-span-1 text-right font-mono text-[#7a6e5a]">{preEggs * 5}</div>
-                <div className="col-span-2 text-right font-mono text-[#efe5d6]">{Math.round(preEggs * 72)}</div>
-              </div>
-            )}
-            {preBanana > 0 && (
-              <div className="grid grid-cols-12 gap-0 px-3 py-1.5 border-t border-[#1a120c] text-xs">
-                <div className="col-span-5 text-[#efe5d6]">香蕉 × {preBanana}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{preBanana}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{preBanana * 27}</div>
-                <div className="col-span-1 text-right font-mono text-[#7a6e5a]">{Math.round(preBanana * 0.25)}</div>
-                <div className="col-span-2 text-right font-mono text-[#efe5d6]">{Math.round(preBanana * 113)}</div>
-              </div>
-            )}
-            {preChicken === 0 && preEggs === 0 && preBanana === 0 && (
-              <div className="px-3 py-1.5 border-t border-[#1a120c] text-xs text-[#5a5040]">空腹训练</div>
-            )}
+            <LogGroup label="PRE-WORKOUT" />
+            {preChicken > 0 && <LogRow name={`鸡胸 × ${preChicken}`} p={preChicken * 22} c={preChicken * 1} f={preChicken * 2} k={preChicken * 110} />}
+            {preEggs > 0 && <LogRow name={`全蛋 × ${preEggs}`} p={preEggs * 6} c={Math.round(preEggs * 0.5)} f={preEggs * 5} k={Math.round(preEggs * 72)} />}
+            {preBanana > 0 && <LogRow name={`香蕉 × ${preBanana}`} p={preBanana} c={preBanana * 27} f={Math.round(preBanana * 0.25)} k={Math.round(preBanana * 113)} />}
+            {fasted && <div className="px-4 py-2 text-xs text-inkfaint border-t border-linesoft">空腹训练</div>}
 
-            {/* 午餐 */}
-            <div className="px-3 py-1.5 bg-[#13100c] text-[9px] font-mono text-[#c4402e] tracking-widest uppercase">LUNCH · {lunchMode === 'designer' ? '自制' : '食堂'}</div>
-            <div className="grid grid-cols-12 gap-0 px-3 py-1.5 border-t border-[#1a120c] text-xs">
-              <div className="col-span-5 text-[#efe5d6]">{lunchMode === 'designer' ? '午餐设计' : '食堂'} ~{lunchKcal}kcal</div>
-              <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{Math.round(result.lunch.p)}</div>
-              <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{Math.round(result.lunch.c)}</div>
-              <div className="col-span-1 text-right font-mono text-[#7a6e5a]">{Math.round(result.lunch.f)}</div>
-              <div className="col-span-2 text-right font-mono text-[#efe5d6]">{Math.round(result.lunch.kcal)}</div>
+            <LogGroup label={`LUNCH · ${lunchMode === 'designer' ? '自制' : '食堂'}`} />
+            <LogRow name={`${lunchMode === 'designer' ? '午餐设计' : '食堂'} ~${lunchKcal}kcal`} p={Math.round(result.lunch.p)} c={Math.round(result.lunch.c)} f={Math.round(result.lunch.f)} k={Math.round(result.lunch.kcal)} />
+
+            <LogGroup label="DINNER" />
+            {result.plan.beef > 0 && <LogRow name={`牛肉 ${result.plan.beef}g`} p={Math.round(result.plan.beef * 0.19)} c={0} f={Math.round(result.plan.beef * beefFat * 0.8 / 100)} k={Math.round(result.plan.beef * 0.19 * 4 + result.plan.beef * beefFat * 0.8 / 100 * 9)} />}
+            {result.plan.pasta > 0 && <LogRow name={`干意面 ${result.plan.pasta}g`} p={Math.round(result.plan.pasta * 0.12)} c={Math.round(result.plan.pasta * 0.71)} f={Math.round(result.plan.pasta * 0.015)} k={Math.round(result.plan.pasta * 3.55)} />}
+            {result.plan.nissin > 0 && <LogRow name={`日清 × ${result.plan.nissin}`} p={Math.round(result.plan.nissin * 6.7)} c={Math.round(result.plan.nissin * 55)} f={Math.round(result.plan.nissin * 4.9)} k={Math.round(result.plan.nissin * 291)} />}
+            {result.plan.pho > 0 && <LogRow name={`越南米粉 × ${result.plan.pho}`} p={Math.round(result.plan.pho * 4)} c={Math.round(result.plan.pho * 43)} f={Math.round(result.plan.pho * 2)} k={Math.round(result.plan.pho * 210)} />}
+            {result.plan.sauce > 0 && <LogRow name={`ペペロン酱 × ${result.plan.sauce}`} p={Math.round(result.plan.sauce * 0.9)} c={Math.round(result.plan.sauce * 1.5)} f={result.plan.sauce * 10} k={result.plan.sauce * 100} />}
+            {result.plan.banana > 0 && <LogRow name={`香蕉 × ${result.plan.banana}`} p={result.plan.banana} c={result.plan.banana * 27} f={Math.round(result.plan.banana * 0.25)} k={Math.round(result.plan.banana * 113)} />}
+            {(result.plan.oikos || 0) > 0 && <LogRow name={`オイコス × ${result.plan.oikos}`} p={result.plan.oikos * 12} c={result.plan.oikos * 5} f={0} k={result.plan.oikos * 71} />}
+
+            <div className="grid grid-cols-12 gap-0 px-4 py-3 bg-terra/[0.07] border-t-2 border-terra/40 text-xs font-mono tnum">
+              <div className="col-span-5 text-terradeep tracking-widest uppercase text-[9px] self-center">Total</div>
+              <div className="col-span-2 text-right text-ink">{Math.round(result.total.p)}</div>
+              <div className="col-span-2 text-right text-ink">{Math.round(result.total.c)}</div>
+              <div className="col-span-1 text-right text-ink">{Math.round(result.total.f)}</div>
+              <div className="col-span-2 text-right text-ink">{Math.round(result.total.kcal)}</div>
             </div>
-
-            {/* 晚餐 */}
-            <div className="px-3 py-1.5 bg-[#13100c] text-[9px] font-mono text-[#c4402e] tracking-widest uppercase">DINNER</div>
-            {result.plan.beef > 0 && (
-              <div className="grid grid-cols-12 gap-0 px-3 py-1.5 border-t border-[#1a120c] text-xs">
-                <div className="col-span-5 text-[#efe5d6]">牛肉 {result.plan.beef}g</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{Math.round(result.plan.beef * 0.19)}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">0</div>
-                <div className="col-span-1 text-right font-mono text-[#7a6e5a]">{Math.round(result.plan.beef * beefFat * 0.8 / 100)}</div>
-                <div className="col-span-2 text-right font-mono text-[#efe5d6]">{Math.round(result.plan.beef * 0.19 * 4 + result.plan.beef * beefFat * 0.8 / 100 * 9)}</div>
-              </div>
-            )}
-            {result.plan.pasta > 0 && (
-              <div className="grid grid-cols-12 gap-0 px-3 py-1.5 border-t border-[#1a120c] text-xs">
-                <div className="col-span-5 text-[#efe5d6]">干意面 {result.plan.pasta}g</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{Math.round(result.plan.pasta * 0.12)}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{Math.round(result.plan.pasta * 0.71)}</div>
-                <div className="col-span-1 text-right font-mono text-[#7a6e5a]">{Math.round(result.plan.pasta * 0.015)}</div>
-                <div className="col-span-2 text-right font-mono text-[#efe5d6]">{Math.round(result.plan.pasta * 3.55)}</div>
-              </div>
-            )}
-            {result.plan.nissin > 0 && (
-              <div className="grid grid-cols-12 gap-0 px-3 py-1.5 border-t border-[#1a120c] text-xs">
-                <div className="col-span-5 text-[#efe5d6]">日清 × {result.plan.nissin}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{Math.round(result.plan.nissin * 6.7)}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{Math.round(result.plan.nissin * 55)}</div>
-                <div className="col-span-1 text-right font-mono text-[#7a6e5a]">{Math.round(result.plan.nissin * 4.9)}</div>
-                <div className="col-span-2 text-right font-mono text-[#efe5d6]">{Math.round(result.plan.nissin * 291)}</div>
-              </div>
-            )}
-            {result.plan.pho > 0 && (
-              <div className="grid grid-cols-12 gap-0 px-3 py-1.5 border-t border-[#1a120c] text-xs">
-                <div className="col-span-5 text-[#efe5d6]">越南米粉 × {result.plan.pho}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{Math.round(result.plan.pho * 4)}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{Math.round(result.plan.pho * 43)}</div>
-                <div className="col-span-1 text-right font-mono text-[#7a6e5a]">{Math.round(result.plan.pho * 2)}</div>
-                <div className="col-span-2 text-right font-mono text-[#efe5d6]">{Math.round(result.plan.pho * 210)}</div>
-              </div>
-            )}
-            {result.plan.sauce > 0 && (
-              <div className="grid grid-cols-12 gap-0 px-3 py-1.5 border-t border-[#1a120c] text-xs">
-                <div className="col-span-5 text-[#efe5d6]">ペペロン酱 × {result.plan.sauce}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{Math.round(result.plan.sauce * 0.9)}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{Math.round(result.plan.sauce * 1.5)}</div>
-                <div className="col-span-1 text-right font-mono text-[#7a6e5a]">{result.plan.sauce * 10}</div>
-                <div className="col-span-2 text-right font-mono text-[#efe5d6]">{result.plan.sauce * 100}</div>
-              </div>
-            )}
-            {result.plan.banana > 0 && (
-              <div className="grid grid-cols-12 gap-0 px-3 py-1.5 border-t border-[#1a120c] text-xs">
-                <div className="col-span-5 text-[#efe5d6]">香蕉 × {result.plan.banana}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{result.plan.banana}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{result.plan.banana * 27}</div>
-                <div className="col-span-1 text-right font-mono text-[#7a6e5a]">{Math.round(result.plan.banana * 0.25)}</div>
-                <div className="col-span-2 text-right font-mono text-[#efe5d6]">{Math.round(result.plan.banana * 113)}</div>
-              </div>
-            )}
-            {(result.plan.oikos || 0) > 0 && (
-              <div className="grid grid-cols-12 gap-0 px-3 py-1.5 border-t border-[#1a120c] text-xs">
-                <div className="col-span-5 text-[#efe5d6]">オイコス × {result.plan.oikos}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{result.plan.oikos * 12}</div>
-                <div className="col-span-2 text-right font-mono text-[#7a6e5a]">{result.plan.oikos * 5}</div>
-                <div className="col-span-1 text-right font-mono text-[#7a6e5a]">0</div>
-                <div className="col-span-2 text-right font-mono text-[#efe5d6]">{result.plan.oikos * 71}</div>
-              </div>
-            )}
-
-            {/* 合计 */}
-            <div className="grid grid-cols-12 gap-0 px-3 py-2.5 bg-[#1a120c] border-t-2 border-[#c4402e] text-xs font-mono">
-              <div className="col-span-5 text-[#c4402e] tracking-widest uppercase text-[9px]">Total</div>
-              <div className="col-span-2 text-right text-[#efe5d6]">{Math.round(result.total.p)}</div>
-              <div className="col-span-2 text-right text-[#efe5d6]">{Math.round(result.total.c)}</div>
-              <div className="col-span-1 text-right text-[#efe5d6]">{Math.round(result.total.f)}</div>
-              <div className="col-span-2 text-right text-[#efe5d6]">{Math.round(result.total.kcal)}</div>
+            <div className="grid grid-cols-12 gap-0 px-4 py-2.5 border-t border-linesoft text-xs font-mono text-inkfaint tnum">
+              <div className="col-span-5 tracking-widest uppercase text-[9px] self-center">Target</div>
+              <div className="col-span-2 text-right">{TARGETS.p}</div>
+              <div className="col-span-2 text-right">{TARGETS.c}</div>
+              <div className="col-span-1 text-right">{TARGETS.f}</div>
+              <div className="col-span-2 text-right">{TARGETS.kcal}</div>
             </div>
-
-            {/* 目标 */}
-            <div className="grid grid-cols-12 gap-0 px-3 py-2 border-t border-[#251c14] text-xs font-mono">
-              <div className="col-span-5 text-[#5a5040] tracking-widest uppercase text-[9px]">Target</div>
-              <div className="col-span-2 text-right text-[#5a5040]">{TARGETS.p}</div>
-              <div className="col-span-2 text-right text-[#5a5040]">{TARGETS.c}</div>
-              <div className="col-span-1 text-right text-[#5a5040]">{TARGETS.f}</div>
-              <div className="col-span-2 text-right text-[#5a5040]">{TARGETS.kcal}</div>
-            </div>
-
-            {/* 差异 */}
-            <div className="grid grid-cols-12 gap-0 px-3 py-2 border-t border-[#251c14] text-xs font-mono">
-              <div className="col-span-5 text-[#5a5040] tracking-widest uppercase text-[9px]">Diff</div>
+            <div className="grid grid-cols-12 gap-0 px-4 py-2.5 border-t border-linesoft text-xs font-mono tnum">
+              <div className="col-span-5 text-inkfaint tracking-widest uppercase text-[9px] self-center">Diff</div>
               {[
-                { val: result.total.p - TARGETS.p },
-                { val: result.total.c - TARGETS.c },
-                { val: result.total.f - TARGETS.f },
-                { val: result.total.kcal - TARGETS.kcal },
+                { val: result.total.p - TARGETS.p, tol: 15 },
+                { val: result.total.c - TARGETS.c, tol: 15 },
+                { val: result.total.f - TARGETS.f, tol: 15, narrow: true },
+                { val: result.total.kcal - TARGETS.kcal, tol: 100 },
               ].map((d, i) => (
-                <div key={i} className={`${i === 2 ? 'col-span-1' : 'col-span-2'} text-right`}
-                  style={{ color: Math.abs(d.val) <= (i === 3 ? 100 : 15) ? '#7da671' : '#c4a55a' }}
-                >
+                <div key={i} className={`${d.narrow ? 'col-span-1' : 'col-span-2'} text-right`} style={{ color: Math.abs(d.val) <= d.tol ? '#5F6B3E' : '#B07B16' }}>
                   {d.val >= 0 ? '+' : ''}{Math.round(d.val)}
                 </div>
               ))}
             </div>
 
-            {/* 超标警告:固定摄入已超 2000,晚餐砍无可砍 */}
             {result.total.kcal > 2005 && (
-              <div className="px-3 py-3 border-t-2 border-[#c4402e] bg-[#1f1310]">
-                <div className="text-[10px] font-mono text-[#c4402e] tracking-wider mb-1">⚠ 已超 2000 kcal 铁线</div>
-                <div className="text-[11px] text-[#a89878] leading-relaxed">
-                  训练前 + 午餐 + Oikos 这些<span className="text-[#efe5d6]">已经吃掉的部分</span>合计 {Math.round(result.lunch.kcal + result.preWorkout.kcal + result.oikosKcal)} kcal,
-                  晚餐已压到最低(牛肉 {result.plan.beef}g、主食砍光)仍超标。
-                  <span className="text-[#c4a55a]">减少训练前加餐或 Oikos 数量。</span>
+              <div className="px-5 py-4 border-t-2 border-terra/40 bg-terra/[0.06]">
+                <div className="text-[11px] font-mono text-terradeep tracking-wider mb-1.5">⚠ 已超 2000 kcal 铁线</div>
+                <div className="text-[12px] text-inksoft leading-relaxed font-cjk">
+                  训练前 + 午餐 + Oikos 这些<span className="text-ink font-medium">已经吃掉的部分</span>合计 {Math.round(result.lunch.kcal + result.preWorkout.kcal + result.oikosKcal)} kcal,晚餐已压到最低(牛肉 {result.plan.beef}g、主食砍光)仍超标。<span className="text-terradeep">减少训练前加餐或 Oikos 数量。</span>
                 </div>
               </div>
             )}
-          </div>
+          </Card>
         </section>
 
         {/* ============ DAILY SCHEDULE ============ */}
-        <section className="mb-10 py-6 border-y border-[#251c14]">
-          <div className="text-[10px] font-mono tracking-[0.25em] text-[#7a6e5a] mb-4">
-            DAILY SCHEDULE · 16:8 IF
-          </div>
-          <div className="space-y-3 font-mono text-xs">
-            <div className="flex">
-              <span className="text-[#c4402e] w-16">12:00</span>
-              <span className="text-[#efe5d6] flex-1">食堂午餐 / 替代 — Lunch (open feeding window)</span>
+        <section className="rise mb-9" style={{ animationDelay: '600ms' }}>
+          <Card className="p-5 sm:p-6">
+            <div className="text-[10px] font-mono tracking-[0.25em] text-honey mb-4">DAILY SCHEDULE · 16:8 IF</div>
+            <div className="space-y-3 font-mono text-xs">
+              {[
+                { t: '12:00', d: '食堂午餐 / 替代 — Lunch (open feeding window)', hl: true },
+                { t: '15:00', d: `训练前 — ${preChicken > 0 ? `${preChicken}块鸡胸` : ''}${preChicken > 0 && (preEggs > 0 || preBanana > 0) ? ' + ' : ''}${preEggs > 0 ? `${preEggs}个全蛋` : ''}${preEggs > 0 && preBanana > 0 ? ' + ' : ''}${preBanana > 0 ? `${preBanana}根香蕉` : ''}${fasted ? '空腹' : ''}`, hl: false },
+                { t: '17:00', d: '训练时段 — MET7 1h + 力量(周3次)', hl: false },
+                { t: '19:00', d: '★ 训练后晚餐 — 按上方处方', hl: true },
+                { t: '20:00', d: '关窗 — Close feeding window', hl: false },
+              ].map((r) => (
+                <div key={r.t} className="flex gap-3">
+                  <span className="text-terradeep w-14 shrink-0">{r.t}</span>
+                  <span className={r.hl ? 'text-ink font-cjk' : 'text-inksoft font-cjk'}>{r.d}</span>
+                </div>
+              ))}
             </div>
-            <div className="flex">
-              <span className="text-[#c4402e] w-16">15:00</span>
-              <span className="text-[#7a6e5a] flex-1">训练前 — {preChicken > 0 ? `${preChicken}块鸡胸` : ''}{preChicken > 0 && (preEggs > 0 || preBanana > 0) ? ' + ' : ''}{preEggs > 0 ? `${preEggs}个全蛋` : ''}{preEggs > 0 && preBanana > 0 ? ' + ' : ''}{preBanana > 0 ? `${preBanana}根香蕉` : ''}{preChicken === 0 && preEggs === 0 && preBanana === 0 ? '空腹' : ''}</span>
-            </div>
-            <div className="flex">
-              <span className="text-[#c4402e] w-16">17:00</span>
-              <span className="text-[#7a6e5a] flex-1">训练时段 — MET7 1h + 力量(周3次)</span>
-            </div>
-            <div className="flex">
-              <span className="text-[#efe5d6] w-16">19:00</span>
-              <span className="text-[#efe5d6] flex-1">★ 训练后晚餐 — 按上方处方</span>
-            </div>
-            <div className="flex">
-              <span className="text-[#c4402e] w-16">20:00</span>
-              <span className="text-[#7a6e5a] flex-1">关窗 — Close feeding window</span>
-            </div>
-          </div>
+          </Card>
         </section>
 
-        {/* ============ SHOPPING LIST ============ */}
-        <section className="mb-10">
-          <div className="flex items-center gap-3 mb-6">
-            <span className="text-[10px] font-mono text-[#c4402e] tracking-[0.25em]">06</span>
-            <h2 className="text-xs font-mono tracking-[0.25em] uppercase text-[#7a6e5a]">
-              超市采购清单 · 每周一次
-            </h2>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="border border-[#251c14] p-5">
-              <div className="text-[10px] font-mono text-[#c4402e] tracking-widest mb-3">PROTEIN · 蛋白源</div>
-              <ul className="space-y-3 text-sm">
-                <li className="flex justify-between items-baseline">
-                  <div>
-                    <div className="text-[#efe5d6]">オーストラリア産 肩ロース切り落とし</div>
-                    <div className="text-[10px] text-[#5a5040] mt-0.5 font-mono">BEEF · 300g/盒 · 晚餐 7 天</div>
-                  </div>
-                  <span className="text-[#c4a55a] font-mono text-xs">6 盒 (~1.8kg)</span>
-                </li>
-                <li className="flex justify-between items-baseline">
-                  <div>
-                    <div className="text-[#efe5d6]">速食小鸡胸(22g 蛋白/块)</div>
-                    <div className="text-[10px] text-[#5a5040] mt-0.5 font-mono">训前 3 块 + 午餐替代 6 块</div>
-                  </div>
-                  <span className="text-[#c4a55a] font-mono text-xs">10 块</span>
-                </li>
-                <li className="flex justify-between items-baseline">
-                  <div>
-                    <div className="text-[#efe5d6]">卵 10個入り</div>
-                    <div className="text-[10px] text-[#5a5040] mt-0.5 font-mono">训前 3 天 × 2 個 = 6 個 + 余量</div>
-                  </div>
-                  <span className="text-[#c4a55a] font-mono text-xs">1 盒</span>
-                </li>
-              </ul>
-            </div>
+        {/* ============ 06 · SHOPPING LIST ============ */}
+        <section className="rise mb-9" style={{ animationDelay: '680ms' }}>
+          <SectionHead no="06" zh="超市采购清单" en="Weekly Shopping" />
+          <div className="space-y-3">
+            <ShopGroup title="PROTEIN · 蛋白源" items={[
+              ['オーストラリア産 肩ロース切り落とし', 'BEEF · 300g/盒 · 晚餐 7 天', '6 盒 (~1.8kg)'],
+              ['速食小鸡胸(22g 蛋白/块)', '训前 3 块 + 午餐替代 6 块', '10 块'],
+              ['卵 10個入り', '训前 3 天 × 2 個 = 6 個 + 余量', '1 盒'],
+            ]} />
+            <ShopGroup title="CARBS · 碳水源" items={[
+              ['干意面(500g/袋)', '晚餐 3 天 × 180g = 540g', '1 袋'],
+              ['越南米粉(60g/包)', '晚餐 4 包 + 午餐替代 6 包', '11 包'],
+              ['日清 ノンフライ麺', '晚餐 2 天 × 2 包', '4 包'],
+            ]} />
+            <ShopGroup title="FAT + FLAVOR · 脂肪与调味" items={[
+              ['S&B ペペロンチーノ酱(22.3g/包)', '意面日 3 + 米粉日 2 + 备用 1', '6 包'],
+              ['酱油 + 辣酱', '牛肉蘸料 · 常备', '有就不买'],
+            ]} />
+            <ShopGroup title="DAIRY · 乳制品" items={[
+              ['ダノン オイコス 砂糖不使用(123g)', '晚餐甜品 · 每天 1 個', '7 個'],
+            ]} img="yogurt.jpg" />
 
-            <div className="border border-[#251c14] p-5">
-              <div className="text-[10px] font-mono text-[#c4402e] tracking-widest mb-3">CARBS · 碳水源</div>
-              <ul className="space-y-3 text-sm">
-                <li className="flex justify-between items-baseline">
-                  <div>
-                    <div className="text-[#efe5d6]">干意面(500g/袋)</div>
-                    <div className="text-[10px] text-[#5a5040] mt-0.5 font-mono">晚餐 3 天 × 180g = 540g</div>
-                  </div>
-                  <span className="text-[#c4a55a] font-mono text-xs">1 袋</span>
-                </li>
-                <li className="flex justify-between items-baseline">
-                  <div>
-                    <div className="text-[#efe5d6]">越南米粉(60g/包)</div>
-                    <div className="text-[10px] text-[#5a5040] mt-0.5 font-mono">晚餐 4 包 + 午餐替代 6 包</div>
-                  </div>
-                  <span className="text-[#c4a55a] font-mono text-xs">11 包</span>
-                </li>
-                <li className="flex justify-between items-baseline">
-                  <div>
-                    <div className="text-[#efe5d6]">日清 ノンフライ麺</div>
-                    <div className="text-[10px] text-[#5a5040] mt-0.5 font-mono">晚餐 2 天 × 2 包</div>
-                  </div>
-                  <span className="text-[#c4a55a] font-mono text-xs">4 包</span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="border border-[#251c14] p-5">
-              <div className="text-[10px] font-mono text-[#c4402e] tracking-widest mb-3">FAT + FLAVOR · 脂肪与调味</div>
-              <ul className="space-y-3 text-sm">
-                <li className="flex justify-between items-baseline">
-                  <div>
-                    <div className="text-[#efe5d6]">S&B ペペロンチーノ酱(22.3g/包)</div>
-                    <div className="text-[10px] text-[#5a5040] mt-0.5 font-mono">意面日 3 + 米粉日 2 + 备用 1</div>
-                  </div>
-                  <span className="text-[#c4a55a] font-mono text-xs">6 包</span>
-                </li>
-                <li className="flex justify-between items-baseline">
-                  <div>
-                    <div className="text-[#efe5d6]">酱油 + 辣酱</div>
-                    <div className="text-[10px] text-[#5a5040] mt-0.5 font-mono">牛肉蘸料 · 常备</div>
-                  </div>
-                  <span className="text-[#c4a55a] font-mono text-xs">有就不买</span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="border border-[#251c14] p-5">
-              <div className="text-[10px] font-mono text-[#c4402e] tracking-widest mb-3">DAIRY · 乳制品</div>
-              <ul className="space-y-3 text-sm">
-                <li className="flex justify-between items-baseline">
-                  <div>
-                    <div className="text-[#efe5d6]">ダノン オイコス 砂糖不使用(123g)</div>
-                    <div className="text-[10px] text-[#5a5040] mt-0.5 font-mono">晚餐甜品 · 每天 1 個</div>
-                  </div>
-                  <span className="text-[#c4a55a] font-mono text-xs">7 個</span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="border border-[#c4a55a] border-opacity-30 p-5 bg-[#13100c]">
-              <div className="text-[10px] font-mono text-[#c4a55a] tracking-widest mb-3">BUDGET · 预算 ≈ ¥7,580/周</div>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[10px] font-mono text-[#7a6e5a]">
-                <span>牛肉 6盒</span><span className="text-right">¥2,700</span>
-                <span>鸡胸 10块</span><span className="text-right">¥1,200</span>
-                <span>鸡蛋 1盒</span><span className="text-right">¥250</span>
-                <span>意面 1袋</span><span className="text-right">¥200</span>
-                <span>米粉 11包</span><span className="text-right">¥1,100</span>
-                <span>日清 4包</span><span className="text-right">¥600</span>
-                <span>酱 6包</span><span className="text-right">¥480</span>
-                <span>Oikos 7個</span><span className="text-right">¥1,050</span>
-                <span className="text-[#efe5d6] border-t border-[#251c14] pt-1 mt-1">日均</span>
-                <span className="text-right text-[#efe5d6] border-t border-[#251c14] pt-1 mt-1">≈ ¥1,082</span>
+            <div className="rounded-3xl border border-honey/40 bg-honey/[0.07] p-5">
+              <div className="text-[10px] font-mono text-honey tracking-widest mb-3">BUDGET · 预算 ≈ ¥7,580/周</div>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11px] font-mono text-inksoft tnum">
+                {[['牛肉 6盒', '¥2,700'], ['鸡胸 10块', '¥1,200'], ['鸡蛋 1盒', '¥250'], ['意面 1袋', '¥200'], ['米粉 11包', '¥1,100'], ['日清 4包', '¥600'], ['酱 6包', '¥480'], ['Oikos 7個', '¥1,050']].map(([a, b]) => (
+                  <React.Fragment key={a}><span>{a}</span><span className="text-right">{b}</span></React.Fragment>
+                ))}
+                <span className="text-ink border-t border-honey/30 pt-1.5 mt-1">日均</span>
+                <span className="text-right text-ink border-t border-honey/30 pt-1.5 mt-1">≈ ¥1,082</span>
               </div>
             </div>
           </div>
         </section>
 
         {/* ============ MEMO ============ */}
-        <section className="mb-10 p-6 bg-[#13100c]">
-          <div className="text-[10px] font-mono text-[#c4402e] tracking-[0.3em] mb-4">
-            MEMO · 速记规则
-          </div>
-          <div className="space-y-3 text-sm leading-relaxed text-[#c4a899]" style={{ fontFamily: "'Noto Sans SC', sans-serif" }}>
-            <p>
-              <span className="text-[#efe5d6]">·</span> 训练前可调:鸡胸 0-5 块 + 全蛋 0-5 个,午晚方案自动重算。
-            </p>
-            <p>
-              <span className="text-[#efe5d6]">·</span> 碳水全靠主食(意面/日清/米粉),不用香蕉。
-            </p>
-            <p>
-              <span className="text-[#efe5d6]">·</span> 意面/米粉比旧方案多(130-170g)——碳水全压在午餐和晚餐。
-            </p>
-            <p>
-              <span className="text-[#efe5d6]">·</span> 监测优先级:<span className="text-[#c4402e]">腰围 &gt; 力量 &gt; 体重 7 日均值</span>。
-            </p>
-            <p>
-              <span className="text-[#efe5d6]">·</span> 体重单日波动 ±2 kg 是正常的(糖原+水分),不要据此调整饮食。
-            </p>
-            <p>
-              <span className="text-[#efe5d6]">·</span> 连续 8 周后做 1 周 diet break(回到 ~2700 kcal),再切回赤字。
-            </p>
-          </div>
+        <section className="rise mb-9" style={{ animationDelay: '760ms' }}>
+          <Card className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <img src={asset('pre.jpg')} alt="" className="w-12 h-12 rounded-2xl object-cover border border-line" loading="lazy" />
+              <div className="text-[10px] font-mono text-terradeep tracking-[0.3em]">MEMO · 速记规则</div>
+            </div>
+            <div className="space-y-2.5 text-[13px] leading-relaxed text-inksoft font-cjk">
+              {[
+                ['训练前可调:鸡胸 0-5 块 + 全蛋 0-5 个,午晚方案自动重算。'],
+                ['碳水全靠主食(意面/日清/米粉),不用香蕉。'],
+                ['意面/米粉比旧方案多(130-170g)——碳水全压在午餐和晚餐。'],
+                ['监测优先级:', '腰围 > 力量 > 体重 7 日均值', '。'],
+                ['体重单日波动 ±2 kg 是正常的(糖原+水分),不要据此调整饮食。'],
+                ['连续 8 周后做 1 周 diet break(回到 ~2700 kcal),再切回赤字。'],
+              ].map((parts, i) => (
+                <p key={i} className="flex gap-2">
+                  <span className="text-terra shrink-0">·</span>
+                  <span>{parts[0]}{parts[1] && <span className="text-terradeep font-medium">{parts[1]}</span>}{parts[2]}</span>
+                </p>
+              ))}
+            </div>
+          </Card>
         </section>
 
         {/* ============ FOOTER ============ */}
-        <footer className="pt-8 border-t border-[#251c14] text-center">
-          <div className="text-[9px] font-mono tracking-[0.3em] text-[#5a5040] uppercase">
+        <footer className="rise pt-8 mt-4 border-t border-line text-center" style={{ animationDelay: '840ms' }}>
+          <div className="text-[9px] font-mono tracking-[0.28em] text-inkfaint uppercase">
             Based on Helms 2014 · Jäger 2017 ISSN · Mettler 2010 · Moro 2016
           </div>
-          <div className="text-[9px] font-mono tracking-[0.2em] text-[#3a2e22] mt-2">
-            For Personal Use · 不构成医疗建议
-          </div>
+          <div className="text-[9px] font-mono tracking-[0.2em] text-inkfaint/70 mt-2">For Personal Use · 不构成医疗建议</div>
         </footer>
 
       </div>
+    </div>
+  );
+}
+
+// ============ Food Log 小组件 ============
+function LogGroup({ label }) {
+  return <div className="px-4 py-2 bg-paper text-[9px] font-mono text-terradeep tracking-widest uppercase border-t border-linesoft">{label}</div>;
+}
+function LogRow({ name, p, c, f, k }) {
+  return (
+    <div className="grid grid-cols-12 gap-0 px-4 py-2 border-t border-linesoft text-xs font-mono tnum">
+      <div className="col-span-5 text-ink font-cjk">{name}</div>
+      <div className="col-span-2 text-right text-inksoft">{p}</div>
+      <div className="col-span-2 text-right text-inksoft">{c}</div>
+      <div className="col-span-1 text-right text-inksoft">{f}</div>
+      <div className="col-span-2 text-right text-ink">{k}</div>
+    </div>
+  );
+}
+function ShopGroup({ title, items, img }) {
+  return (
+    <div className="rounded-3xl border border-line bg-card shadow-warm p-5">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[10px] font-mono text-terradeep tracking-widest">{title}</div>
+        {img && <img src={asset(img)} alt="" className="w-10 h-10 rounded-xl object-cover border border-line" loading="lazy" />}
+      </div>
+      <ul className="space-y-3 text-sm">
+        {items.map(([name, note, qty]) => (
+          <li key={name} className="flex justify-between items-baseline gap-3">
+            <div className="min-w-0">
+              <div className="text-ink font-cjk" style={{ fontWeight: 500 }}>{name}</div>
+              <div className="text-[10px] text-inkfaint mt-0.5 font-mono">{note}</div>
+            </div>
+            <span className="text-honey font-mono text-xs shrink-0">{qty}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
