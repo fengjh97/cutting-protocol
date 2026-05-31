@@ -215,7 +215,7 @@ function estimateLunchMacros(kcal) {
 // 晚餐蛋白源:牛肉(带脂肪,可补脂)/ 大虾仁(高蛋白几乎零脂,补脂靠酱)
 const DINNER_PROTEINS = {
   beef:   { label: '牛肉 切り落とし(生)', sub: 'Australian Beef · Boiled', tag: 'RED MEAT', p: 0.19, note: '带脂肪 · 可自动补脂' },
-  shrimp: { label: '冷冻大虾仁',           sub: 'Frozen Shrimp · Boiled', tag: 'SEAFOOD · LEAN', p: 0.20, f: 0.01, note: '超低脂高蛋白 · 脂肪靠酱补' },
+  shrimp: { label: '冷冻大虾仁', sub: 'Frozen Shrimp · thawed raw wt', tag: 'SEAFOOD · LEAN', p: 0.20, f: 0.01, note: '超低脂高蛋白 · 脂肪靠酱补' },
 };
 
 function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkout = { p: 22, c: 1, f: 2, kcal: 110 }, oikosIn = 1, dinnerProteinIn = 'beef') {
@@ -897,7 +897,7 @@ export default function CuttingProtocol() {
           {dinnerProtein === 'shrimp' && (
             <div className="mt-3 text-[11px] font-mono text-honey tracking-wide leading-relaxed flex items-start gap-1.5">
               <span>ⓘ</span>
-              <span>虾仁几乎零脂,晚餐脂肪会偏低 → 酱自动放宽到 2 包补脂;下方「牛肉脂肪校准」对虾仁不生效。</span>
+              <span>克数 = <span className="text-terradeep">解冻沥干后的生重</span>(去冰衣、和牛肉同一口径,别带冰称)。虾仁几乎零脂 → 脂肪偏低,酱自动放宽到 2 包补脂;「牛肉脂肪校准」对虾仁不生效。</span>
             </div>
           )}
         </section>
@@ -1059,7 +1059,7 @@ export default function CuttingProtocol() {
             </div>
             <div className="p-3 sm:p-4">
               <FoodItem icon="01" name="牛肉 切り落とし(生)" sub="Australian Beef · Boiled" qty={result.plan.beef} unit="GRAM" />
-              <FoodItem icon="01" name="冷冻大虾仁(水煮)" sub="Frozen Shrimp · Boiled" qty={result.plan.shrimp} unit="GRAM" />
+              <FoodItem icon="01" name="冷冻大虾仁(解冻生重)" sub="Frozen Shrimp · thawed, drained, raw" qty={result.plan.shrimp} unit="GRAM" />
               <FoodItem icon="02" name="干意面" sub="Dry Pasta · 100g portion" qty={result.plan.pasta} unit="GRAM" />
               <FoodItem icon="03" name="日清非油炸泡面" sub="Non-fried Ramen" qty={result.plan.nissin} unit="PACK" />
               <FoodItem icon="04" name="越南米粉" sub="Vietnamese Pho · 60g" qty={result.plan.pho} unit="PACK" />
