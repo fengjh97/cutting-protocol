@@ -17,7 +17,8 @@ const PRE_ITEMS = {
   egg:     { p: 6, c: 0.5, f: 5, label: '全蛋', unit: '个' },
   banana:  { p: 1, c: 27, f: 0.25, label: '香蕉', unit: '根' },
 };
-const TARGETS = { p: 140, c: 225, f: 60, kcal: 2000 };
+const DEFAULT_TARGETS = { p: 140, c: 225, f: 60, kcal: 2000 };
+const DEFAULT_TDEE = 2900;
 
 // ============ 午餐设计 · 蛋白源 ============
 const LUNCH_PROTEINS = {
@@ -212,19 +213,29 @@ function estimateLunchMacros(kcal) {
   };
 }
 
-// 晚餐蛋白源:牛肉(带脂肪,可补脂)/ 大虾仁(高蛋白几乎零脂,补脂靠酱)
+// 晚餐蛋白源:牛肉(带脂肪,可补脂)/ 大虾仁 / 鸡胸(高蛋白低脂,补脂靠酱)
+// lean=true 的蛋白几乎不带脂肪 → 不靠"多加肉"补脂,改为酱放宽到 2 包
 const DINNER_PROTEINS = {
-  beef:   { label: '牛肉 切り落とし(生)', sub: 'Australian Beef · Boiled', tag: 'RED MEAT', p: 0.19, note: '带脂肪 · 可自动补脂' },
-  shrimp: { label: '冷冻大虾仁', sub: 'Frozen Shrimp · thawed raw wt', tag: 'SEAFOOD · LEAN', p: 0.20, f: 0.01, note: '超低脂高蛋白 · 脂肪靠酱补' },
+  beef:    { label: '牛肉 切り落とし(生)', sub: 'Beef · raw wt', tag: 'RED MEAT',      p: 0.19,             lean: false, logName: '牛肉',   note: '带脂肪 · 可自动补脂' },
+  shrimp:  { label: '冷冻大虾仁',          sub: 'Shrimp · thawed raw', tag: 'SEAFOOD · LEAN', p: 0.20, f: 0.01, lean: true,  logName: '大虾仁', note: '超低脂高蛋白 · 脂肪靠酱补' },
+  chicken: { label: '鸡胸肉(即食/熟)',    sub: 'Chicken · cooked wt', tag: 'POULTRY · LEAN', p: 0.22, f: 0.02, lean: true,  logName: '鸡胸',   note: '即食熟重 · 不吃红肉/海鲜时' },
 };
 
-function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkout = { p: 22, c: 1, f: 2, kcal: 110 }, oikosIn = 1, dinnerProteinIn = 'beef') {
+function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkout = { p: 22, c: 1, f: 2, kcal: 110 }, oikosIn = 1, dinnerProteinIn = 'beef', targetsIn = DEFAULT_TARGETS) {
   // 安全网:用局部常量净化输入(不改写参数本身,避免 iOS 只读报错)
   const lunchKcal = Number.isFinite(lunchKcalIn) ? Math.max(0, Math.min(5000, lunchKcalIn)) : 0;
   const beefFatPer100g = Number.isFinite(beefFatIn) ? Math.max(0, Math.min(40, beefFatIn)) : 9;
   const oikosCount = Number.isFinite(oikosIn) ? Math.max(0, Math.min(10, oikosIn)) : 0;
-  const protKey = dinnerProteinIn === 'shrimp' ? 'shrimp' : 'beef';
-  const isShrimp = protKey === 'shrimp';
+  const protKey = DINNER_PROTEINS[dinnerProteinIn] ? dinnerProteinIn : 'beef';
+  const prot = DINNER_PROTEINS[protKey];
+
+  // 目标(可由用户修改):净化兜底,防 NaN
+  const TARGETS = {
+    p: Number.isFinite(targetsIn?.p) ? Math.max(0, Math.min(500, targetsIn.p)) : DEFAULT_TARGETS.p,
+    c: Number.isFinite(targetsIn?.c) ? Math.max(0, Math.min(800, targetsIn.c)) : DEFAULT_TARGETS.c,
+    f: Number.isFinite(targetsIn?.f) ? Math.max(0, Math.min(300, targetsIn.f)) : DEFAULT_TARGETS.f,
+    kcal: Number.isFinite(targetsIn?.kcal) ? Math.max(0, Math.min(8000, targetsIn.kcal)) : DEFAULT_TARGETS.kcal,
+  };
 
   const lunch = lunchOverride
     ? { ...lunchOverride }
@@ -236,10 +247,10 @@ function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkou
   const beefFatCooked = beefFatPer100g * 0.80 / 100; // 水煮保留 80%
 
   // 晚餐蛋白源的克密度(蛋白/脂肪 per g)
-  const protPerG = isShrimp ? DINNER_PROTEINS.shrimp.p : DINNER_PROTEINS.beef.p;
-  const protFatPerG = isShrimp ? DINNER_PROTEINS.shrimp.f : beefFatCooked; // 虾仁脂肪固定极低
-  const fatBearing = !isShrimp; // 只有牛肉能靠多加肉补脂肪
-  const sauceMax = isShrimp ? 2 : 1; // 虾仁几乎无脂 → 允许酱到 2 包补脂
+  const protPerG = prot.p;
+  const protFatPerG = protKey === 'beef' ? beefFatCooked : prot.f; // 牛肉脂肪随档位;其余固定
+  const fatBearing = !prot.lean;            // 只有带脂蛋白(牛肉)能靠多加肉补脂肪
+  const sauceMax = prot.lean ? 2 : 1;       // 低脂蛋白几乎无脂 → 允许酱到 2 包补脂
 
   // Oikos 固定项宏量
   const oikosP = oikosCount * 12;
@@ -330,11 +341,7 @@ function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkou
     meat = Math.max(0, meat - Math.ceil(over / meatKcalPer10g) * 10);
   }
 
-  const plan = {
-    beef: isShrimp ? 0 : meat,
-    shrimp: isShrimp ? meat : 0,
-    pasta, nissin, pho, sauce: sauceCount, banana: 0, oikos: oikosCount,
-  };
+  const plan = { meat, pasta, nissin, pho, sauce: sauceCount, banana: 0, oikos: oikosCount };
 
   // ===== 5. 实际晚餐宏量 =====
   const dinner = {
@@ -350,7 +357,7 @@ function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkou
     f: lunch.f + preWorkout.f + dinner.f,
     kcal: lunch.kcal + preWorkout.kcal + dinner.kcal,
   };
-  return { plan, lunch, dinner, total, beefFatPer100g, preWorkout, oikosKcal: oikosCount * 71, dinnerProtein: protKey };
+  return { plan, lunch, dinner, total, beefFatPer100g, preWorkout, oikosKcal: oikosCount * 71, dinnerProtein: protKey, protPerG, protFatPerG };
 }
 
 
@@ -484,6 +491,19 @@ export default function CuttingProtocol() {
   const [lunchCarb, setLunchCarb] = useState('rice');
   const [beefFat, setBeefFat] = useState(13);
   const [dinnerProtein, setDinnerProtein] = useState('beef');
+
+  // 可编辑目标:TDEE + 目标 P/C/F/kcal(存本机)
+  const [targets, setTargets] = useState(() => {
+    try { return { ...DEFAULT_TARGETS, ...JSON.parse(localStorage.getItem('targets') || '{}') }; }
+    catch { return { ...DEFAULT_TARGETS }; }
+  });
+  const [tdee, setTdee] = useState(() => {
+    try { const v = Number(localStorage.getItem('tdee')); return Number.isFinite(v) && v > 0 ? v : DEFAULT_TDEE; }
+    catch { return DEFAULT_TDEE; }
+  });
+  useEffect(() => { try { localStorage.setItem('targets', JSON.stringify(targets)); } catch {} }, [targets]);
+  useEffect(() => { try { localStorage.setItem('tdee', String(tdee)); } catch {} }, [tdee]);
+  const setTarget = (k, v, max) => setTargets((t) => ({ ...t, [k]: Math.max(0, Math.min(max, Number(v) || 0)) }));
   const [preChicken, setPreChicken] = useState(1);
   const [preEggs, setPreEggs] = useState(0);
   const [preBanana, setPreBanana] = useState(0);
@@ -517,8 +537,8 @@ export default function CuttingProtocol() {
     const override = lunchMode === 'designer'
       ? { p: lunchDesign.total.p, c: lunchDesign.total.c, f: lunchDesign.total.f, kcal: lunchDesign.total.kcal }
       : null;
-    return calculate(lunchKcal, planKey, override, beefFat, effectivePre, dinnerOikos, dinnerProtein);
-  }, [lunchKcal, planKey, lunchMode, lunchDesign, beefFat, effectivePre, dinnerOikos, dinnerProtein]);
+    return calculate(lunchKcal, planKey, override, beefFat, effectivePre, dinnerOikos, dinnerProtein, targets);
+  }, [lunchKcal, planKey, lunchMode, lunchDesign, beefFat, effectivePre, dinnerOikos, dinnerProtein, targets]);
 
   const fasted = preChicken === 0 && preEggs === 0 && preBanana === 0;
 
@@ -603,16 +623,15 @@ export default function CuttingProtocol() {
   const dinnerSummary = useMemo(() => {
     const p = result.plan;
     const parts = [];
-    if (p.beef > 0) parts.push(`牛肉 ${p.beef}g`);
-    if (p.shrimp > 0) parts.push(`大虾仁 ${p.shrimp}g`);
+    if (p.meat > 0) parts.push(`${DINNER_PROTEINS[result.dinnerProtein].logName} ${p.meat}g`);
     if (p.pasta > 0) parts.push(`意面 ${p.pasta}g`);
     if (p.nissin > 0) parts.push(`日清 ${p.nissin}包`);
     if (p.pho > 0) parts.push(`米粉 ${p.pho}包`);
     if (p.sauce > 0) parts.push(`酱 ${p.sauce}包`);
     if ((p.oikos || 0) > 0) parts.push(`Oikos ${p.oikos}个`);
-    const over = result.total.kcal > 2005;
-    return (parts.join(' · ') || '晚餐已砍到最低') + ` ｜ 全天 ${Math.round(result.total.kcal)} kcal` + (over ? '(已超 2000,见晚餐页提示)' : '');
-  }, [result]);
+    const over = result.total.kcal > targets.kcal + 5;
+    return (parts.join(' · ') || '晚餐已砍到最低') + ` ｜ 全天 ${Math.round(result.total.kcal)} kcal` + (over ? `(已超 ${targets.kcal},见晚餐页提示)` : '');
+  }, [result, targets]);
 
   return (
     <div className="grain relative min-h-screen text-ink font-sans">
@@ -639,7 +658,7 @@ export default function CuttingProtocol() {
             </div>
           </div>
           <p className="mt-3 text-[10px] sm:text-[11px] font-mono tracking-wider text-inksoft text-center">
-            83 kg · 25% BF · TDEE ≈ 2900 · <span className="text-terradeep">目标 2000 kcal</span>
+83 kg · 25% BF · TDEE ≈ {tdee} · <span className="text-terradeep">目标 {targets.kcal} kcal</span>{tdee > targets.kcal ? ` · 赤字 ${Math.round(tdee - targets.kcal)}` : ''}
           </p>
         </header>
 
@@ -665,6 +684,28 @@ export default function CuttingProtocol() {
         <main key={page} className="min-h-[44vh]">
 
         {page === 0 && (<>
+        {/* ============ ✱ · TARGETS ============ */}
+        <section className="rise mb-9" style={{ animationDelay: '40ms' }}>
+          <SectionHead no="✱" zh="目标设定" en="Targets" accent="sage" />
+          <Card className="p-5 sm:p-6">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
+              <TargetInput label="总消耗" en="TDEE" value={tdee} unit="kcal" onChange={(v) => setTdee(Math.max(0, Math.min(8000, Number(v) || 0)))} />
+              <TargetInput label="目标" en="kcal" value={targets.kcal} unit="kcal" accent onChange={(v) => setTarget('kcal', v, 8000)} />
+              <TargetInput label="蛋白" en="P" value={targets.p} unit="g" onChange={(v) => setTarget('p', v, 500)} />
+              <TargetInput label="碳水" en="C" value={targets.c} unit="g" onChange={(v) => setTarget('c', v, 800)} />
+              <TargetInput label="脂肪" en="F" value={targets.f} unit="g" onChange={(v) => setTarget('f', v, 300)} />
+            </div>
+            <div className="mt-4 pt-3 border-t border-linesoft flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] font-mono text-inksoft">
+              {tdee > targets.kcal && <span>赤字 ≈ <span className="text-terradeep">{Math.round(tdee - targets.kcal)} kcal/天</span></span>}
+              <span>宏量热量合计 <span className={Math.abs(targets.p * 4 + targets.c * 4 + targets.f * 9 - targets.kcal) <= 60 ? 'text-sagedeep' : 'text-honey'}>{Math.round(targets.p * 4 + targets.c * 4 + targets.f * 9)}</span> kcal</span>
+              <button
+                onClick={() => { setTargets({ ...DEFAULT_TARGETS }); setTdee(DEFAULT_TDEE); }}
+                className="text-terradeep hover:underline ml-auto"
+              >↺ 恢复默认</button>
+            </div>
+          </Card>
+        </section>
+
         {/* ============ 00 · PRE-WORKOUT ============ */}
         <section className="rise mb-9" style={{ animationDelay: '80ms' }}>
           <SectionHead no="00" zh="训练前加餐" en="Pre-Workout" />
@@ -879,7 +920,7 @@ export default function CuttingProtocol() {
         {/* ============ 03 · DINNER PROTEIN ============ */}
         <section className="rise mb-9" style={{ animationDelay: '300ms' }}>
           <SectionHead no="03" zh="晚餐蛋白源" en="Dinner Protein" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {Object.entries(DINNER_PROTEINS).map(([key, prot]) => (
               <button
                 key={key}
@@ -900,12 +941,18 @@ export default function CuttingProtocol() {
               <span>克数 = <span className="text-terradeep">解冻沥干后的生重</span>(去冰衣、和牛肉同一口径,别带冰称)。虾仁几乎零脂 → 脂肪偏低,酱自动放宽到 2 包补脂;「牛肉脂肪校准」对虾仁不生效。</span>
             </div>
           )}
+          {dinnerProtein === 'chicken' && (
+            <div className="mt-3 text-[11px] font-mono text-honey tracking-wide leading-relaxed flex items-start gap-1.5">
+              <span>ⓘ</span>
+              <span>克数 = <span className="text-terradeep">即食/熟重</span>(直接称能吃的状态)。鸡胸低脂 → 脂肪偏低,酱自动放宽到 2 包补脂。想再加蛋白可叠：训练前的<span className="text-terradeep">全蛋</span>、晚餐的 <span className="text-terradeep">Oikos 酸奶</span>(每个 +12g)。</span>
+            </div>
+          )}
         </section>
 
         {/* ============ 04 · BEEF FAT ============ */}
         <section className="rise mb-9" style={{ animationDelay: '360ms' }}>
           <SectionHead no="04" zh="牛肉脂肪校准" en="Beef Fat" />
-          <Card className={`p-5 sm:p-6 transition-opacity ${dinnerProtein === 'shrimp' ? 'opacity-50' : ''}`}>
+          <Card className={`p-5 sm:p-6 transition-opacity ${dinnerProtein !== 'beef' ? 'opacity-50' : ''}`}>
             <div className="text-[11px] text-inksoft mb-4 leading-relaxed">
               查看包装背面「脂質」一行,输入或选择档位。<span className="text-terradeep">酱固定 ≤1 包,脂肪缺口由牛肉补。</span>
             </div>
@@ -1058,8 +1105,7 @@ export default function CuttingProtocol() {
               </div>
             </div>
             <div className="p-3 sm:p-4">
-              <FoodItem icon="01" name="牛肉 切り落とし(生)" sub="Australian Beef · Boiled" qty={result.plan.beef} unit="GRAM" />
-              <FoodItem icon="01" name="冷冻大虾仁(解冻生重)" sub="Frozen Shrimp · thawed, drained, raw" qty={result.plan.shrimp} unit="GRAM" />
+              <FoodItem icon="01" name={DINNER_PROTEINS[result.dinnerProtein].label} sub={DINNER_PROTEINS[result.dinnerProtein].sub} qty={result.plan.meat} unit="GRAM" />
               <FoodItem icon="02" name="干意面" sub="Dry Pasta · 100g portion" qty={result.plan.pasta} unit="GRAM" />
               <FoodItem icon="03" name="日清非油炸泡面" sub="Non-fried Ramen" qty={result.plan.nissin} unit="PACK" />
               <FoodItem icon="04" name="越南米粉" sub="Vietnamese Pho · 60g" qty={result.plan.pho} unit="PACK" />
@@ -1074,10 +1120,10 @@ export default function CuttingProtocol() {
         <section className="rise mb-9" style={{ animationDelay: '90ms' }}>
           <SectionHead no="04" zh="全天营养验算" en="Macro Check" accent="sage" />
           <Card className="p-5 sm:p-7">
-            <MacroBar label="蛋白" en="Protein" value={result.total.p} target={TARGETS.p} unit="g" />
-            <MacroBar label="碳水" en="Carbs" value={result.total.c} target={TARGETS.c} unit="g" />
-            <MacroBar label="脂肪" en="Fat" value={result.total.f} target={TARGETS.f} unit="g" />
-            <MacroBar label="热量" en="Calories" value={result.total.kcal} target={TARGETS.kcal} unit="kcal" />
+            <MacroBar label="蛋白" en="Protein" value={result.total.p} target={targets.p} unit="g" />
+            <MacroBar label="碳水" en="Carbs" value={result.total.c} target={targets.c} unit="g" />
+            <MacroBar label="脂肪" en="Fat" value={result.total.f} target={targets.f} unit="g" />
+            <MacroBar label="热量" en="Calories" value={result.total.kcal} target={targets.kcal} unit="kcal" />
 
             <div className="mt-7 grid grid-cols-3 gap-2.5 text-[11px] font-mono">
               {[
@@ -1120,8 +1166,7 @@ export default function CuttingProtocol() {
             {snack && <LogRow name={snack.name} p={Math.round(snack.p)} c={Math.round(snack.c)} f={Math.round(snack.f)} k={Math.round(snack.kcal)} />}
 
             <LogGroup label="DINNER" />
-            {result.plan.beef > 0 && <LogRow name={`牛肉 ${result.plan.beef}g`} p={Math.round(result.plan.beef * 0.19)} c={0} f={Math.round(result.plan.beef * beefFat * 0.8 / 100)} k={Math.round(result.plan.beef * 0.19 * 4 + result.plan.beef * beefFat * 0.8 / 100 * 9)} />}
-            {result.plan.shrimp > 0 && <LogRow name={`大虾仁 ${result.plan.shrimp}g`} p={Math.round(result.plan.shrimp * 0.20)} c={0} f={Math.round(result.plan.shrimp * 0.01)} k={Math.round(result.plan.shrimp * 0.20 * 4 + result.plan.shrimp * 0.01 * 9)} />}
+            {result.plan.meat > 0 && <LogRow name={`${DINNER_PROTEINS[result.dinnerProtein].logName} ${result.plan.meat}g`} p={Math.round(result.plan.meat * result.protPerG)} c={0} f={Math.round(result.plan.meat * result.protFatPerG)} k={Math.round(result.plan.meat * result.protPerG * 4 + result.plan.meat * result.protFatPerG * 9)} />}
             {result.plan.pasta > 0 && <LogRow name={`干意面 ${result.plan.pasta}g`} p={Math.round(result.plan.pasta * 0.12)} c={Math.round(result.plan.pasta * 0.71)} f={Math.round(result.plan.pasta * 0.015)} k={Math.round(result.plan.pasta * 3.55)} />}
             {result.plan.nissin > 0 && <LogRow name={`日清 × ${result.plan.nissin}`} p={Math.round(result.plan.nissin * 6.7)} c={Math.round(result.plan.nissin * 55)} f={Math.round(result.plan.nissin * 4.9)} k={Math.round(result.plan.nissin * 291)} />}
             {result.plan.pho > 0 && <LogRow name={`越南米粉 × ${result.plan.pho}`} p={Math.round(result.plan.pho * 4)} c={Math.round(result.plan.pho * 43)} f={Math.round(result.plan.pho * 2)} k={Math.round(result.plan.pho * 210)} />}
@@ -1138,18 +1183,18 @@ export default function CuttingProtocol() {
             </div>
             <div className="grid grid-cols-12 gap-0 px-4 py-2.5 border-t border-linesoft text-xs font-mono text-inkfaint tnum">
               <div className="col-span-5 tracking-widest uppercase text-[9px] self-center">Target</div>
-              <div className="col-span-2 text-right">{TARGETS.p}</div>
-              <div className="col-span-2 text-right">{TARGETS.c}</div>
-              <div className="col-span-1 text-right">{TARGETS.f}</div>
-              <div className="col-span-2 text-right">{TARGETS.kcal}</div>
+              <div className="col-span-2 text-right">{targets.p}</div>
+              <div className="col-span-2 text-right">{targets.c}</div>
+              <div className="col-span-1 text-right">{targets.f}</div>
+              <div className="col-span-2 text-right">{targets.kcal}</div>
             </div>
             <div className="grid grid-cols-12 gap-0 px-4 py-2.5 border-t border-linesoft text-xs font-mono tnum">
               <div className="col-span-5 text-inkfaint tracking-widest uppercase text-[9px] self-center">Diff</div>
               {[
-                { val: result.total.p - TARGETS.p, tol: 15 },
-                { val: result.total.c - TARGETS.c, tol: 15 },
-                { val: result.total.f - TARGETS.f, tol: 15, narrow: true },
-                { val: result.total.kcal - TARGETS.kcal, tol: 100 },
+                { val: result.total.p - targets.p, tol: 15 },
+                { val: result.total.c - targets.c, tol: 15 },
+                { val: result.total.f - targets.f, tol: 15, narrow: true },
+                { val: result.total.kcal - targets.kcal, tol: 100 },
               ].map((d, i) => (
                 <div key={i} className={`${d.narrow ? 'col-span-1' : 'col-span-2'} text-right`} style={{ color: Math.abs(d.val) <= d.tol ? '#5F6B3E' : '#B07B16' }}>
                   {d.val >= 0 ? '+' : ''}{Math.round(d.val)}
@@ -1157,11 +1202,11 @@ export default function CuttingProtocol() {
               ))}
             </div>
 
-            {result.total.kcal > 2005 && (
+            {result.total.kcal > targets.kcal + 5 && (
               <div className="px-5 py-4 border-t-2 border-terra/40 bg-terra/[0.06]">
-                <div className="text-[11px] font-mono text-terradeep tracking-wider mb-1.5">⚠ 已超 2000 kcal 铁线</div>
+                <div className="text-[11px] font-mono text-terradeep tracking-wider mb-1.5">⚠ 已超 {targets.kcal} kcal 铁线</div>
                 <div className="text-[12px] text-inksoft leading-relaxed font-cjk">
-                  训练前 + 午餐 + Oikos 这些<span className="text-ink font-medium">已经吃掉的部分</span>合计 {Math.round(result.lunch.kcal + result.preWorkout.kcal + result.oikosKcal)} kcal,晚餐已压到最低(牛肉 {result.plan.beef}g、主食砍光)仍超标。<span className="text-terradeep">减少训练前加餐或 Oikos 数量。</span>
+                  训练前 + 午餐 + 零食 + Oikos 这些<span className="text-ink font-medium">已经吃掉的部分</span>合计 {Math.round(result.lunch.kcal + result.preWorkout.kcal + result.oikosKcal)} kcal,晚餐已压到最低({DINNER_PROTEINS[result.dinnerProtein].logName} {result.plan.meat}g、主食砍光)仍超标。<span className="text-terradeep">减少训练前加餐 / 零食 / Oikos,或上调目标热量。</span>
                 </div>
               </div>
             )}
@@ -1291,6 +1336,21 @@ export default function CuttingProtocol() {
 }
 
 // ============ Food Log 小组件 ============
+function TargetInput({ label, en, value, unit, onChange, accent }) {
+  return (
+    <div className={`rounded-2xl border p-2.5 text-center ${accent ? 'border-terra/40 bg-terra/[0.05]' : 'border-line bg-paper'}`}>
+      <div className="text-[9px] font-mono text-inkfaint tracking-wider mb-1">{label} · {en}</div>
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`w-full bg-transparent outline-none text-center font-display text-2xl tnum ${accent ? 'text-terradeep' : 'text-ink'}`}
+        style={{ fontWeight: 400 }}
+      />
+      <div className="text-[8px] font-mono text-inkfaint">{unit}</div>
+    </div>
+  );
+}
 function LogGroup({ label }) {
   return <div className="px-4 py-2 bg-paper text-[9px] font-mono text-terradeep tracking-widest uppercase border-t border-linesoft">{label}</div>;
 }
