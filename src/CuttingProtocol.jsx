@@ -637,6 +637,52 @@ export default function CuttingProtocol() {
     return (parts.join(' · ') || '晚餐已砍到最低') + ` ｜ 全天 ${Math.round(result.total.kcal)} kcal` + (over ? `(已超 ${targets.kcal},见晚餐页提示)` : '');
   }, [result, targets]);
 
+  // ===== 当天食物清单 → JSON(复制 / 下载)=====
+  const [copied, setCopied] = useState(false);
+  const buildDayJSON = () => {
+    const dp = DINNER_PROTEINS[result.dinnerProtein];
+    const r0 = (n) => Math.round(n);
+    const items = [];
+    if (preChicken > 0) items.push({ slot: 'pre-workout', name: '速食鸡胸', qty: preChicken, unit: '块', p: preChicken * 22, c: preChicken * 1, f: preChicken * 2, kcal: preChicken * 110 });
+    if (preEggs > 0) items.push({ slot: 'pre-workout', name: '全蛋', qty: preEggs, unit: '个', p: preEggs * 6, c: r0(preEggs * 0.5), f: preEggs * 5, kcal: r0(preEggs * 72) });
+    if (preBanana > 0) items.push({ slot: 'pre-workout', name: '香蕉', qty: preBanana, unit: '根', p: preBanana, c: preBanana * 27, f: r0(preBanana * 0.25), kcal: r0(preBanana * 113) });
+    items.push({ slot: 'lunch', name: lunchMode === 'designer' ? '午餐(自制)' : '食堂午餐', qty: lunchKcal, unit: 'kcal估', p: r0(result.lunch.p), c: r0(result.lunch.c), f: r0(result.lunch.f), kcal: r0(result.lunch.kcal) });
+    if (snack) items.push({ slot: 'snack', name: snack.name, qty: 1, unit: snack.serving || '份', p: r0(snack.p), c: r0(snack.c), f: r0(snack.f), kcal: r0(snack.kcal) });
+    if (result.plan.meat > 0) items.push({ slot: 'dinner', name: dp.logName, qty: result.plan.meat, unit: dp.logUnit, p: r0(result.plan.meat * result.protPerG), c: r0(result.plan.meat * result.protCPerG), f: r0(result.plan.meat * result.protFatPerG), kcal: r0(result.plan.meat * (result.protPerG * 4 + result.protCPerG * 4 + result.protFatPerG * 9)) });
+    if (result.plan.pasta > 0) items.push({ slot: 'dinner', name: '干意面', qty: result.plan.pasta, unit: 'g', p: r0(result.plan.pasta * 0.12), c: r0(result.plan.pasta * 0.71), f: r0(result.plan.pasta * 0.015), kcal: r0(result.plan.pasta * 3.55) });
+    if (result.plan.nissin > 0) items.push({ slot: 'dinner', name: '日清非油炸面', qty: result.plan.nissin, unit: '包', p: r0(result.plan.nissin * 6.7), c: r0(result.plan.nissin * 55), f: r0(result.plan.nissin * 4.9), kcal: r0(result.plan.nissin * 291) });
+    if (result.plan.pho > 0) items.push({ slot: 'dinner', name: '越南米粉', qty: result.plan.pho, unit: '包', p: r0(result.plan.pho * 4), c: r0(result.plan.pho * 43), f: r0(result.plan.pho * 2), kcal: r0(result.plan.pho * 210) });
+    if (result.plan.sauce > 0) items.push({ slot: 'dinner', name: 'ペペロンチーノ酱', qty: result.plan.sauce, unit: '包', p: r0(result.plan.sauce * 0.9), c: r0(result.plan.sauce * 1.5), f: result.plan.sauce * 10, kcal: result.plan.sauce * 100 });
+    if ((result.plan.oikos || 0) > 0) items.push({ slot: 'dinner', name: 'オイコス砂糖不使用', qty: result.plan.oikos, unit: '个', p: result.plan.oikos * 12, c: result.plan.oikos * 5, f: 0, kcal: result.plan.oikos * 71 });
+    return {
+      date: new Date().toISOString().slice(0, 10),
+      targets: { ...targets, tdee },
+      config: { lunchKcal, lunchMode, dinnerPlan: planKey, dinnerProtein: result.dinnerProtein, beefFat },
+      items,
+      total: { p: r0(result.total.p), c: r0(result.total.c), f: r0(result.total.f), kcal: r0(result.total.kcal) },
+    };
+  };
+  const downloadDayJSON = () => {
+    const day = buildDayJSON();
+    const blob = new Blob([JSON.stringify(day, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cutting-${day.date}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  const copyDayJSON = async () => {
+    const text = JSON.stringify(buildDayJSON(), null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      downloadDayJSON();
+    }
+  };
+
   return (
     <div className="grain relative min-h-screen text-ink font-sans">
       <div className="relative z-10 max-w-2xl mx-auto px-5 sm:px-7 py-8 sm:py-12">
@@ -1083,6 +1129,16 @@ export default function CuttingProtocol() {
         {/* ============ 05 · FOOD LOG ============ */}
         <section className="rise mb-9" style={{ animationDelay: '0ms' }}>
           <SectionHead no="05" zh="今日食物明细" en="Food Log" />
+          <div className="flex gap-2 mb-3">
+            <button
+              onClick={copyDayJSON}
+              className={`flex-1 px-4 py-2.5 rounded-full text-xs font-mono tracking-wider transition-all shadow-warm active:scale-95 ${copied ? 'bg-sage text-card' : 'bg-terra text-card'}`}
+            >{copied ? '✓ 已复制 JSON' : '⧉ 复制为 JSON'}</button>
+            <button
+              onClick={downloadDayJSON}
+              className="px-4 py-2.5 rounded-full border border-line bg-card text-inksoft text-xs font-mono tracking-wider hover:border-terra hover:text-terra transition-all active:scale-95"
+            >↓ 下载 .json</button>
+          </div>
           <Card className="overflow-hidden">
             <div className="grid grid-cols-12 gap-0 bg-paper2 px-4 py-2.5 text-[9px] font-mono tracking-widest text-inksoft uppercase">
               <div className="col-span-5">Item</div>
