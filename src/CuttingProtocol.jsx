@@ -512,12 +512,13 @@ export default function CuttingProtocol() {
   const [preBanana, setPreBanana] = useState(0);
   const [dinnerOikos, setDinnerOikos] = useState(1);
 
+  // 鸡胸/全蛋/香蕉/Oikos 都属于"配午餐 · 加餐"已吃掉的部分(不进晚餐处方)
   const preWorkout = useMemo(() => {
-    const p = preChicken * PRE_ITEMS.chicken.p + preEggs * PRE_ITEMS.egg.p + preBanana * PRE_ITEMS.banana.p;
-    const c = preChicken * PRE_ITEMS.chicken.c + preEggs * PRE_ITEMS.egg.c + preBanana * PRE_ITEMS.banana.c;
+    const p = preChicken * PRE_ITEMS.chicken.p + preEggs * PRE_ITEMS.egg.p + preBanana * PRE_ITEMS.banana.p + dinnerOikos * 12;
+    const c = preChicken * PRE_ITEMS.chicken.c + preEggs * PRE_ITEMS.egg.c + preBanana * PRE_ITEMS.banana.c + dinnerOikos * 5;
     const f = preChicken * PRE_ITEMS.chicken.f + preEggs * PRE_ITEMS.egg.f + preBanana * PRE_ITEMS.banana.f;
     return { p, c, f, kcal: Math.round(p * 4 + c * 4 + f * 9) };
-  }, [preChicken, preEggs, preBanana]);
+  }, [preChicken, preEggs, preBanana, dinnerOikos]);
 
   const lunchDesign = useMemo(
     () => designLunch(lunchKcal, lunchProtein, lunchCarb),
@@ -540,8 +541,9 @@ export default function CuttingProtocol() {
     const override = lunchMode === 'designer'
       ? { p: lunchDesign.total.p, c: lunchDesign.total.c, f: lunchDesign.total.f, kcal: lunchDesign.total.kcal }
       : null;
-    return calculate(lunchKcal, planKey, override, beefFat, effectivePre, dinnerOikos, dinnerProtein, targets);
-  }, [lunchKcal, planKey, lunchMode, lunchDesign, beefFat, effectivePre, dinnerOikos, dinnerProtein, targets]);
+    // Oikos 已并入 effectivePre(配午餐/加餐),晚餐里不再放 → 传 0
+    return calculate(lunchKcal, planKey, override, beefFat, effectivePre, 0, dinnerProtein, targets);
+  }, [lunchKcal, planKey, lunchMode, lunchDesign, beefFat, effectivePre, dinnerProtein, targets]);
 
   const fasted = preChicken === 0 && preEggs === 0 && preBanana === 0;
 
@@ -646,6 +648,7 @@ export default function CuttingProtocol() {
     if (preChicken > 0) items.push({ slot: 'pre-workout', name: '速食鸡胸', qty: preChicken, unit: '块', p: preChicken * 22, c: preChicken * 1, f: preChicken * 2, kcal: preChicken * 110 });
     if (preEggs > 0) items.push({ slot: 'pre-workout', name: '全蛋', qty: preEggs, unit: '个', p: preEggs * 6, c: r0(preEggs * 0.5), f: preEggs * 5, kcal: r0(preEggs * 72) });
     if (preBanana > 0) items.push({ slot: 'pre-workout', name: '香蕉', qty: preBanana, unit: '根', p: preBanana, c: preBanana * 27, f: r0(preBanana * 0.25), kcal: r0(preBanana * 113) });
+    if (dinnerOikos > 0) items.push({ slot: 'snack', name: 'オイコス砂糖不使用', qty: dinnerOikos, unit: '个', p: dinnerOikos * 12, c: dinnerOikos * 5, f: 0, kcal: dinnerOikos * 68 });
     items.push({ slot: 'lunch', name: lunchMode === 'designer' ? '午餐(自制)' : '食堂午餐', qty: lunchKcal, unit: 'kcal估', p: r0(result.lunch.p), c: r0(result.lunch.c), f: r0(result.lunch.f), kcal: r0(result.lunch.kcal) });
     if (snack) items.push({ slot: 'snack', name: snack.name, qty: 1, unit: snack.serving || '份', p: r0(snack.p), c: r0(snack.c), f: r0(snack.f), kcal: r0(snack.kcal) });
     if (result.plan.meat > 0) items.push({ slot: 'dinner', name: dp.logName, qty: result.plan.meat, unit: dp.logUnit, p: r0(result.plan.meat * result.protPerG), c: r0(result.plan.meat * result.protCPerG), f: r0(result.plan.meat * result.protFatPerG), kcal: r0(result.plan.meat * (result.protPerG * 4 + result.protCPerG * 4 + result.protFatPerG * 9)) });
@@ -653,7 +656,6 @@ export default function CuttingProtocol() {
     if (result.plan.nissin > 0) items.push({ slot: 'dinner', name: '日清非油炸面', qty: result.plan.nissin, unit: '包', p: r0(result.plan.nissin * 6.7), c: r0(result.plan.nissin * 55), f: r0(result.plan.nissin * 4.9), kcal: r0(result.plan.nissin * 291) });
     if (result.plan.pho > 0) items.push({ slot: 'dinner', name: '越南米粉', qty: result.plan.pho, unit: '包', p: r0(result.plan.pho * 4), c: r0(result.plan.pho * 43), f: r0(result.plan.pho * 2), kcal: r0(result.plan.pho * 210) });
     if (result.plan.sauce > 0) items.push({ slot: 'dinner', name: 'ペペロンチーノ酱', qty: result.plan.sauce, unit: '包', p: r0(result.plan.sauce * 0.9), c: r0(result.plan.sauce * 1.5), f: result.plan.sauce * 10, kcal: result.plan.sauce * 100 });
-    if ((result.plan.oikos || 0) > 0) items.push({ slot: 'dinner', name: 'オイコス砂糖不使用', qty: result.plan.oikos, unit: '个', p: result.plan.oikos * 12, c: result.plan.oikos * 5, f: 0, kcal: result.plan.oikos * 71 });
     return {
       date: new Date().toISOString().slice(0, 10),
       targets: { ...targets, tdee },
@@ -742,7 +744,7 @@ export default function CuttingProtocol() {
               <Stepper zh="鸡胸" en="Chicken" value={preChicken} set={setPreChicken} />
               <Stepper zh="全蛋" en="Eggs" value={preEggs} set={setPreEggs} />
               <Stepper zh="香蕉" en="Banana" value={preBanana} set={setPreBanana} />
-              <Stepper zh="Oikos" en="晚餐" value={dinnerOikos} set={setDinnerOikos} accent="honey" />
+              <Stepper zh="Oikos" en="加餐" value={dinnerOikos} set={setDinnerOikos} accent="honey" />
             </div>
             <div className="mt-5 pt-4 border-t border-linesoft flex items-center gap-4 flex-wrap">
               <span className="text-xs font-mono text-inksoft tracking-wide">
@@ -1148,10 +1150,11 @@ export default function CuttingProtocol() {
               <div className="col-span-2 text-right">kcal</div>
             </div>
 
-            <LogGroup label="PRE-WORKOUT" />
+            <LogGroup label="PRE-WORKOUT · 加餐" />
             {preChicken > 0 && <LogRow name={`鸡胸 × ${preChicken}`} p={preChicken * 22} c={preChicken * 1} f={preChicken * 2} k={preChicken * 110} />}
             {preEggs > 0 && <LogRow name={`全蛋 × ${preEggs}`} p={preEggs * 6} c={Math.round(preEggs * 0.5)} f={preEggs * 5} k={Math.round(preEggs * 72)} />}
             {preBanana > 0 && <LogRow name={`香蕉 × ${preBanana}`} p={preBanana} c={preBanana * 27} f={Math.round(preBanana * 0.25)} k={Math.round(preBanana * 113)} />}
+            {dinnerOikos > 0 && <LogRow name={`オイコス × ${dinnerOikos}`} p={dinnerOikos * 12} c={dinnerOikos * 5} f={0} k={dinnerOikos * 68} />}
             {fasted && <div className="px-4 py-2 text-xs text-inkfaint border-t border-linesoft">空腹训练</div>}
 
             <LogGroup label={`LUNCH · ${lunchMode === 'designer' ? '自制' : '食堂'}`} />
