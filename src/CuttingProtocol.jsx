@@ -222,6 +222,26 @@ const DINNER_PROTEINS = {
   chicken: { label: '速食鸡胸(整块)',     sub: 'Ready-eat · per pack', tag: 'POULTRY · LEAN', p: 22,   f: 2,    c: 1, step: 1,  unitEN: '块',   logUnit: '块', lean: true,  logName: '鸡胸',   note: '每块≈100g/22g蛋白 · 按整块算' },
 };
 
+// ============ 放纵餐(娱乐页:日本暴食套餐 · 不算赤字)============
+const CHEAT_PLACES = [
+  { id: 'mcd', name: 'マクドナルド', en: "McDonald's", emoji: '🍔', items: [
+    { name: 'ビッグマック', kcal: 525 }, { name: 'ポテトL', kcal: 517 }, { name: 'シャカチキ', kcal: 251 },
+    { name: 'マックシェイク', kcal: 350 }, { name: 'ナゲット15', kcal: 690 }, { name: 'てりやき', kcal: 478 } ] },
+  { id: 'kfc', name: 'ケンタッキー', en: 'KFC', emoji: '🍗', items: [
+    { name: 'オリジナルチキン', kcal: 237 }, { name: 'ポテトL', kcal: 420 }, { name: 'ビスケット', kcal: 200 },
+    { name: 'カーネルクリスピー', kcal: 130 }, { name: 'ナゲット5', kcal: 230 } ] },
+  { id: 'sbux', name: 'スターバックス', en: 'Starbucks', emoji: '☕', items: [
+    { name: 'フラペチーノ(ベンティ)', kcal: 560 }, { name: 'スコーン', kcal: 420 }, { name: 'チーズケーキ', kcal: 380 } ] },
+  { id: 'tenichi', name: '北白川ラーメン(こってり)', en: 'Kitashirakawa', emoji: '🍜', items: [
+    { name: 'こってりラーメン', kcal: 900 }, { name: '唐揚げ', kcal: 350 }, { name: '白ごはん', kcal: 250 } ] },
+  { id: 'jiro', name: 'ラーメン二郎', en: 'Jiro', emoji: '🍜', items: [
+    { name: '小ラーメン', kcal: 1400 }, { name: '大ラーメン', kcal: 2000 }, { name: 'ぶたマシ', kcal: 400 }, { name: 'ニンニクアブラ', kcal: 150 } ] },
+  { id: 'iekei', name: '家系ラーメン', en: 'Iekei', emoji: '🍜', items: [
+    { name: 'ラーメン(並)', kcal: 900 }, { name: 'ライス', kcal: 250 }, { name: '味玉', kcal: 80 }, { name: 'のり', kcal: 30 }, { name: 'ライスおかわり', kcal: 250 } ] },
+  { id: 'coco', name: 'CoCo壱番屋', en: 'CoCo Ichi', emoji: '🍛', items: [
+    { name: 'ロースカツカレー', kcal: 1100 }, { name: 'ご飯大盛り', kcal: 250 }, { name: 'チーズ', kcal: 150 }, { name: 'ナンカレー', kcal: 700 } ] },
+];
+
 function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkout = { p: 22, c: 1, f: 2, kcal: 110 }, oikosIn = 1, dinnerProteinIn = 'beef', targetsIn = DEFAULT_TARGETS) {
   // 安全网:用局部常量净化输入(不改写参数本身,避免 iOS 只读报错)
   const lunchKcal = Number.isFinite(lunchKcalIn) ? Math.max(0, Math.min(5000, lunchKcalIn)) : 0;
@@ -551,6 +571,7 @@ export default function CuttingProtocol() {
   const PAGES = [
     { zh: '配餐', en: 'Plan' },
     { zh: '明细', en: 'Detail' },
+    { zh: '放纵', en: 'Cheat' },
   ];
   const [page, setPage] = useState(0);
   const go = (i) => setPage(Math.max(0, Math.min(PAGES.length - 1, i)));
@@ -564,6 +585,8 @@ export default function CuttingProtocol() {
   const [analyzing, setAnalyzing] = useState(false);
   const [snackErr, setSnackErr] = useState('');
   const [snackOpen, setSnackOpen] = useState(false); // 加餐抽屉:默认收起,点小球才展开
+  const [cheat, setCheat] = useState({}); // 放纵餐:`${pid}:${i}` -> 份数
+  const addCheat = (k, d) => setCheat((c) => { const n = Math.max(0, (c[k] || 0) + d); const nc = { ...c }; if (n) nc[k] = n; else delete nc[k]; return nc; });
 
   const saveKey = (k) => {
     setApiKey(k);
@@ -684,6 +707,21 @@ export default function CuttingProtocol() {
       downloadDayJSON();
     }
   };
+
+  // 放纵餐派生
+  const cheatItems = [];
+  let cheatTotal = 0;
+  CHEAT_PLACES.forEach((pl) => pl.items.forEach((it, i) => {
+    const n = cheat[`${pl.id}:${i}`] || 0;
+    if (n > 0) { cheatItems.push({ place: pl.name, emoji: pl.emoji, name: it.name, kcal: it.kcal, n }); cheatTotal += it.kcal * n; }
+  }));
+  const cheatBaseKcal = Math.round(result.lunch.kcal + result.preWorkout.kcal); // 午餐 + 加餐(不含晚餐处方)
+  const cheatDayTotal = cheatTotal + cheatBaseKcal;
+  const cheatSurplus = cheatDayTotal - tdee;
+  const cheatFatG = Math.max(0, Math.round(cheatSurplus / 7.7));      // 盈余 kcal / 7700 * 1000 g
+  const cheatWaistCm = Math.max(0, +(cheatFatG / 1000 * 1.5).toFixed(1)); // 娱乐换算
+  const cheatRunMin = Math.round(cheatTotal / 10);                   // MET7 慢跑 ≈10kcal/min@83kg
+  const cheatVerdict = cheatTotal === 0 ? '' : cheatTotal < 1000 ? '小放纵 😋' : cheatTotal < 2000 ? '正经造一顿 🍔' : cheatTotal < 3500 ? '急头白脸 😤' : '明天腰带松一格 🤡';
 
   return (
     <div className="grain relative min-h-screen text-ink font-sans">
@@ -1292,6 +1330,99 @@ export default function CuttingProtocol() {
           </Card>
         </section>
 
+        </>)}
+
+        {page === 2 && (<>
+        {/* ============ CHEAT DAY ============ */}
+        <section className="rise mb-6" style={{ animationDelay: '0ms' }}>
+          <div className="relative overflow-hidden rounded-3xl shadow-warmlg border border-line">
+            <img src={asset('cheat.jpg')} alt="放纵餐" className="w-full h-44 sm:h-52 object-cover" loading="lazy" />
+            <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(251,243,231,0) 35%, rgba(251,243,231,0.6) 72%, rgba(251,243,231,0.97) 100%)' }} />
+            <div className="absolute inset-x-0 bottom-0 p-5">
+              <div className="text-[10px] font-mono tracking-[0.28em] text-terradeep mb-1">CHEAT DAY · 今天不算赤字</div>
+              <h2 className="font-display text-4xl sm:text-5xl text-ink leading-none" style={{ fontWeight: 400, fontStyle: 'italic' }}>放纵餐</h2>
+            </div>
+          </div>
+          <p className="mt-3 text-[11px] font-mono text-inksoft text-center">只算后果,不算热量差 😈 点店里的东西,堆成急头白脸的一顿</p>
+        </section>
+
+        {/* 选店暴食 */}
+        <section className="rise mb-6" style={{ animationDelay: '80ms' }}>
+          <SectionHead no="🍔" zh="选店暴食" en="Pick & Pile" accent="honey" />
+          <div className="space-y-3">
+            {CHEAT_PLACES.map((pl) => (
+              <Card key={pl.id} className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xl">{pl.emoji}</span>
+                  <span className="font-cjk text-ink" style={{ fontWeight: 600 }}>{pl.name}</span>
+                  <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-inkfaint">{pl.en}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {pl.items.map((it, i) => {
+                    const k = `${pl.id}:${i}`; const n = cheat[k] || 0;
+                    return (
+                      <button
+                        key={k}
+                        onClick={() => addCheat(k, 1)}
+                        className={`px-3 py-2 rounded-2xl border text-left transition-all active:scale-95 ${n > 0 ? 'border-terra bg-terra/[0.08] shadow-warm' : 'border-line bg-card hover:border-terra/40'}`}
+                      >
+                        <div className="text-[12px] font-cjk text-ink">{it.name}{n > 0 && <span className="text-terradeep font-mono"> ×{n}</span>}</div>
+                        <div className="text-[10px] font-mono text-inkfaint flex items-center gap-2">
+                          <span>{it.kcal} kcal</span>
+                          {n > 0 && <span role="button" onClick={(e) => { e.stopPropagation(); addCheat(k, -1); }} className="text-terra px-1.5 rounded hover:bg-terra/10">−</span>}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {/* 后果 */}
+        <section className="rise mb-6" style={{ animationDelay: '160ms' }}>
+          <SectionHead no="💥" zh="后果" en="Damage" accent="honey" />
+          {cheatTotal === 0 ? (
+            <Card className="p-6 text-center text-inksoft font-cjk text-sm">还没点呢…上面点几样,堆成一顿放纵餐 👆</Card>
+          ) : (
+            <Card className="p-5">
+              <div className="flex items-center gap-4 mb-5">
+                <img src={asset('belly.jpg')} alt="" className="w-16 h-16 rounded-2xl object-cover border border-line shrink-0" loading="lazy" />
+                <div>
+                  <div className="text-[10px] font-mono text-inkfaint tracking-wider">这一顿</div>
+                  <div className="font-display text-4xl text-terradeep tnum leading-none" style={{ fontWeight: 400 }}>{cheatTotal}<span className="text-base text-inksoft ml-1">kcal</span></div>
+                  <div className="text-[12px] font-cjk text-honey mt-1" style={{ fontWeight: 600 }}>{cheatVerdict}</div>
+                </div>
+              </div>
+              <div className="space-y-2.5 font-mono text-xs">
+                <div className="flex justify-between"><span className="text-inksoft">今日总摄入(含午餐+加餐 {cheatBaseKcal})</span><span className="text-ink tnum">{cheatDayTotal} kcal</span></div>
+                <div className="flex justify-between"><span className="text-inksoft">你的总消耗 TDEE</span><span className="text-ink tnum">{tdee} kcal</span></div>
+                <div className="flex justify-between border-t border-linesoft pt-2.5"><span className="text-inksoft">今日{cheatSurplus >= 0 ? '盈余' : '仍赤字'}</span><span className="tnum" style={{ color: cheatSurplus >= 0 ? '#B14E2A' : '#5F6B3E' }}>{cheatSurplus >= 0 ? '+' : ''}{cheatSurplus} kcal</span></div>
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-2.5">
+                <div className="rounded-2xl bg-paper border border-line p-3 text-center">
+                  <div className="text-[9px] font-mono text-inkfaint tracking-wider mb-1">理论涨脂肪</div>
+                  <div className="font-display text-2xl text-terradeep tnum" style={{ fontWeight: 400 }}>{cheatFatG}<span className="text-[11px] text-inksoft ml-0.5">g</span></div>
+                </div>
+                <div className="rounded-2xl bg-paper border border-line p-3 text-center">
+                  <div className="text-[9px] font-mono text-inkfaint tracking-wider mb-1">腰围(娱乐)</div>
+                  <div className="font-display text-2xl text-terradeep tnum" style={{ fontWeight: 400 }}>+{cheatWaistCm}<span className="text-[11px] text-inksoft ml-0.5">cm</span></div>
+                </div>
+                <div className="rounded-2xl bg-paper border border-line p-3 text-center">
+                  <div className="text-[9px] font-mono text-inkfaint tracking-wider mb-1">慢跑抵消</div>
+                  <div className="font-display text-2xl text-sagedeep tnum" style={{ fontWeight: 400 }}>{cheatRunMin}<span className="text-[11px] text-inksoft ml-0.5">分</span></div>
+                </div>
+              </div>
+              <div className="mt-4 flex gap-2">
+                <button onClick={() => setCheat({})} className="flex-1 px-4 py-2.5 rounded-full border border-line bg-card text-inksoft text-xs font-mono tracking-wider hover:border-terra hover:text-terra transition-all">清空重来</button>
+              </div>
+              <p className="mt-3 text-[10px] font-mono text-inkfaint leading-relaxed">
+                ⓘ 纯娱乐。单顿暴食第二天秤上涨的多是水分+食物本身+糖原储水,不是真脂肪;脂肪真要长 {cheatFatG}g 得这些盈余反复累积。腰围数字更是图一乐。
+              </p>
+            </Card>
+          )}
+        </section>
         </>)}
 
         {/* ============ 翻页器 ============ */}
