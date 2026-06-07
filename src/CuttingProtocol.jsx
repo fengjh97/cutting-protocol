@@ -237,6 +237,7 @@ const DINNER_PROTEINS = {
   beef:    { label: '牛肉 切り落とし(生)', sub: 'Beef · raw wt',        tag: 'RED MEAT',      p: 0.19,         c: 0, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: false, logName: '牛肉',   note: '带脂肪 · 可自动补脂' },
   shrimp:  { label: '冷冻大虾仁',          sub: 'Shrimp · thawed raw',  tag: 'SEAFOOD · LEAN', p: 0.20, f: 0.01, c: 0, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: true,  logName: '大虾仁', note: '超低脂高蛋白 · 脂肪靠酱补' },
   chicken: { label: '速食鸡胸(整块)',     sub: 'Ready-eat · per pack', tag: 'POULTRY · LEAN', p: 22,   f: 2,    c: 1, step: 1,  unitEN: '块',   logUnit: '块', lean: true,  logName: '鸡胸',   note: '每块≈100g/22g蛋白 · 按整块算' },
+  egg:     { label: '煎鸡蛋',             sub: 'Pan-fried Egg · each', tag: 'EGG · WHOLE',    p: 6,    f: 7,    c: 0.4, step: 1, unitEN: '個',  logUnit: '個', lean: false, logName: '煎蛋',  note: '整蛋带脂 · 香,但要吃不少个' },
 };
 
 // ============ 放纵餐(娱乐页:日本暴食套餐 · 不算赤字)============
@@ -719,6 +720,8 @@ export default function CuttingProtocol() {
   };
 
   const setSnackField = (k, v) => setSnack((s) => s ? { ...s, [k]: Math.max(0, Number(v) || 0) } : s);
+  const setSnackName = (v) => setSnack((s) => s ? { ...s, name: v } : s);
+  const startManualSnack = () => { setSnackErr(''); setSnack({ name: '手动加餐', serving: '手动输入', note: '', confidence: 'manual', p: 0, c: 0, f: 0, kcal: 0 }); };
 
   // 调整后晚餐一句话菜单
   const dinnerSummary = useMemo(() => {
@@ -1060,7 +1063,7 @@ export default function CuttingProtocol() {
         {/* ============ 03 · DINNER PROTEIN ============ */}
         <section className="rise mb-9" style={{ animationDelay: '300ms' }}>
           <SectionHead no="03" zh="晚餐蛋白源" en="Dinner Protein" />
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {Object.entries(DINNER_PROTEINS).map(([key, prot]) => (
               <button
                 key={key}
@@ -1581,18 +1584,22 @@ export default function CuttingProtocol() {
                       <div className="h-full w-2/3 bg-honey animate-pulse rounded-full" />
                     </div>
                   )}
+                  <div className="flex items-center gap-3 my-4">
+                    <div className="flex-1 h-px bg-line" /><span className="text-[10px] font-mono text-inkfaint">或</span><div className="flex-1 h-px bg-line" />
+                  </div>
+                  <button onClick={startManualSnack} disabled={analyzing} className="w-full px-4 py-3 rounded-2xl border border-line bg-card text-ink text-sm font-cjk hover:border-terra hover:text-terra transition-all disabled:opacity-50" style={{ fontWeight: 500 }}>✏️ 自己输入营养素</button>
                 </>
               )}
 
               {snack && (
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="min-w-0">
-                      <div className="text-base font-cjk text-ink truncate" style={{ fontWeight: 600 }}>{snack.name}</div>
+                    <div className="min-w-0 flex-1">
+                      <input value={snack.name} onChange={(e) => setSnackName(e.target.value)} className="w-full bg-transparent outline-none text-base font-cjk text-ink border-b border-transparent focus:border-terra" style={{ fontWeight: 600 }} />
                       {snack.serving && <div className="text-[11px] text-inkfaint font-mono mt-0.5">按 {snack.serving} 计</div>}
                     </div>
-                    <span className={`text-[9px] font-mono px-2 py-1 rounded-full tracking-wider shrink-0 ${snack.confidence === 'high' ? 'bg-sage/15 text-sagedeep' : snack.confidence === 'low' ? 'bg-terra/15 text-terradeep' : 'bg-honey/15 text-honey'}`}>
-                      {snack.confidence === 'high' ? '识别可信' : snack.confidence === 'low' ? '仅供参考' : '大致估算'}
+                    <span className={`text-[9px] font-mono px-2 py-1 rounded-full tracking-wider shrink-0 ${snack.confidence === 'high' ? 'bg-sage/15 text-sagedeep' : snack.confidence === 'manual' ? 'bg-sage/15 text-sagedeep' : snack.confidence === 'low' ? 'bg-terra/15 text-terradeep' : 'bg-honey/15 text-honey'}`}>
+                      {snack.confidence === 'high' ? '识别可信' : snack.confidence === 'manual' ? '手动输入' : snack.confidence === 'low' ? '仅供参考' : '大致估算'}
                     </span>
                   </div>
                   {snack.note && <p className="text-[12px] text-inksoft leading-relaxed mb-4 font-cjk">💬 {snack.note}</p>}
