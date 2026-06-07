@@ -237,7 +237,7 @@ const DINNER_PROTEINS = {
   beef:    { label: '牛肉 切り落とし(生)', sub: 'Beef · raw wt',        tag: 'RED MEAT',      p: 0.19,         c: 0, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: false, logName: '牛肉',   note: '带脂肪 · 可自动补脂' },
   shrimp:  { label: '冷冻大虾仁',          sub: 'Shrimp · thawed raw',  tag: 'SEAFOOD · LEAN', p: 0.20, f: 0.01, c: 0, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: true,  logName: '大虾仁', note: '超低脂高蛋白 · 脂肪靠酱补' },
   chicken: { label: '速食鸡胸(整块)',     sub: 'Ready-eat · per pack', tag: 'POULTRY · LEAN', p: 22,   f: 2,    c: 1, step: 1,  unitEN: '块',   logUnit: '块', lean: true,  logName: '鸡胸',   note: '每块≈100g/22g蛋白 · 按整块算' },
-  egg:     { label: '煎鸡蛋',             sub: 'Pan-fried Egg · each', tag: 'EGG · WHOLE',    p: 6,    f: 7,    c: 0.4, step: 1, unitEN: '個',  logUnit: '個', lean: false, logName: '煎蛋',  note: '整蛋带脂 · 香,但要吃不少个' },
+  egg:     { label: '煎鸡蛋',             sub: 'Pan-fried Egg · each', tag: 'EGG · WHOLE',    p: 6,    f: 7,    c: 0.4, step: 1, unitEN: '個',  logUnit: '個', lean: false, maxUnits: 6, logName: '煎蛋',  note: '上限6個 · 蛋白会偏低,主食照给' },
 };
 
 // ============ 放纵餐(娱乐页:日本暴食套餐 · 不算赤字)============
@@ -378,6 +378,7 @@ function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkou
   // 预留 1 包酱蛋白(0.9g)
   const proteinFromMeat = dinnerNeedP - carbFoodP - 0.9;
   let meat = Math.max(0, Math.round(proteinFromMeat / unitP / step) * step);
+  if (prot.maxUnits) meat = Math.min(meat, prot.maxUnits); // 低蛋白高脂源(煎蛋)封顶,避免堆量挤掉碳水
 
   // ===== 3. 脂肪缺口 → 酱 + (仅牛肉)额外肉补 =====
   const PROTEIN_CEILING = 165; // 蛋白安全上限 ≈ 2.66 g/kg LBM(补脂肪加肉的天花板)
@@ -399,6 +400,7 @@ function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkou
     }
   }
   meat += extraMeat;
+  if (prot.maxUnits) meat = Math.min(meat, prot.maxUnits);
 
   // ===== 4. 2000 kcal 铁线:分级削减 额外肉 → 酱 → 碳水主食,直到 ≤ 2000 =====
   const dinKcal = (b, cP, cC, cF, s) =>
