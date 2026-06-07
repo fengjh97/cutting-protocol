@@ -237,7 +237,13 @@ const DINNER_PROTEINS = {
   beef:    { label: '牛肉 切り落とし(生)', sub: 'Beef · raw wt',        tag: 'RED MEAT',      p: 0.19,         c: 0, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: false, logName: '牛肉',   note: '带脂肪 · 可自动补脂' },
   shrimp:  { label: '冷冻大虾仁',          sub: 'Shrimp · thawed raw',  tag: 'SEAFOOD · LEAN', p: 0.20, f: 0.01, c: 0, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: true,  logName: '大虾仁', note: '超低脂高蛋白 · 脂肪靠酱补' },
   chicken: { label: '速食鸡胸(整块)',     sub: 'Ready-eat · per pack', tag: 'POULTRY · LEAN', p: 22,   f: 2,    c: 1, step: 1,  unitEN: '块',   logUnit: '块', lean: true,  logName: '鸡胸',   note: '每块≈100g/22g蛋白 · 按整块算' },
-  egg:     { label: '煎鸡蛋',             sub: 'Pan-fried Egg · each', tag: 'EGG · WHOLE',    p: 6,    f: 7,    c: 0.4, step: 1, unitEN: '個',  logUnit: '個', lean: false, maxUnits: 6, logName: '煎蛋',  note: '上限6個 · 蛋白会偏低,主食照给' },
+  egg:     { label: '鸡蛋(补脂)',         sub: 'Egg · fill fat',       tag: 'EGG · FAT',      p: 6,    f: 7,    c: 0.4, step: 1, unitEN: '個',  logUnit: '個', lean: false, maxUnits: 6, logName: '蛋',    note: '专门补脂肪 · 煎/全可选 · 上限6個' },
+};
+
+// 补脂鸡蛋类型(选了「鸡蛋」时用来填脂肪缺口)
+const EGG_TYPES = {
+  fried:  { label: '煎蛋',       logName: '煎蛋', sub: 'Pan-fried egg · each', p: 6, f: 7, c: 0.4 },
+  boiled: { label: '全蛋(水煮)', logName: '全蛋', sub: 'Boiled egg · each',    p: 6, f: 5, c: 0.5 },
 };
 
 // ============ 放纵餐(娱乐页:日本暴食套餐 · 不算赤字)============
@@ -315,7 +321,7 @@ const CHEAT_PLACES = [
     { name: 'ビール350ml', kcal: 140 }, { name: 'ビール500ml', kcal: 200 }, { name: 'ハイボール缶', kcal: 160 }, { name: 'チューハイ350', kcal: 179 }, { name: '日本酒1合', kcal: 193 }, { name: 'ワイングラス', kcal: 80 }, { name: '唐揚げ3個', kcal: 280 }, { name: 'フライドポテト', kcal: 300 }, { name: '枝豆', kcal: 80 } ] },
 ];
 
-function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkout = { p: 22, c: 1, f: 2, kcal: 110 }, oikosIn = 1, dinnerProteinsIn = ['beef'], targetsIn = DEFAULT_TARGETS) {
+function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkout = { p: 22, c: 1, f: 2, kcal: 110 }, oikosIn = 1, dinnerProteinsIn = ['beef'], targetsIn = DEFAULT_TARGETS, eggTypeIn = 'fried') {
   // 安全网:用局部常量净化输入(不改写参数本身,避免 iOS 只读报错)
   const lunchKcal = Number.isFinite(lunchKcalIn) ? Math.max(0, Math.min(5000, lunchKcalIn)) : 0;
   const beefFatPer100g = Number.isFinite(beefFatIn) ? Math.max(0, Math.min(40, beefFatIn)) : 9;
@@ -348,96 +354,72 @@ function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkou
   const oikosP = oikosCount * 12;
   const oikosC = oikosCount * 5;
 
-  // 晚餐要填补的剩余缺口 = 全天目标 − 午餐 − 训练前 − Oikos
-  const dinnerNeedP = TARGETS.p - lunch.p - preWorkout.p - oikosP;
-  const dinnerNeedC = TARGETS.c - lunch.c - preWorkout.c - oikosC;
-  const dinnerNeedF = TARGETS.f - lunch.f - preWorkout.f;
+  // ===== 已吃掉(午餐 + 训练前/加餐/Oikos 已并入 preWorkout)=====
+  const eatenP = lunch.p + preWorkout.p;
+  const eatenF = lunch.f + preWorkout.f;
+  const eatenKcal = lunch.kcal + preWorkout.kcal;
 
-  // ===== 1. 碳水主食:完全按碳水缺口动态计算(三种方案都会升降) =====
-  // 预留 1 包酱的碳水(1.5g)
-  const carbFromStaple = Math.max(0, dinnerNeedC - 1.5);
-  let pasta = 0, nissin = 0, pho = 0;
-  let carbFoodP = 0, carbFoodC = 0, carbFoodF = 0;
+  // 蛋白主源(牛肉/虾仁/鸡胸)与「补脂鸡蛋」分离 —— 鸡蛋只拿来补脂肪
+  const eggOn = keys.includes('egg');
+  const mainKeys = keys.filter((k) => k !== 'egg');
+  const eggU = EGG_TYPES[eggTypeIn] || EGG_TYPES.fried;
 
-  if (planKey === 'pasta') {
-    pasta = Math.max(0, Math.round(carbFromStaple / 0.71 / 10) * 10);
-    carbFoodP = pasta * 0.12; carbFoodC = pasta * 0.71; carbFoodF = pasta * 0.015;
-  } else if (planKey === 'nissin') {
-    nissin = Math.max(0, Math.min(4, Math.round(carbFromStaple / 55)));
-    carbFoodP = nissin * 6.7; carbFoodC = nissin * 55; carbFoodF = nissin * 4.9;
-  } else if (planKey === 'pho') {
-    pho = Math.max(0, Math.min(4, Math.round(carbFromStaple / 43)));
-    carbFoodP = pho * 4; carbFoodC = pho * 43; carbFoodF = pho * 2;
-  }
-
-  // ===== 2. 蛋白源:把蛋白缺口均分到所选的几种(各自取整 + 煎蛋封顶) =====
-  const PROTEIN_CEILING = 165; // 蛋白安全上限
-  const proteinNeed = Math.max(0, dinnerNeedP - carbFoodP - 0.9); // 预留 1 包酱蛋白
+  // ===== 1. 蛋白:主源只补到下限(默认120,够了就行,不强行冲目标),多选则均分 =====
+  const protFloor = Math.min(120, TARGETS.p);
+  const proteinNeed = Math.max(0, protFloor - eatenP);
   const portions = {};
-  keys.forEach((k) => {
+  mainKeys.forEach((k) => {
     const u = un(k);
-    let units = Math.round((proteinNeed / keys.length) / u.p / u.step) * u.step;
-    units = Math.max(u.step, units);   // 既然选了它,至少给 1 份,保证每种都出现在菜单里
-    units = Math.min(units, u.max);
-    portions[k] = units;
+    let units = Math.round((proteinNeed / mainKeys.length) / u.p / u.step) * u.step;
+    portions[k] = Math.max(0, Math.min(units, u.max));
   });
-  const sumMacro = () => {
-    let p = 0, c = 0, f = 0;
-    keys.forEach((k) => { const u = un(k); p += portions[k] * u.p; c += portions[k] * u.c; f += portions[k] * u.fat; });
-    return { p, c, f };
-  };
+  if (proteinNeed > 0 && mainKeys.length && mainKeys.every((k) => !portions[k])) portions[mainKeys[0]] = un(mainKeys[0]).step;
+  const mP = () => mainKeys.reduce((s2, k) => s2 + portions[k] * un(k).p, 0);
+  const mF = () => mainKeys.reduce((s2, k) => s2 + portions[k] * un(k).fat, 0);
+  const mC = () => mainKeys.reduce((s2, k) => s2 + portions[k] * un(k).c, 0);
 
-  // ===== 3. 脂肪缺口 → 酱(含牛肉≤1,否则≤2)+ 含牛肉时额外牛肉补 =====
-  const sauceMax = hasBeef ? 1 : 2;
-  const sm = sumMacro();
-  let sauceCount = Math.max(0, Math.min(sauceMax, Math.round((dinnerNeedF - (sm.f + carbFoodF)) / 10)));
-  let extraBeef = 0;
-  if (hasBeef) {
-    const remFat = dinnerNeedF - (sm.f + carbFoodF) - sauceCount * 10;
-    if (remFat > 2 && beefFatCooked > 0) {
-      extraBeef = Math.min(250, Math.round((remFat / beefFatCooked) / 10) * 10);
-      const pSoFar = lunch.p + preWorkout.p + oikosP + carbFoodP + sauceCount * 0.9 + sm.p;
-      const head = PROTEIN_CEILING - pSoFar;
-      extraBeef = head <= 0 ? 0 : Math.min(extraBeef, Math.max(0, Math.floor(head / 0.19 / 10) * 10));
-      portions.beef = (portions.beef || 0) + extraBeef;
-    }
+  // ===== 2. 脂肪:酱固定 1 包 + (选了蛋)煎/全蛋补到脂肪目标 =====
+  let sauceCount = 1;
+  let eggCount = 0;
+  if (eggOn && eggU.f > 0) {
+    const fatGap = TARGETS.f - (eatenF + mF() + sauceCount * 10);
+    eggCount = Math.max(0, Math.min(DINNER_PROTEINS.egg.maxUnits || 6, Math.round(fatGap / eggU.f)));
   }
 
-  // ===== 4. 2000 kcal 铁线:额外牛肉 → 酱 → 碳水主食 → 等比缩蛋白 =====
-  const dinKcalNow = () => {
-    const m = sumMacro();
-    const p = m.p + carbFoodP + sauceCount * 0.9 + oikosP;
-    const c = m.c + carbFoodC + sauceCount * 1.5 + oikosC;
-    const ff = m.f + carbFoodF + sauceCount * 10;
-    return lunch.kcal + preWorkout.kcal + (p * 4 + c * 4 + ff * 9);
+  // ===== 3. 碳水:把剩余热量预算全部填进主食(碳水可略超,但全天守目标 kcal 上限)=====
+  const eggKcal = () => eggCount * (eggU.p * 4 + eggU.c * 4 + eggU.f * 9);
+  const protKcal = () => mP() * 4 + mC() * 4 + mF() * 9;
+  let pasta = 0, nissin = 0, pho = 0, carbFoodP = 0, carbFoodC = 0, carbFoodF = 0;
+  const setCarb = (budget) => {
+    if (planKey === 'pasta') { pasta = Math.max(0, Math.round(budget / 3.55 / 10) * 10); carbFoodP = pasta * 0.12; carbFoodC = pasta * 0.71; carbFoodF = pasta * 0.015; }
+    else if (planKey === 'nissin') { nissin = Math.max(0, Math.round(budget / 291)); carbFoodP = nissin * 6.7; carbFoodC = nissin * 55; carbFoodF = nissin * 4.9; }
+    else if (planKey === 'pho') { pho = Math.max(0, Math.round(budget / 210)); carbFoodP = pho * 4; carbFoodC = pho * 43; carbFoodF = pho * 2; }
   };
-  if (dinKcalNow() > TARGETS.kcal + 5 && extraBeef > 0) { portions.beef -= extraBeef; extraBeef = 0; }
-  while (dinKcalNow() > TARGETS.kcal + 5 && sauceCount > 0) sauceCount -= 1;
-  let over = dinKcalNow() - TARGETS.kcal;
-  if (over > 5) {
-    if (planKey === 'pasta' && pasta > 0) { pasta = Math.max(0, pasta - Math.ceil(over / 3.55 / 10) * 10); carbFoodP = pasta * 0.12; carbFoodC = pasta * 0.71; carbFoodF = pasta * 0.015; }
-    else if (planKey === 'nissin' && nissin > 0) { nissin = Math.max(0, nissin - Math.ceil(over / 291)); carbFoodP = nissin * 6.7; carbFoodC = nissin * 55; carbFoodF = nissin * 4.9; }
-    else if (planKey === 'pho' && pho > 0) { pho = Math.max(0, pho - Math.ceil(over / 210)); carbFoodP = pho * 4; carbFoodC = pho * 43; carbFoodF = pho * 2; }
-  }
+  setCarb(Math.max(0, TARGETS.kcal - eatenKcal - protKcal() - eggKcal() - sauceCount * 100));
+
+  // 守上限:超了先缩碳水 → 再砍蛋 → 最后兜底缩主蛋白
+  const dayKcal = () => eatenKcal + protKcal() + eggKcal() + sauceCount * 100 + (carbFoodP * 4 + carbFoodC * 4 + carbFoodF * 9);
   let guard = 0;
-  while (dinKcalNow() - TARGETS.kcal > 5 && guard < 60) {
+  while (dayKcal() > TARGETS.kcal + 5 && guard < 200) {
     guard += 1;
-    let bestK = null, bestKcal = -1;
-    keys.forEach((k) => { if (portions[k] > 0) { const u = un(k); const kc = (u.p * 4 + u.c * 4 + u.fat * 9) * u.step; if (kc > bestKcal) { bestKcal = kc; bestK = k; } } });
-    if (!bestK) break;
-    portions[bestK] = Math.max(0, portions[bestK] - un(bestK).step);
+    if (planKey === 'pasta' && pasta > 0) { pasta = Math.max(0, pasta - 10); carbFoodP = pasta * 0.12; carbFoodC = pasta * 0.71; carbFoodF = pasta * 0.015; }
+    else if (planKey === 'nissin' && nissin > 0) { nissin -= 1; carbFoodP = nissin * 6.7; carbFoodC = nissin * 55; carbFoodF = nissin * 4.9; }
+    else if (planKey === 'pho' && pho > 0) { pho -= 1; carbFoodP = pho * 4; carbFoodC = pho * 43; carbFoodF = pho * 2; }
+    else if (eggCount > 0) eggCount -= 1;
+    else { let bk = null, bv = -1; mainKeys.forEach((k) => { if (portions[k] > 0) { const u = un(k); const kc = (u.p * 4 + u.c * 4 + u.fat * 9) * u.step; if (kc > bv) { bv = kc; bk = k; } } }); if (!bk) break; portions[bk] -= un(bk).step; }
   }
 
-  const finalMacro = sumMacro();
-  const proteinList = keys.map((k) => { const u = un(k); return { key: k, units: portions[k], p: u.p, fat: u.fat, c: u.c, label: u.label, sub: u.sub, logName: u.logName, logUnit: u.logUnit, unitEN: u.unitEN }; }).filter((x) => x.units > 0);
-
-  const plan = { proteins: proteinList, pasta, nissin, pho, sauce: sauceCount, banana: 0, oikos: oikosCount };
+  // ===== 4. 组装(补脂鸡蛋作为一行,与主蛋白一起进 proteinList)=====
+  const proteinList = mainKeys.map((k) => { const u = un(k); return { key: k, units: portions[k] || 0, p: u.p, fat: u.fat, c: u.c, label: u.label, sub: u.sub, logName: u.logName, logUnit: u.logUnit, unitEN: u.unitEN }; }).filter((x) => x.units > 0);
+  if (eggCount > 0) proteinList.push({ key: 'egg', units: eggCount, p: eggU.p, fat: eggU.f, c: eggU.c, label: eggU.label, sub: eggU.sub, logName: eggU.logName, logUnit: '個', unitEN: '個' });
+  const plan = { proteins: proteinList, egg: eggCount, eggType: eggTypeIn, pasta, nissin, pho, sauce: sauceCount, banana: 0, oikos: oikosCount };
 
   // ===== 5. 实际晚餐宏量 =====
+  const fm = proteinList.reduce((a, x) => ({ p: a.p + x.units * x.p, c: a.c + x.units * x.c, f: a.f + x.units * x.fat }), { p: 0, c: 0, f: 0 });
   const dinner = {
-    p: finalMacro.p + carbFoodP + sauceCount * 0.9 + oikosP,
-    c: finalMacro.c + carbFoodC + sauceCount * 1.5 + oikosC,
-    f: finalMacro.f + carbFoodF + sauceCount * 10,
+    p: fm.p + carbFoodP + sauceCount * 0.9 + oikosP,
+    c: fm.c + carbFoodC + sauceCount * 1.5 + oikosC,
+    f: fm.f + carbFoodF + sauceCount * 10,
   };
   dinner.kcal = dinner.p * 4 + dinner.c * 4 + dinner.f * 9;
 
@@ -581,6 +563,7 @@ export default function CuttingProtocol() {
   const [lunchCarb, setLunchCarb] = useState('rice');
   const [beefFat, setBeefFat] = useState(13);
   const [dinnerProteins, setDinnerProteins] = useState(['beef']);
+  const [eggType, setEggType] = useState('fried'); // 补脂鸡蛋:煎蛋/全蛋
   const toggleProtein = (k) => setDinnerProteins((arr) => arr.includes(k) ? (arr.length > 1 ? arr.filter((x) => x !== k) : arr) : [...arr, k]);
 
   // 可编辑目标:TDEE + 目标 P/C/F/kcal(存本机)
@@ -630,8 +613,8 @@ export default function CuttingProtocol() {
       ? { p: lunchDesign.total.p, c: lunchDesign.total.c, f: lunchDesign.total.f, kcal: lunchDesign.total.kcal }
       : null;
     // Oikos 已并入 effectivePre(配午餐/加餐),晚餐里不再放 → 传 0
-    return calculate(lunchKcal, planKey, override, beefFat, effectivePre, 0, dinnerProteins, targets);
-  }, [lunchKcal, planKey, lunchMode, lunchDesign, beefFat, effectivePre, dinnerProteins, targets]);
+    return calculate(lunchKcal, planKey, override, beefFat, effectivePre, 0, dinnerProteins, targets, eggType);
+  }, [lunchKcal, planKey, lunchMode, lunchDesign, beefFat, effectivePre, dinnerProteins, targets, eggType]);
 
   const fasted = preChicken === 0 && preEggs === 0 && preBanana === 0;
 
@@ -1086,9 +1069,25 @@ export default function CuttingProtocol() {
             </div>
           )}
           {dinnerProteins.includes('egg') && (
-            <div className="mt-3 text-[11px] font-mono text-honey tracking-wide leading-relaxed flex items-start gap-1.5">
-              <span>ⓘ</span>
-              <span>煎蛋按<span className="text-terradeep">個</span>算、<span className="text-terradeep">上限 6 個</span>(自带脂肪);单吃煎蛋蛋白会偏低,主食照常给。</span>
+            <div className="mt-3 space-y-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono text-inkfaint tracking-wider shrink-0">补脂用</span>
+                <div className="flex p-1 rounded-full bg-paper2 flex-1">
+                  {[['fried', '煎蛋', '7g脂/個'], ['boiled', '全蛋(水煮)', '5g脂/個']].map(([k, zh, sub]) => (
+                    <button
+                      key={k}
+                      onClick={() => setEggType(k)}
+                      className={`flex-1 px-3 py-1.5 rounded-full text-[11px] font-cjk transition-all ${eggType === k ? 'bg-card text-terradeep shadow-warm' : 'text-inksoft hover:text-ink'}`}
+                    >
+                      {zh}<span className="text-[9px] font-mono text-inkfaint ml-1">{sub}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="text-[11px] font-mono text-honey tracking-wide leading-relaxed flex items-start gap-1.5">
+                <span>ⓘ</span>
+                <span>鸡蛋<span className="text-terradeep">专门补脂肪</span>:蛋白先用主源补到 ~120,脂肪缺口由蛋填(酱固定1包),剩余热量全堆碳水。蛋按個算、上限 6 個。</span>
+              </div>
             </div>
           )}
         </section>
