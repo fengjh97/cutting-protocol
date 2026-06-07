@@ -243,7 +243,7 @@ const DINNER_PROTEINS = {
 const CHEAT_PLACES = [
   // —— バーガー ——
   { id: 'mcd', name: 'マクドナルド', en: "McDonald's", emoji: '🍔', items: [
-    { name: 'ビッグマック', kcal: 525 }, { name: 'ダブチ', kcal: 457 }, { name: 'てりやき', kcal: 478 }, { name: 'えびフィレオ', kcal: 393 }, { name: 'ポテトL', kcal: 517 }, { name: 'ナゲット15', kcal: 786 }, { name: 'シェイクM', kcal: 351 }, { name: 'アップルパイ', kcal: 211 } ] },
+    { name: 'ビッグマック', kcal: 525 }, { name: 'ダブチ', kcal: 457 }, { name: 'てりやき', kcal: 478 }, { name: 'えびフィレオ', kcal: 393 }, { name: 'ポテトL', kcal: 517 }, { name: 'ナゲット15', kcal: 786 }, { name: '倍ビッグマック', kcal: 723 }, { name: 'トリチ', kcal: 657 }, { name: '倍てりやき', kcal: 731 }, { name: '倍チキンフィレオ', kcal: 725 }, { name: '倍えびフィレオ', kcal: 582 }, { name: 'マックフルーリー', kcal: 233 }, { name: '三角チョコパイ黒', kcal: 324 }, { name: 'ホットアップルパイ', kcal: 211 }, { name: 'ソフトツイスト', kcal: 146 }, { name: 'シェイクM', kcal: 367 } ] },
   { id: 'mos', name: 'モスバーガー', en: 'MOS Burger', emoji: '🍔', items: [
     { name: 'モスバーガー', kcal: 373 }, { name: 'モスチーズ', kcal: 401 }, { name: 'テリヤキ', kcal: 384 }, { name: 'スパイシーモス', kcal: 372 }, { name: 'とびきりハンバーグ', kcal: 485 }, { name: 'モスチキン', kcal: 269 }, { name: 'オニポテ', kcal: 420 }, { name: 'シェイクL', kcal: 290 } ] },
   { id: 'lotteria', name: 'ロッテリア', en: 'Lotteria', emoji: '🧀', items: [
@@ -266,7 +266,7 @@ const CHEAT_PLACES = [
   { id: 'tenya', name: 'てんや', en: 'Tenya', emoji: '🍤', items: [
     { name: '天丼', kcal: 734 }, { name: '天丼 大盛', kcal: 965 }, { name: '上天丼', kcal: 714 }, { name: '特上天丼', kcal: 805 }, { name: 'オールスター天丼', kcal: 889 }, { name: '海老天丼', kcal: 683 } ] },
   { id: 'coco', name: 'CoCo壱番屋', en: 'CoCo Ichi', emoji: '🍛', items: [
-    { name: 'ロースカツカレー', kcal: 1100 }, { name: 'ご飯大盛り', kcal: 250 }, { name: 'チーズ', kcal: 150 }, { name: 'ナンカレー', kcal: 700 }, { name: '手仕込トンカツ', kcal: 400 } ] },
+    { name: 'ポークカレー(200g)', kcal: 545 }, { name: 'ポークカレー(300g)', kcal: 701 }, { name: 'ポークカレー(400g)', kcal: 857 }, { name: 'ポークカレー(500g)', kcal: 1013 }, { name: 'ハヤシライス', kcal: 845 }, { name: '+ロースカツ', kcal: 415 }, { name: '+手仕込とんかつ', kcal: 571 }, { name: '+手仕込チキンカツ', kcal: 414 }, { name: '+ハンバーグ2個', kcal: 224 }, { name: '+メンチカツ', kcal: 346 }, { name: '+プチエビフライ', kcal: 88 }, { name: '+イカフライ', kcal: 138 }, { name: '+カニクリコロ2個', kcal: 384 }, { name: '+ソーセージ4本', kcal: 279 }, { name: '+チーズ', kcal: 195 }, { name: '+豚しゃぶ', kcal: 351 }, { name: '+なす6個', kcal: 171 }, { name: '+納豆', kcal: 86 }, { name: '+半熟タマゴ', kcal: 67 }, { name: '+ほうれん草', kcal: 11 } ] },
   // —— 回転寿司 ——
   { id: 'sushiro', name: 'スシロー', en: 'Sushiro', emoji: '🍣', items: [
     { name: 'まぐろ(1皿)', kcal: 78 }, { name: 'サーモン(1皿)', kcal: 95 }, { name: 'はまち(1皿)', kcal: 73 }, { name: 'えび(1皿)', kcal: 73 }, { name: 'うなぎ(1皿)', kcal: 103 }, { name: 'いくら(1皿)', kcal: 118 }, { name: 'ハンバーグ(1皿)', kcal: 137 }, { name: '茶碗蒸し', kcal: 86 }, { name: 'ポテト', kcal: 189 } ] },
@@ -286,7 +286,7 @@ const CHEAT_PLACES = [
   { id: 'ohsho', name: '餃子の王将', en: 'Ohsho', emoji: '🥟', items: [
     { name: '餃子(6個)', kcal: 346 }, { name: '炒飯', kcal: 631 }, { name: '天津飯', kcal: 796 }, { name: '唐揚げ', kcal: 739 }, { name: '王将ラーメン', kcal: 597 }, { name: 'ソース焼そば', kcal: 387 }, { name: '天津炒飯', kcal: 858 } ] },
   { id: 'marugame', name: '丸亀製麺', en: 'Marugame', emoji: '🍢', items: [
-    { name: '釜揚げうどん並', kcal: 338 }, { name: '釜揚げうどん大', kcal: 540 }, { name: '釜玉うどん並', kcal: 381 }, { name: 'ぶっかけ温並', kcal: 301 }, { name: 'かしわ天', kcal: 182 }, { name: 'えび天', kcal: 110 }, { name: '野菜かき揚げ', kcal: 290 } ] },
+    { name: '釜揚げ 並', kcal: 338 }, { name: '釜揚げ 大', kcal: 501 }, { name: '釜揚げ 得', kcal: 663 }, { name: '釜玉 並', kcal: 381 }, { name: '釜玉 大', kcal: 525 }, { name: '釜玉 得', kcal: 669 }, { name: 'ぶっかけ冷 並', kcal: 305 }, { name: 'ぶっかけ温 並', kcal: 301 }, { name: 'ぶっかけ 大', kcal: 445 }, { name: 'ぶっかけ 得', kcal: 588 }, { name: 'かけ 並', kcal: 299 }, { name: 'かけ 大', kcal: 445 }, { name: '釜玉明太 並', kcal: 399 }, { name: 'おろし醤油 並', kcal: 301 }, { name: 'かしわ天', kcal: 143 }, { name: 'えび天', kcal: 110 }, { name: 'いか天', kcal: 136 }, { name: 'ちくわ天', kcal: 164 }, { name: '野菜かき揚げ', kcal: 667 }, { name: '半熟卵天', kcal: 119 }, { name: 'いなり', kcal: 156 }, { name: 'おにぎり', kcal: 154 } ] },
   { id: 'ringerhut', name: 'リンガーハット', en: 'Ringer Hut', emoji: '🥬', items: [
     { name: '長崎ちゃんぽん', kcal: 604 }, { name: '野菜たっぷり', kcal: 762 }, { name: '皿うどん', kcal: 708 }, { name: '麺2倍', kcal: 830 }, { name: 'ぎょうざ5個', kcal: 210 }, { name: 'チャーハン', kcal: 560 }, { name: 'とり唐揚げ', kcal: 320 } ] },
   // —— ピザ・ファミレス ——
