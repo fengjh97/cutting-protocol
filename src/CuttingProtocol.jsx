@@ -52,6 +52,16 @@ const LUNCH_PROTEINS = {
     pieceUnitEn: 'GRAM',
     note: '高铁高锌 · 中等脂肪',
   },
+  oikos: {
+    label: 'オイコス(高蛋白酸奶)',
+    sub: 'OIKOS HI-PROTEIN',
+    tag: 'DAIRY · HI-PROTEIN',
+    p: 0.106, c: 0.044, f: 0,
+    perPiece: 113,
+    pieceUnit: '個',
+    pieceUnitEn: 'PCS',
+    note: '高蛋白零脂 · 当主蛋白',
+  },
 };
 
 // ============ 午餐设计 · 碳水源 ============
@@ -81,6 +91,13 @@ const LUNCH_CARBS = {
     p: 0.02, c: 0.20, f: 0.001,
     isDiscrete: false,
   },
+  nissin: {
+    label: '日清非油炸面',
+    sub: 'NISSIN NON-FRIED',
+    p: 6.7, c: 55, f: 4.9,
+    perPack: 88,
+    isDiscrete: true,
+  },
 };
 
 function designLunch(targetKcal, proteinKey, carbKey) {
@@ -93,7 +110,7 @@ function designLunch(targetKcal, proteinKey, carbKey) {
 
   // 蛋白源克数
   let protGrams = targetP / prot.p;
-  if (proteinKey === 'chicken') {
+  if (prot.perPiece) {
     protGrams = Math.max(prot.perPiece, Math.round(protGrams / prot.perPiece) * prot.perPiece);
   } else {
     protGrams = Math.max(50, Math.round(protGrams / 10) * 10);
@@ -927,8 +944,8 @@ export default function CuttingProtocol() {
                     </div>
                     <div className="flex items-baseline gap-1.5">
                       <span className="font-display text-3xl text-ink tnum" style={{ fontWeight: 400 }}>
-                        {lunchProtein === 'chicken'
-                          ? Math.round(lunchDesign.protein.grams / LUNCH_PROTEINS.chicken.perPiece)
+                        {lunchDesign.protein.perPiece
+                          ? Math.round(lunchDesign.protein.grams / lunchDesign.protein.perPiece)
                           : lunchDesign.protein.grams}
                       </span>
                       <span className="text-[10px] text-inkfaint font-mono uppercase">{lunchDesign.protein.pieceUnitEn}</span>
