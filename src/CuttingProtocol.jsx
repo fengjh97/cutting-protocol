@@ -242,7 +242,7 @@ const DINNER_PROTEINS = {
   beef:    { label: '牛肉 切り落とし(生)', sub: 'Beef · raw wt',        tag: 'RED MEAT',      p: 0.19,         c: 0, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: false, logName: '牛肉',   note: '带脂肪 · 可自动补脂' },
   shrimp:  { label: '冷冻大虾仁',          sub: 'Shrimp · thawed raw',  tag: 'SEAFOOD · LEAN', p: 0.20, f: 0.01, c: 0, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: true,  logName: '大虾仁', note: '超低脂高蛋白 · 脂肪靠酱补' },
   chicken: { label: '速食鸡胸(整块)',     sub: 'Ready-eat · per pack', tag: 'POULTRY · LEAN', p: 22,   f: 2,    c: 1, step: 1,  unitEN: '块',   logUnit: '块', lean: true,  logName: '鸡胸',   note: '每块≈100g/22g蛋白 · 按整块算' },
-  duck:    { label: '速食合鸭胸(烟熏)',   sub: 'Aigamo duck · ready',  tag: 'DUCK · FAT+PRO', p: 0.142, f: 0.29, c: 0.001, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: false, logName: '合鸭', note: '合鴨(带皮) · 脂肪很足 · 临时值待校准' },
+  duck:    { label: '速食合鸭胸(去皮)',   sub: 'Aigamo skinless · ready', tag: 'DUCK · 皮なし', p: 0.21, f: 0.06, c: 0.005, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: false, logName: '合鸭', note: '去皮合鴨胸 · 高蛋白中低脂 · 临时值待校准' },
 };
 
 // 脂肪来源(可多选;脂肪缺口在所选来源之间均分,各自取整 + 封顶)
@@ -1091,7 +1091,7 @@ export default function CuttingProtocol() {
           {dinnerProteins.includes('duck') && (
             <div className="mt-3 text-[11px] font-mono text-honey tracking-wide leading-relaxed flex items-start gap-1.5">
               <span>ⓘ</span>
-              <span>合鴨(带皮)是<span className="text-terradeep">脂肪+蛋白混合源</span>,脂肪很足,自带脂肪能省下别的脂肪来源。当前<span className="text-terradeep">临时值</span>(合鴨每100g≈P14/F29/304kcal),<span className="text-terradeep">等你买到看包装背面再校准</span>。</span>
+              <span>去皮合鴨胸,高蛋白中低脂,按克算。当前<span className="text-terradeep">临时值</span>(去皮≈每100g P21/F6/140kcal),脂肪还得靠下方<span className="text-terradeep">「脂肪来源」</span>补。<span className="text-terradeep">等你买到看包装背面再校准</span>。</span>
             </div>
           )}
         </section>
