@@ -625,15 +625,6 @@ export default function CuttingProtocol() {
   const totalNa = naFromSalt + drink.na;
   const totalK = drink.k + (Number(foodK) || 0);
   const kBalanced = totalK >= totalNa;
-  // 采购:每天用量 × 天数 → 一周参考量(可买的取整)
-  const wkQty = (daily, unit) => {
-    if (!daily || daily <= 0) return null;
-    const total = daily * shopDays;
-    if (unit === 'g') { const g = Math.ceil(total / 50) * 50; return g >= 1000 ? `≈ ${(g / 1000).toFixed(1)}kg` : `≈ ${g}g`; }
-    if (unit === 'ml') { const ml = Math.ceil(total / 100) * 100; return ml >= 1000 ? `≈ ${(ml / 1000).toFixed(1)}L` : `≈ ${ml}ml`; }
-    return `≈ ${Math.ceil(total)}${unit}`;
-  };
-  const plUnits = (key) => { const x = result.proteinList.find((p) => p.key === key); return x ? x.units : 0; };
 
   // 鸡胸/全蛋/香蕉/Oikos 都属于"配午餐 · 加餐"已吃掉的部分(不进晚餐处方)
   const preWorkout = useMemo(() => {
@@ -667,6 +658,32 @@ export default function CuttingProtocol() {
     // Oikos 已并入 effectivePre(配午餐/加餐),晚餐里不再放 → 传 0
     return calculate(lunchKcal, planKey, override, beefFat, effectivePre, 0, dinnerProteins, targets, fatSources);
   }, [lunchKcal, planKey, lunchMode, lunchDesign, beefFat, effectivePre, dinnerProteins, targets, fatSources]);
+
+  // 采购:每天用量 × 天数 → 一周参考量(可买的取整)
+  const wkQty = (daily, unit) => {
+    if (!daily || daily <= 0) return null;
+    const total = daily * shopDays;
+    if (unit === 'g') { const g = Math.ceil(total / 50) * 50; return g >= 1000 ? `≈ ${(g / 1000).toFixed(1)}kg` : `≈ ${g}g`; }
+    if (unit === 'ml') { const ml = Math.ceil(total / 100) * 100; return ml >= 1000 ? `≈ ${(ml / 1000).toFixed(1)}L` : `≈ ${ml}ml`; }
+    return `≈ ${Math.ceil(total)}${unit}`;
+  };
+  const plUnits = (key) => { const x = result.proteinList.find((p) => p.key === key); return x ? x.units : 0; };
+  // 蛋白/主食:每个选项的"单日单独用量"(轮着吃也好按各自天数买够)
+  const dailyProtein = (k) => {
+    const d = DINNER_PROTEINS[k];
+    const eatenP = (result.lunch?.p || 0) + (result.preWorkout?.p || 0);
+    const need = Math.max(0, Math.min(120, targets.p) - eatenP);
+    return Math.max(0, Math.round(need / d.p / d.step) * d.step);
+  };
+  const carbKcalNow = (result.plan.pasta || 0) * 3.55 + (result.plan.nissin || 0) * 291 + (result.plan.pho || 0) * 210 + (result.plan.bifun || 0) * 3.45;
+  const dailyCarb = (k) => {
+    const b = carbKcalNow > 0 ? carbKcalNow : 500;
+    if (k === 'pasta') return Math.round(b / 3.55 / 10) * 10;
+    if (k === 'bifun') return Math.round(b / 3.45 / 10) * 10;
+    if (k === 'nissin') return Math.max(1, Math.round(b / 291));
+    if (k === 'pho') return Math.max(1, Math.round(b / 210));
+    return 0;
+  };
 
   const fasted = preChicken === 0 && preEggs === 0 && preBanana === 0;
 
@@ -1526,8 +1543,9 @@ export default function CuttingProtocol() {
           </Card>
         </section>
 
-        <ShopCat title="晚餐蛋白源" en="Dinner Protein" items={Object.entries(DINNER_PROTEINS).map(([k, d]) => ({ name: d.label, note: d.note, sel: dinnerProteins.includes(k), weekly: wkQty(plUnits(k), d.logUnit) }))} />
-        <ShopCat title="晚餐碳水主食" en="Carb Staple" items={Object.entries(PLANS).map(([k, d]) => ({ name: d.name, note: d.desc, sel: planKey === k, weekly: wkQty(result.plan[k] || 0, (k === 'pasta' || k === 'bifun') ? 'g' : '包') }))} />
+        <div className="text-[10px] font-mono text-sagedeep tracking-wide px-1 mb-2">⭐ 蛋白 / 主食:每样都给量,轮着吃也按各自天数备够</div>
+        <ShopCat title="晚餐蛋白源" en="Dinner Protein" items={Object.entries(DINNER_PROTEINS).map(([k, d]) => { const per = dailyProtein(k); return { name: d.label, note: `每天约 ${per}${d.logUnit} · ${d.note}`, sel: dinnerProteins.includes(k), weekly: wkQty(per, d.logUnit) }; })} />
+        <ShopCat title="晚餐碳水主食" en="Carb Staple" items={Object.entries(PLANS).map(([k, d]) => { const u = (k === 'pasta' || k === 'bifun') ? 'g' : '包'; const per = dailyCarb(k); return { name: d.name, note: `每天约 ${per}${u} · ${d.desc}`, sel: planKey === k, weekly: wkQty(per, u) }; })} />
         <ShopCat title="脂肪来源" en="Fat Source" items={Object.entries(FAT_SOURCES).map(([k, d]) => ({ name: d.label, note: `${d.f}g脂 / ${d.unitEN}${d.p ? ` · P${d.p}` : ''}`, sel: fatSources.includes(k), weekly: wkQty(plUnits('fat_' + k), d.logUnit) }))} />
         <ShopCat title="训练前 · 加餐" en="Pre / Snack" items={[
           { name: '速食小鸡胸(块)', note: '每块~100g / 22g蛋白', sel: preChicken > 0, weekly: wkQty(preChicken, '块') },
@@ -1857,11 +1875,11 @@ function ShopCat({ title, en, items }) {
               <div className="text-[13px] font-cjk text-ink truncate" style={{ fontWeight: 500 }}>{it.name}</div>
               {it.note && <div className="text-[10px] font-mono text-inkfaint mt-0.5 truncate">{it.note}</div>}
             </div>
-            {it.sel
-              ? (it.weekly
-                  ? <span className="text-[11px] font-mono px-2.5 py-1 rounded-full bg-sage/15 text-sagedeep shrink-0 tnum">{it.weekly}</span>
-                  : <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-sage/15 text-sagedeep shrink-0">✓ 在用</span>)
-              : <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-paper2 text-inkfaint shrink-0">备选</span>}
+            {it.weekly
+              ? <span className={`text-[11px] font-mono px-2.5 py-1 rounded-full shrink-0 tnum ${it.sel ? 'bg-sage/15 text-sagedeep' : 'bg-paper2 text-inksoft'}`}>{it.sel ? '✓ ' : ''}{it.weekly}</span>
+              : (it.sel
+                  ? <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-sage/15 text-sagedeep shrink-0">✓ 在用</span>
+                  : <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-paper2 text-inkfaint shrink-0">备选</span>)}
           </div>
         ))}
       </div>
