@@ -614,6 +614,7 @@ export default function CuttingProtocol() {
   const [drinkMl, setDrinkMl] = useState(400);
   const [saltG, setSaltG] = useState(6.5);    // 今日食盐(晚上)g
   const [foodK, setFoodK] = useState(2000);   // 食物钾粗估 mg
+  const [shopDays, setShopDays] = useState(7); // 采购:按几天买
   const drink = useMemo(() => {
     const d = DRINKS[drinkKey];
     if (!d) return { kcal: 0, p: 0, c: 0, k: 0, na: 0 };
@@ -624,6 +625,15 @@ export default function CuttingProtocol() {
   const totalNa = naFromSalt + drink.na;
   const totalK = drink.k + (Number(foodK) || 0);
   const kBalanced = totalK >= totalNa;
+  // 采购:每天用量 × 天数 → 一周参考量(可买的取整)
+  const wkQty = (daily, unit) => {
+    if (!daily || daily <= 0) return null;
+    const total = daily * shopDays;
+    if (unit === 'g') { const g = Math.ceil(total / 50) * 50; return g >= 1000 ? `≈ ${(g / 1000).toFixed(1)}kg` : `≈ ${g}g`; }
+    if (unit === 'ml') { const ml = Math.ceil(total / 100) * 100; return ml >= 1000 ? `≈ ${(ml / 1000).toFixed(1)}L` : `≈ ${ml}ml`; }
+    return `≈ ${Math.ceil(total)}${unit}`;
+  };
+  const plUnits = (key) => { const x = result.proteinList.find((p) => p.key === key); return x ? x.units : 0; };
 
   // 鸡胸/全蛋/香蕉/Oikos 都属于"配午餐 · 加餐"已吃掉的部分(不进晚餐处方)
   const preWorkout = useMemo(() => {
@@ -1498,21 +1508,34 @@ export default function CuttingProtocol() {
         {/* ============ SHOPPING ============ */}
         <section className="rise mb-5" style={{ animationDelay: '0ms' }}>
           <SectionHead no="🛒" zh="采购清单" en="Shopping" accent="honey" />
-          <div className="text-[11px] text-inksoft font-cjk leading-relaxed">
-            按当前配餐:<span className="text-sagedeep font-medium">✓ 在用</span> 的优先买,其余「备选」换着买。新加的食材会自动出现在这一页。份量按你吃的频率自己定。
-          </div>
+          <Card className="p-4 sm:p-5">
+            <div className="text-[11px] text-inksoft font-cjk leading-relaxed mb-3">
+              <span className="text-sagedeep font-medium">✓ 在用</span> 按当前配餐的每日用量 × 天数估「一周该买多少」;其余「备选」换着买。新食材会自动出现。
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] font-mono text-inksoft tracking-wider shrink-0">按几天买</span>
+              <div className="flex gap-1.5">
+                {[3, 5, 7, 14].map((d) => (
+                  <button key={d} onClick={() => setShopDays(d)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-mono border transition-all ${shopDays === d ? 'border-honey bg-honey/[0.1] text-honey' : 'border-line bg-card text-inksoft hover:border-honey/50'}`}>
+                    {d}天
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Card>
         </section>
 
-        <ShopCat title="晚餐蛋白源" en="Dinner Protein" items={Object.entries(DINNER_PROTEINS).map(([k, d]) => ({ name: d.label, note: d.note, sel: dinnerProteins.includes(k) }))} />
-        <ShopCat title="晚餐碳水主食" en="Carb Staple" items={Object.entries(PLANS).map(([k, d]) => ({ name: d.name, note: d.desc, sel: planKey === k }))} />
-        <ShopCat title="脂肪来源" en="Fat Source" items={Object.entries(FAT_SOURCES).map(([k, d]) => ({ name: d.label, note: `${d.f}g脂 / ${d.unitEN}${d.p ? ` · P${d.p}` : ''}`, sel: fatSources.includes(k) }))} />
+        <ShopCat title="晚餐蛋白源" en="Dinner Protein" items={Object.entries(DINNER_PROTEINS).map(([k, d]) => ({ name: d.label, note: d.note, sel: dinnerProteins.includes(k), weekly: wkQty(plUnits(k), d.logUnit) }))} />
+        <ShopCat title="晚餐碳水主食" en="Carb Staple" items={Object.entries(PLANS).map(([k, d]) => ({ name: d.name, note: d.desc, sel: planKey === k, weekly: wkQty(result.plan[k] || 0, (k === 'pasta' || k === 'bifun') ? 'g' : '包') }))} />
+        <ShopCat title="脂肪来源" en="Fat Source" items={Object.entries(FAT_SOURCES).map(([k, d]) => ({ name: d.label, note: `${d.f}g脂 / ${d.unitEN}${d.p ? ` · P${d.p}` : ''}`, sel: fatSources.includes(k), weekly: wkQty(plUnits('fat_' + k), d.logUnit) }))} />
         <ShopCat title="训练前 · 加餐" en="Pre / Snack" items={[
-          { name: '速食小鸡胸(块)', note: '每块~100g / 22g蛋白', sel: preChicken > 0 },
-          { name: '卵(全蛋)', note: '训练前 / 补脂用', sel: preEggs > 0 },
-          { name: '香蕉', note: '训练前快碳水', sel: preBanana > 0 },
-          { name: 'ダノン オイコス 砂糖不使用', note: '加餐 · P12/個', sel: dinnerOikos > 0 },
+          { name: '速食小鸡胸(块)', note: '每块~100g / 22g蛋白', sel: preChicken > 0, weekly: wkQty(preChicken, '块') },
+          { name: '卵(全蛋)', note: '训练前 / 补脂用', sel: preEggs > 0, weekly: wkQty(preEggs, '個') },
+          { name: '香蕉', note: '训练前快碳水', sel: preBanana > 0, weekly: wkQty(preBanana, '根') },
+          { name: 'ダノン オイコス 砂糖不使用', note: '加餐 · P12/個', sel: dinnerOikos > 0, weekly: wkQty(dinnerOikos, '個') },
         ]} />
-        <ShopCat title="电解质饮料(高钾对冲钠)" en="Drinks" items={Object.entries(DRINKS).map(([k, d]) => ({ name: d.label, note: `K${d.k} · ${d.kcal}kcal / 200ml`, sel: drinkKey === k }))} />
+        <ShopCat title="电解质饮料(高钾对冲钠)" en="Drinks" items={Object.entries(DRINKS).map(([k, d]) => ({ name: d.label, note: `K${d.k} · ${d.kcal}kcal / 200ml`, sel: drinkKey === k, weekly: drinkKey === k ? wkQty(drinkMl, 'ml') : null }))} />
         {lunchMode === 'designer' && (
           <>
             <ShopCat title="午餐 · 蛋白源" en="Lunch Protein" items={Object.entries(LUNCH_PROTEINS).map(([k, d]) => ({ name: d.label, note: d.note, sel: lunchProtein === k }))} />
@@ -1526,7 +1549,7 @@ export default function CuttingProtocol() {
 
         <section className="rise mb-6" style={{ animationDelay: '120ms' }}>
           <div className="rounded-3xl border border-honey/40 bg-honey/[0.07] p-4 text-[11px] font-mono text-inksoft leading-relaxed">
-            ⓘ 价格因店而异,这页不再写死预算;牛肉/鸭胸看特价、蔬菜汁买大瓶(720ml/1L)更便宜。
+            ⓘ 量 = 当前每日用量 × {shopDays}天(取整到可买单位),只是参考;天天换花样的话各买几天的份。价格因店而异,蔬菜汁买大瓶(720ml/1L)更便宜。
           </div>
         </section>
         </>)}
@@ -1835,7 +1858,9 @@ function ShopCat({ title, en, items }) {
               {it.note && <div className="text-[10px] font-mono text-inkfaint mt-0.5 truncate">{it.note}</div>}
             </div>
             {it.sel
-              ? <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-sage/15 text-sagedeep shrink-0">✓ 在用</span>
+              ? (it.weekly
+                  ? <span className="text-[11px] font-mono px-2.5 py-1 rounded-full bg-sage/15 text-sagedeep shrink-0 tnum">{it.weekly}</span>
+                  : <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-sage/15 text-sagedeep shrink-0">✓ 在用</span>)
               : <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-paper2 text-inkfaint shrink-0">备选</span>}
           </div>
         ))}
