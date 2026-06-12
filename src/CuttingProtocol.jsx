@@ -17,6 +17,14 @@ const PRE_ITEMS = {
   egg:     { p: 6, c: 0.5, f: 5, label: '全蛋', unit: '个' },
   banana:  { p: 1, c: 27, f: 0.25, label: '香蕉', unit: '根' },
 };
+// ============ 高钾蔬菜/番茄汁(每 200ml;用来对冲晚餐高钠)============
+const DRINKS = {
+  tomato: { label: 'カゴメ トマトジュース(無塩)', sub: 'No-salt tomato', kcal: 39, p: 1.8, c: 7.1, k: 600, na: 5,  note: '🥇低卡高钾,糖最低' },
+  yasai1: { label: 'カゴメ 野菜一日これ一本',     sub: 'Veg juice 100%', kcal: 75, p: 3.0, c: 14.5, k: 740, na: 80, note: '钾略高+蛋白3g,糖高' },
+  itoen:  { label: '伊藤園 1日分の野菜',          sub: 'Veg juice 100%', kcal: 75, p: 1.5, c: 15.0, k: 730, na: 40, note: '钾730,糖偏高' },
+  itoenK: { label: '伊藤園 栄養強化型',           sub: 'Fortified',      kcal: 72, p: 1.5, c: 13.0, k: 646, na: 5,  note: '铁/VC强化,纤维多' },
+};
+
 const DEFAULT_TARGETS = { p: 140, c: 225, f: 60, kcal: 2000 };
 const DEFAULT_TDEE = 2900;
 
@@ -602,14 +610,28 @@ export default function CuttingProtocol() {
   const [preEggs, setPreEggs] = useState(0);
   const [preBanana, setPreBanana] = useState(0);
   const [dinnerOikos, setDinnerOikos] = useState(1);
+  const [drinkKey, setDrinkKey] = useState('tomato'); // 高钾蔬菜/番茄汁(对冲钠)
+  const [drinkMl, setDrinkMl] = useState(400);
+  const [saltG, setSaltG] = useState(6.5);    // 今日食盐(晚上)g
+  const [foodK, setFoodK] = useState(2000);   // 食物钾粗估 mg
+  const drink = useMemo(() => {
+    const d = DRINKS[drinkKey];
+    if (!d) return { kcal: 0, p: 0, c: 0, k: 0, na: 0 };
+    const sc = (Number(drinkMl) || 0) / 200;
+    return { kcal: Math.round(d.kcal * sc), p: +(d.p * sc).toFixed(1), c: +(d.c * sc).toFixed(1), k: Math.round(d.k * sc), na: Math.round(d.na * sc) };
+  }, [drinkKey, drinkMl]);
+  const naFromSalt = Math.round((Number(saltG) || 0) * 393); // 食盐g → 钠mg
+  const totalNa = naFromSalt + drink.na;
+  const totalK = drink.k + (Number(foodK) || 0);
+  const kBalanced = totalK >= totalNa;
 
   // 鸡胸/全蛋/香蕉/Oikos 都属于"配午餐 · 加餐"已吃掉的部分(不进晚餐处方)
   const preWorkout = useMemo(() => {
-    const p = preChicken * PRE_ITEMS.chicken.p + preEggs * PRE_ITEMS.egg.p + preBanana * PRE_ITEMS.banana.p + dinnerOikos * 12;
-    const c = preChicken * PRE_ITEMS.chicken.c + preEggs * PRE_ITEMS.egg.c + preBanana * PRE_ITEMS.banana.c + dinnerOikos * 5;
+    const p = preChicken * PRE_ITEMS.chicken.p + preEggs * PRE_ITEMS.egg.p + preBanana * PRE_ITEMS.banana.p + dinnerOikos * 12 + drink.p;
+    const c = preChicken * PRE_ITEMS.chicken.c + preEggs * PRE_ITEMS.egg.c + preBanana * PRE_ITEMS.banana.c + dinnerOikos * 5 + drink.c;
     const f = preChicken * PRE_ITEMS.chicken.f + preEggs * PRE_ITEMS.egg.f + preBanana * PRE_ITEMS.banana.f;
     return { p, c, f, kcal: Math.round(p * 4 + c * 4 + f * 9) };
-  }, [preChicken, preEggs, preBanana, dinnerOikos]);
+  }, [preChicken, preEggs, preBanana, dinnerOikos, drink]);
 
   const lunchDesign = useMemo(
     () => designLunch(lunchKcal, lunchProtein, lunchCarb),
@@ -744,6 +766,7 @@ export default function CuttingProtocol() {
     if (preEggs > 0) items.push({ slot: 'pre-workout', name: '全蛋', qty: preEggs, unit: '个', p: preEggs * 6, c: r0(preEggs * 0.5), f: preEggs * 5, kcal: r0(preEggs * 72) });
     if (preBanana > 0) items.push({ slot: 'pre-workout', name: '香蕉', qty: preBanana, unit: '根', p: preBanana, c: preBanana * 27, f: r0(preBanana * 0.25), kcal: r0(preBanana * 113) });
     if (dinnerOikos > 0) items.push({ slot: 'snack', name: 'オイコス砂糖不使用', qty: dinnerOikos, unit: '个', p: dinnerOikos * 12, c: dinnerOikos * 5, f: 0, kcal: dinnerOikos * 68 });
+    if (drink.kcal > 0) items.push({ slot: 'drink', name: DRINKS[drinkKey].label, qty: drinkMl, unit: 'ml', p: r0(drink.p), c: r0(drink.c), f: 0, kcal: drink.kcal, k_mg: drink.k });
     items.push({ slot: 'lunch', name: lunchMode === 'designer' ? '午餐(自制)' : '食堂午餐', qty: lunchKcal, unit: 'kcal估', p: r0(result.lunch.p), c: r0(result.lunch.c), f: r0(result.lunch.f), kcal: r0(result.lunch.kcal) });
     if (snack) items.push({ slot: 'snack', name: snack.name, qty: 1, unit: snack.serving || '份', p: r0(snack.p), c: r0(snack.c), f: r0(snack.f), kcal: r0(snack.kcal) });
     result.proteinList.forEach((pp) => items.push({ slot: 'dinner', name: pp.logName, qty: pp.units, unit: pp.logUnit, p: r0(pp.units * pp.p), c: r0(pp.units * pp.c), f: r0(pp.units * pp.fat), kcal: r0(pp.units * (pp.p * 4 + pp.c * 4 + pp.fat * 9)) }));
@@ -755,6 +778,7 @@ export default function CuttingProtocol() {
       date: new Date().toISOString().slice(0, 10),
       targets: { ...targets, tdee },
       config: { lunchKcal, lunchMode, dinnerPlan: planKey, dinnerProteins: result.dinnerProteins, fatSources: result.fatSources, beefFat },
+      electrolyte: { saltG, sodium_mg: totalNa, potassium_mg: totalK, balanced: kBalanced, drink: DRINKS[drinkKey] ? DRINKS[drinkKey].label : null, drinkMl: DRINKS[drinkKey] ? drinkMl : 0 },
       items,
       total: { p: r0(result.total.p), c: r0(result.total.c), f: r0(result.total.f), kcal: r0(result.total.kcal) },
     };
@@ -864,6 +888,72 @@ export default function CuttingProtocol() {
               {fasted && (
                 <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-honey/15 text-honey tracking-wider">空腹训练</span>
               )}
+            </div>
+          </Card>
+        </section>
+
+        {/* ============ 🧂 · ELECTROLYTE ============ */}
+        <section className="rise mb-9" style={{ animationDelay: '110ms' }}>
+          <SectionHead no="🧂" zh="电解质 · 钾钠平衡" en="K / Na Balance" accent="sage" />
+          <Card className="p-5 sm:p-6">
+            <div className="text-[11px] text-inksoft mb-3 font-cjk">晚上高盐 → 用高钾蔬菜/番茄汁对冲。选一款常见好买的(默认 400ml):</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {Object.entries(DRINKS).map(([key, d]) => (
+                <button
+                  key={key}
+                  onClick={() => setDrinkKey(key)}
+                  className={`text-left p-3 rounded-2xl border transition-all ${drinkKey === key ? 'border-sage bg-sage/[0.08] shadow-warm -translate-y-0.5' : 'border-line bg-card hover:border-sage/50'}`}
+                >
+                  <div className="text-[12px] font-cjk text-ink leading-tight" style={{ fontWeight: 600 }}>{d.label}</div>
+                  <div className="text-[10px] font-mono text-inkfaint mt-1">K {d.k} · {d.kcal}kcal /200ml</div>
+                  <div className="text-[10px] text-inksoft mt-0.5">{d.note}</div>
+                </button>
+              ))}
+              <button
+                onClick={() => setDrinkKey('none')}
+                className={`text-left p-3 rounded-2xl border transition-all ${!DRINKS[drinkKey] ? 'border-sage bg-sage/[0.08] shadow-warm' : 'border-line bg-card hover:border-sage/50'}`}
+              >
+                <div className="text-[12px] font-cjk text-ink" style={{ fontWeight: 600 }}>不喝</div>
+                <div className="text-[10px] text-inkfaint mt-1 font-mono">不补钾</div>
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2.5">
+              <TargetInput label="喝多少" en="ml" value={drinkMl} unit="ml" onChange={(v) => setDrinkMl(Math.max(0, Math.min(1500, Number(v) || 0)))} />
+              <TargetInput label="今日食盐" en="salt" value={saltG} unit="g" onChange={(v) => setSaltG(Math.max(0, Math.min(20, Number(v) || 0)))} />
+              <TargetInput label="食物钾估" en="food K" value={foodK} unit="mg" onChange={(v) => setFoodK(Math.max(0, Math.min(8000, Number(v) || 0)))} />
+            </div>
+
+            {DRINKS[drinkKey] && (
+              <div className="mt-3 text-[11px] font-mono text-inksoft tracking-wide">
+                → 这杯 {drinkMl}ml:<span className="text-ink"> {drink.kcal}kcal · 糖{drink.c}g · 钾{drink.k}mg</span>(已计入今日热量)
+              </div>
+            )}
+
+            {/* 钾钠平衡 */}
+            <div className={`mt-4 rounded-2xl border p-4 ${kBalanced ? 'border-sage/40 bg-sage/[0.06]' : 'border-honey/50 bg-honey/[0.06]'}`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[10px] font-mono tracking-wider" style={{ color: kBalanced ? '#5F6B3E' : '#B07B16' }}>钾 vs 钠</div>
+                <div className="text-[11px] font-cjk" style={{ fontWeight: 600, color: kBalanced ? '#5F6B3E' : '#B07B16' }}>
+                  {kBalanced ? '✓ 平衡(钾≥钠)' : '⚠ 钾不够'}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 font-mono text-xs">
+                <div className="rounded-xl bg-card border border-line p-2.5 text-center">
+                  <div className="text-[9px] text-inkfaint mb-1">合计钾(果汁+食物)</div>
+                  <div className="font-display text-xl text-sagedeep tnum" style={{ fontWeight: 400 }}>{totalK}<span className="text-[10px] ml-0.5">mg</span></div>
+                </div>
+                <div className="rounded-xl bg-card border border-line p-2.5 text-center">
+                  <div className="text-[9px] text-inkfaint mb-1">合计钠(食盐{saltG}g)</div>
+                  <div className="font-display text-xl text-terradeep tnum" style={{ fontWeight: 400 }}>{totalNa}<span className="text-[10px] ml-0.5">mg</span></div>
+                </div>
+              </div>
+              {!kBalanced && (
+                <div className="mt-2.5 text-[10px] font-mono text-honey leading-relaxed">
+                  还差 {totalNa - totalK} mg 钾。{DRINKS[drinkKey] ? `多喝 ~${Math.ceil((totalNa - totalK) / (DRINKS[drinkKey].k / 200) / 50) * 50} ml 这款` : '选一款番茄汁'},或多吃高钾食物(红薯/香蕉/豆)。
+                </div>
+              )}
+              <div className="mt-2 text-[9px] font-mono text-inkfaint leading-relaxed">ⓘ 食物钾默认粗估 2000mg(你菜单的牛肉/鸡胸/红薯/豆/Oikos),按实际改;只补钾不够,水也要喝够。</div>
             </div>
           </Card>
         </section>
@@ -1298,6 +1388,7 @@ export default function CuttingProtocol() {
             {preEggs > 0 && <LogRow name={`全蛋 × ${preEggs}`} p={preEggs * 6} c={Math.round(preEggs * 0.5)} f={preEggs * 5} k={Math.round(preEggs * 72)} />}
             {preBanana > 0 && <LogRow name={`香蕉 × ${preBanana}`} p={preBanana} c={preBanana * 27} f={Math.round(preBanana * 0.25)} k={Math.round(preBanana * 113)} />}
             {dinnerOikos > 0 && <LogRow name={`オイコス × ${dinnerOikos}`} p={dinnerOikos * 12} c={dinnerOikos * 5} f={0} k={dinnerOikos * 68} />}
+            {drink.kcal > 0 && <LogRow name={`${DRINKS[drinkKey].label} ${drinkMl}ml`} p={Math.round(drink.p)} c={Math.round(drink.c)} f={0} k={drink.kcal} />}
             {fasted && <div className="px-4 py-2 text-xs text-inkfaint border-t border-linesoft">空腹训练</div>}
 
             <LogGroup label={`LUNCH · ${lunchMode === 'designer' ? '自制' : '食堂'}`} />
