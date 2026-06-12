@@ -664,6 +664,7 @@ export default function CuttingProtocol() {
   const PAGES = [
     { zh: '配餐', en: 'Plan' },
     { zh: '明细', en: 'Detail' },
+    { zh: '采购', en: 'Shop' },
     { zh: '放纵', en: 'Cheat' },
   ];
   const [page, setPage] = useState(0);
@@ -1466,41 +1467,6 @@ export default function CuttingProtocol() {
           </Card>
         </section>
 
-        {/* ============ 06 · SHOPPING LIST ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '0ms' }}>
-          <SectionHead no="06" zh="超市采购清单" en="Weekly Shopping" />
-          <div className="space-y-3">
-            <ShopGroup title="PROTEIN · 蛋白源" items={[
-              ['オーストラリア産 肩ロース切り落とし', 'BEEF · 300g/盒 · 晚餐 7 天', '6 盒 (~1.8kg)'],
-              ['速食小鸡胸(22g 蛋白/块)', '训前 3 块 + 午餐替代 6 块', '10 块'],
-              ['卵 10個入り', '训前 3 天 × 2 個 = 6 個 + 余量', '1 盒'],
-            ]} />
-            <ShopGroup title="CARBS · 碳水源" items={[
-              ['干意面(500g/袋)', '晚餐 3 天 × 180g = 540g', '1 袋'],
-              ['越南米粉(60g/包)', '晚餐 4 包 + 午餐替代 6 包', '11 包'],
-              ['日清 ノンフライ麺', '晚餐 2 天 × 2 包', '4 包'],
-            ]} />
-            <ShopGroup title="FAT + FLAVOR · 脂肪与调味" items={[
-              ['S&B ペペロンチーノ酱(22.3g/包)', '意面日 3 + 米粉日 2 + 备用 1', '6 包'],
-              ['酱油 + 辣酱', '牛肉蘸料 · 常备', '有就不买'],
-            ]} />
-            <ShopGroup title="DAIRY · 乳制品" items={[
-              ['ダノン オイコス 砂糖不使用(123g)', '晚餐甜品 · 每天 1 個', '7 個'],
-            ]} img="yogurt.jpg" />
-
-            <div className="rounded-3xl border border-honey/40 bg-honey/[0.07] p-5">
-              <div className="text-[10px] font-mono text-honey tracking-widest mb-3">BUDGET · 预算 ≈ ¥7,580/周</div>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11px] font-mono text-inksoft tnum">
-                {[['牛肉 6盒', '¥2,700'], ['鸡胸 10块', '¥1,200'], ['鸡蛋 1盒', '¥250'], ['意面 1袋', '¥200'], ['米粉 11包', '¥1,100'], ['日清 4包', '¥600'], ['酱 6包', '¥480'], ['Oikos 7個', '¥1,050']].map(([a, b]) => (
-                  <React.Fragment key={a}><span>{a}</span><span className="text-right">{b}</span></React.Fragment>
-                ))}
-                <span className="text-ink border-t border-honey/30 pt-1.5 mt-1">日均</span>
-                <span className="text-right text-ink border-t border-honey/30 pt-1.5 mt-1">≈ ¥1,082</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* ============ MEMO ============ */}
         <section className="rise mb-9" style={{ animationDelay: '90ms' }}>
           <Card className="p-6">
@@ -1529,6 +1495,43 @@ export default function CuttingProtocol() {
         </>)}
 
         {page === 2 && (<>
+        {/* ============ SHOPPING ============ */}
+        <section className="rise mb-5" style={{ animationDelay: '0ms' }}>
+          <SectionHead no="🛒" zh="采购清单" en="Shopping" accent="honey" />
+          <div className="text-[11px] text-inksoft font-cjk leading-relaxed">
+            按当前配餐:<span className="text-sagedeep font-medium">✓ 在用</span> 的优先买,其余「备选」换着买。新加的食材会自动出现在这一页。份量按你吃的频率自己定。
+          </div>
+        </section>
+
+        <ShopCat title="晚餐蛋白源" en="Dinner Protein" items={Object.entries(DINNER_PROTEINS).map(([k, d]) => ({ name: d.label, note: d.note, sel: dinnerProteins.includes(k) }))} />
+        <ShopCat title="晚餐碳水主食" en="Carb Staple" items={Object.entries(PLANS).map(([k, d]) => ({ name: d.name, note: d.desc, sel: planKey === k }))} />
+        <ShopCat title="脂肪来源" en="Fat Source" items={Object.entries(FAT_SOURCES).map(([k, d]) => ({ name: d.label, note: `${d.f}g脂 / ${d.unitEN}${d.p ? ` · P${d.p}` : ''}`, sel: fatSources.includes(k) }))} />
+        <ShopCat title="训练前 · 加餐" en="Pre / Snack" items={[
+          { name: '速食小鸡胸(块)', note: '每块~100g / 22g蛋白', sel: preChicken > 0 },
+          { name: '卵(全蛋)', note: '训练前 / 补脂用', sel: preEggs > 0 },
+          { name: '香蕉', note: '训练前快碳水', sel: preBanana > 0 },
+          { name: 'ダノン オイコス 砂糖不使用', note: '加餐 · P12/個', sel: dinnerOikos > 0 },
+        ]} />
+        <ShopCat title="电解质饮料(高钾对冲钠)" en="Drinks" items={Object.entries(DRINKS).map(([k, d]) => ({ name: d.label, note: `K${d.k} · ${d.kcal}kcal / 200ml`, sel: drinkKey === k }))} />
+        {lunchMode === 'designer' && (
+          <>
+            <ShopCat title="午餐 · 蛋白源" en="Lunch Protein" items={Object.entries(LUNCH_PROTEINS).map(([k, d]) => ({ name: d.label, note: d.note, sel: lunchProtein === k }))} />
+            <ShopCat title="午餐 · 碳水源" en="Lunch Carb" items={Object.entries(LUNCH_CARBS).map(([k, d]) => ({ name: d.label, note: d.sub, sel: lunchCarb === k }))} />
+          </>
+        )}
+        <ShopCat title="常备调味" en="Staples" items={[
+          { name: '酱油 + 辣酱', note: '蘸料 · 常备', sel: true },
+          { name: '盐 / 高汤', note: `你晚上吃盐 ${saltG}g,记得配上面的高钾饮料`, sel: true },
+        ]} />
+
+        <section className="rise mb-6" style={{ animationDelay: '120ms' }}>
+          <div className="rounded-3xl border border-honey/40 bg-honey/[0.07] p-4 text-[11px] font-mono text-inksoft leading-relaxed">
+            ⓘ 价格因店而异,这页不再写死预算;牛肉/鸭胸看特价、蔬菜汁买大瓶(720ml/1L)更便宜。
+          </div>
+        </section>
+        </>)}
+
+        {page === 3 && (<>
         {/* ============ CHEAT DAY ============ */}
         <section className="rise mb-6" style={{ animationDelay: '0ms' }}>
           <div className="relative overflow-hidden rounded-3xl shadow-warmlg border border-line">
@@ -1815,6 +1818,29 @@ function LogRow({ name, p, c, f, k }) {
       <div className="col-span-1 text-right text-inksoft">{f}</div>
       <div className="col-span-2 text-right text-ink">{k}</div>
     </div>
+  );
+}
+function ShopCat({ title, en, items }) {
+  return (
+    <section className="rise mb-4" style={{ animationDelay: '60ms' }}>
+      <div className="flex items-baseline gap-2 mb-2.5 px-1">
+        <span className="font-cjk text-ink text-[15px]" style={{ fontWeight: 600 }}>{title}</span>
+        <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-inkfaint">{en}</span>
+      </div>
+      <div className="rounded-3xl bg-card border border-line shadow-warm overflow-hidden">
+        {items.map((it, i) => (
+          <div key={i} className={`flex items-center justify-between gap-3 px-4 py-2.5 ${i > 0 ? 'border-t border-linesoft' : ''}`}>
+            <div className="min-w-0">
+              <div className="text-[13px] font-cjk text-ink truncate" style={{ fontWeight: 500 }}>{it.name}</div>
+              {it.note && <div className="text-[10px] font-mono text-inkfaint mt-0.5 truncate">{it.note}</div>}
+            </div>
+            {it.sel
+              ? <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-sage/15 text-sagedeep shrink-0">✓ 在用</span>
+              : <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-paper2 text-inkfaint shrink-0">备选</span>}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 function ShopGroup({ title, items, img }) {
