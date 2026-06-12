@@ -919,72 +919,6 @@ export default function CuttingProtocol() {
           </Card>
         </section>
 
-        {/* ============ 🧂 · ELECTROLYTE ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '110ms' }}>
-          <SectionHead no="🧂" zh="电解质 · 钾钠平衡" en="K / Na Balance" accent="sage" />
-          <Card className="p-5 sm:p-6">
-            <div className="text-[11px] text-inksoft mb-3 font-cjk">晚上高盐 → 用高钾蔬菜/番茄汁对冲。选一款常见好买的(默认 400ml):</div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {Object.entries(DRINKS).map(([key, d]) => (
-                <button
-                  key={key}
-                  onClick={() => setDrinkKey(key)}
-                  className={`text-left p-3 rounded-2xl border transition-all ${drinkKey === key ? 'border-sage bg-sage/[0.08] shadow-warm -translate-y-0.5' : 'border-line bg-card hover:border-sage/50'}`}
-                >
-                  <div className="text-[12px] font-cjk text-ink leading-tight" style={{ fontWeight: 600 }}>{d.label}</div>
-                  <div className="text-[10px] font-mono text-inkfaint mt-1">K {d.k} · {d.kcal}kcal /200ml</div>
-                  <div className="text-[10px] text-inksoft mt-0.5">{d.note}</div>
-                </button>
-              ))}
-              <button
-                onClick={() => setDrinkKey('none')}
-                className={`text-left p-3 rounded-2xl border transition-all ${!DRINKS[drinkKey] ? 'border-sage bg-sage/[0.08] shadow-warm' : 'border-line bg-card hover:border-sage/50'}`}
-              >
-                <div className="text-[12px] font-cjk text-ink" style={{ fontWeight: 600 }}>不喝</div>
-                <div className="text-[10px] text-inkfaint mt-1 font-mono">不补钾</div>
-              </button>
-            </div>
-
-            <div className="mt-4 grid grid-cols-3 gap-2.5">
-              <TargetInput label="喝多少" en="ml" value={drinkMl} unit="ml" onChange={(v) => setDrinkMl(Math.max(0, Math.min(1500, Number(v) || 0)))} />
-              <TargetInput label="今日食盐" en="salt" value={saltG} unit="g" onChange={(v) => setSaltG(Math.max(0, Math.min(20, Number(v) || 0)))} />
-              <TargetInput label="食物钾估" en="food K" value={foodK} unit="mg" onChange={(v) => setFoodK(Math.max(0, Math.min(8000, Number(v) || 0)))} />
-            </div>
-
-            {DRINKS[drinkKey] && (
-              <div className="mt-3 text-[11px] font-mono text-inksoft tracking-wide">
-                → 这杯 {drinkMl}ml:<span className="text-ink"> {drink.kcal}kcal · 糖{drink.c}g · 钾{drink.k}mg</span>(已计入今日热量)
-              </div>
-            )}
-
-            {/* 钾钠平衡 */}
-            <div className={`mt-4 rounded-2xl border p-4 ${kBalanced ? 'border-sage/40 bg-sage/[0.06]' : 'border-honey/50 bg-honey/[0.06]'}`}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-[10px] font-mono tracking-wider" style={{ color: kBalanced ? '#5F6B3E' : '#B07B16' }}>钾 vs 钠</div>
-                <div className="text-[11px] font-cjk" style={{ fontWeight: 600, color: kBalanced ? '#5F6B3E' : '#B07B16' }}>
-                  {kBalanced ? '✓ 平衡(钾≥钠)' : '⚠ 钾不够'}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 font-mono text-xs">
-                <div className="rounded-xl bg-card border border-line p-2.5 text-center">
-                  <div className="text-[9px] text-inkfaint mb-1">合计钾(果汁+食物)</div>
-                  <div className="font-display text-xl text-sagedeep tnum" style={{ fontWeight: 400 }}>{totalK}<span className="text-[10px] ml-0.5">mg</span></div>
-                </div>
-                <div className="rounded-xl bg-card border border-line p-2.5 text-center">
-                  <div className="text-[9px] text-inkfaint mb-1">合计钠(食盐{saltG}g)</div>
-                  <div className="font-display text-xl text-terradeep tnum" style={{ fontWeight: 400 }}>{totalNa}<span className="text-[10px] ml-0.5">mg</span></div>
-                </div>
-              </div>
-              {!kBalanced && (
-                <div className="mt-2.5 text-[10px] font-mono text-honey leading-relaxed">
-                  还差 {totalNa - totalK} mg 钾。{DRINKS[drinkKey] ? `多喝 ~${Math.ceil((totalNa - totalK) / (DRINKS[drinkKey].k / 200) / 50) * 50} ml 这款` : '选一款番茄汁'},或多吃高钾食物(红薯/香蕉/豆)。
-                </div>
-              )}
-              <div className="mt-2 text-[9px] font-mono text-inkfaint leading-relaxed">ⓘ 食物钾默认粗估 2000mg(你菜单的牛肉/鸡胸/红薯/豆/Oikos),按实际改;只补钾不够,水也要喝够。</div>
-            </div>
-          </Card>
-        </section>
-
         {/* ============ 01 · LUNCH ============ */}
         <section className="rise mb-9" style={{ animationDelay: '160ms' }}>
           <SectionHead no="01" zh="中午摄入" en="Lunch Intake" />
@@ -1336,6 +1270,72 @@ export default function CuttingProtocol() {
           <button onClick={() => go(1)} className="mt-3 w-full px-4 py-2.5 rounded-full border border-line bg-card text-inksoft text-xs font-mono tracking-wider hover:border-terra hover:text-terra transition-all">
             验算 / 明细 / 采购清单 →
           </button>
+        </section>
+
+        {/* ============ 🧂 · ELECTROLYTE ============ */}
+        <section className="rise mb-9" style={{ animationDelay: '110ms' }}>
+          <SectionHead no="🧂" zh="电解质 · 钾钠平衡" en="K / Na Balance" accent="sage" />
+          <Card className="p-5 sm:p-6">
+            <div className="text-[11px] text-inksoft mb-3 font-cjk">晚上高盐 → 用高钾蔬菜/番茄汁对冲(嫌麻烦可选「不补钾」)。一款常见好买的,默认 400ml:</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {Object.entries(DRINKS).map(([key, d]) => (
+                <button
+                  key={key}
+                  onClick={() => setDrinkKey(key)}
+                  className={`text-left p-3 rounded-2xl border transition-all ${drinkKey === key ? 'border-sage bg-sage/[0.08] shadow-warm -translate-y-0.5' : 'border-line bg-card hover:border-sage/50'}`}
+                >
+                  <div className="text-[12px] font-cjk text-ink leading-tight" style={{ fontWeight: 600 }}>{d.label}</div>
+                  <div className="text-[10px] font-mono text-inkfaint mt-1">K {d.k} · {d.kcal}kcal /200ml</div>
+                  <div className="text-[10px] text-inksoft mt-0.5">{d.note}</div>
+                </button>
+              ))}
+              <button
+                onClick={() => setDrinkKey('none')}
+                className={`text-left p-3 rounded-2xl border transition-all ${!DRINKS[drinkKey] ? 'border-sage bg-sage/[0.08] shadow-warm' : 'border-line bg-card hover:border-sage/50'}`}
+              >
+                <div className="text-[12px] font-cjk text-ink" style={{ fontWeight: 600 }}>不补钾</div>
+                <div className="text-[10px] text-inkfaint mt-1 font-mono">不喝 · 省了</div>
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2.5">
+              <TargetInput label="喝多少" en="ml" value={drinkMl} unit="ml" onChange={(v) => setDrinkMl(Math.max(0, Math.min(1500, Number(v) || 0)))} />
+              <TargetInput label="今日食盐" en="salt" value={saltG} unit="g" onChange={(v) => setSaltG(Math.max(0, Math.min(20, Number(v) || 0)))} />
+              <TargetInput label="食物钾估" en="food K" value={foodK} unit="mg" onChange={(v) => setFoodK(Math.max(0, Math.min(8000, Number(v) || 0)))} />
+            </div>
+
+            {DRINKS[drinkKey] && (
+              <div className="mt-3 text-[11px] font-mono text-inksoft tracking-wide">
+                → 这杯 {drinkMl}ml:<span className="text-ink"> {drink.kcal}kcal · 糖{drink.c}g · 钾{drink.k}mg</span>(已计入今日热量)
+              </div>
+            )}
+
+            {/* 钾钠平衡 */}
+            <div className={`mt-4 rounded-2xl border p-4 ${kBalanced ? 'border-sage/40 bg-sage/[0.06]' : 'border-honey/50 bg-honey/[0.06]'}`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[10px] font-mono tracking-wider" style={{ color: kBalanced ? '#5F6B3E' : '#B07B16' }}>钾 vs 钠</div>
+                <div className="text-[11px] font-cjk" style={{ fontWeight: 600, color: kBalanced ? '#5F6B3E' : '#B07B16' }}>
+                  {kBalanced ? '✓ 平衡(钾≥钠)' : '⚠ 钾不够'}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 font-mono text-xs">
+                <div className="rounded-xl bg-card border border-line p-2.5 text-center">
+                  <div className="text-[9px] text-inkfaint mb-1">合计钾(果汁+食物)</div>
+                  <div className="font-display text-xl text-sagedeep tnum" style={{ fontWeight: 400 }}>{totalK}<span className="text-[10px] ml-0.5">mg</span></div>
+                </div>
+                <div className="rounded-xl bg-card border border-line p-2.5 text-center">
+                  <div className="text-[9px] text-inkfaint mb-1">合计钠(食盐{saltG}g)</div>
+                  <div className="font-display text-xl text-terradeep tnum" style={{ fontWeight: 400 }}>{totalNa}<span className="text-[10px] ml-0.5">mg</span></div>
+                </div>
+              </div>
+              {!kBalanced && (
+                <div className="mt-2.5 text-[10px] font-mono text-honey leading-relaxed">
+                  还差 {totalNa - totalK} mg 钾。{DRINKS[drinkKey] ? `多喝 ~${Math.ceil((totalNa - totalK) / (DRINKS[drinkKey].k / 200) / 50) * 50} ml 这款` : '选一款番茄汁'},或多吃高钾食物(红薯/香蕉/豆)。
+                </div>
+              )}
+              <div className="mt-2 text-[9px] font-mono text-inkfaint leading-relaxed">ⓘ 食物钾默认粗估 2000mg(你菜单的牛肉/鸡胸/红薯/豆/Oikos),按实际改;只补钾不够,水也要喝够。</div>
+            </div>
+          </Card>
         </section>
 
         </>)}
