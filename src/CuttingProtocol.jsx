@@ -248,9 +248,9 @@ function estimateLunchMacros(kcal) {
 // lean=true 的蛋白几乎不带脂肪 → 不靠"多加肉"补脂,改为酱放宽到 2 包
 const DINNER_PROTEINS = {
   beef:    { label: '牛肉 切り落とし(生)', sub: 'Beef · raw wt',        tag: 'RED MEAT',      p: 0.19,         c: 0, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: false, logName: '牛肉',   note: '带脂肪 · 可自动补脂' },
-  shrimp:  { label: '冷冻大虾仁',          sub: 'Shrimp · thawed raw',  tag: 'SEAFOOD · LEAN', p: 0.20, f: 0.01, c: 0, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: true,  logName: '大虾仁', note: '超低脂高蛋白 · 脂肪靠酱补' },
   chicken: { label: '速食鸡胸(整块)',     sub: 'Ready-eat · per pack', tag: 'POULTRY · LEAN', p: 22,   f: 2,    c: 1, step: 1,  unitEN: '块',   logUnit: '块', lean: true,  logName: '鸡胸',   note: '每块≈100g/22g蛋白 · 按整块算' },
   duck:    { label: '速食合鸭胸(去皮)',   sub: 'Aigamo skinless · ready', tag: 'DUCK · 皮なし', p: 0.21, f: 0.06, c: 0.005, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: false, logName: '合鸭', note: '去皮合鴨胸 · 高蛋白中低脂 · 临时值待校准' },
+  kfc:     { label: 'KFC オリジナルチキン', sub: 'KFC Original · per piece', tag: 'KFC · FAT+PRO', p: 18, f: 14, c: 8, step: 1, unitEN: '块', logUnit: '块', lean: false, logName: 'KFC鸡', note: '1块≈237kcal/P18·F14·C8 · 含盐1.7g/块' },
 };
 
 // 脂肪来源(可多选;脂肪缺口在所选来源之间均分,各自取整 + 封顶)
@@ -1194,12 +1194,6 @@ export default function CuttingProtocol() {
               </button>
             ))}
           </div>
-          {dinnerProteins.includes('shrimp') && (
-            <div className="mt-3 text-[11px] font-mono text-honey tracking-wide leading-relaxed flex items-start gap-1.5">
-              <span>ⓘ</span>
-              <span>克数 = <span className="text-terradeep">解冻沥干后的生重</span>(去冰衣、和牛肉同一口径,别带冰称)。虾仁几乎零脂,脂肪靠下方<span className="text-terradeep">「脂肪来源」</span>补。</span>
-            </div>
-          )}
           {dinnerProteins.includes('chicken') && (
             <div className="mt-3 text-[11px] font-mono text-honey tracking-wide leading-relaxed flex items-start gap-1.5">
               <span>ⓘ</span>
@@ -1210,6 +1204,12 @@ export default function CuttingProtocol() {
             <div className="mt-3 text-[11px] font-mono text-honey tracking-wide leading-relaxed flex items-start gap-1.5">
               <span>ⓘ</span>
               <span>去皮合鴨胸,高蛋白中低脂,按克算。当前<span className="text-terradeep">临时值</span>(去皮≈每100g P21/F6/140kcal),脂肪还得靠下方<span className="text-terradeep">「脂肪来源」</span>补。<span className="text-terradeep">等你买到看包装背面再校准</span>。</span>
+            </div>
+          )}
+          {dinnerProteins.includes('kfc') && (
+            <div className="mt-3 text-[11px] font-mono text-honey tracking-wide leading-relaxed flex items-start gap-1.5">
+              <span>ⓘ</span>
+              <span>KFC 原味鸡<span className="text-terradeep">按块(ピース)</span>算,1块≈237kcal(P18/F14/C8,部位182~290kcal有浮动)。自带脂肪+炸衣碳水,<span className="text-terradeep">每块含盐 1.7g</span>——记得在上面「电解质」把今日食盐加上去、多补钾。</span>
             </div>
           )}
         </section>
