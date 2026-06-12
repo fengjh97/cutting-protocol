@@ -27,6 +27,8 @@ const DRINKS = {
 
 const DEFAULT_TARGETS = { p: 140, c: 225, f: 60, kcal: 2000 };
 const DEFAULT_TDEE = 2900;
+// 晚餐蛋白下限:晚餐把全天蛋白补到这个数(白天碳水为主,蛋白大头放晚上)
+const DINNER_PROTEIN_FLOOR = 135;
 
 // ============ 午餐设计 · 蛋白源 ============
 const LUNCH_PROTEINS = {
@@ -112,9 +114,9 @@ function designLunch(targetKcal, proteinKey, carbKey) {
   const prot = LUNCH_PROTEINS[proteinKey];
   const carb = LUNCH_CARBS[carbKey];
 
-  // 目标蛋白:中午约占全天蛋白的 35-40%,根据热量动态调整
-  // 800 kcal → 约 60 g 蛋白; 600 → 45 g; 1000 → 75 g
-  const targetP = Math.max(30, targetKcal * 0.30 / 4);
+  // 目标蛋白:午餐偏碳水,蛋白只占约 22% 热量(碳水占大头),蛋白大头留给晚餐
+  // 800 kcal → 约 44 g 蛋白; 600 → 33 g; 1000 → 55 g
+  const targetP = Math.max(25, targetKcal * 0.22 / 4);
 
   // 蛋白源克数
   let protGrams = targetP / prot.p;
@@ -379,8 +381,8 @@ function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkou
 
   const mainKeys = keys;  // 蛋白主源(牛肉/虾仁/鸡胸);脂肪由 fatSources 单独补
 
-  // ===== 1. 蛋白:主源只补到下限(默认120,够了就行,不强行冲目标),多选则均分 =====
-  const protFloor = Math.min(120, TARGETS.p);
+  // ===== 1. 蛋白:晚餐注重蛋白,主源补到下限(默认135,接近全天目标),多选则均分 =====
+  const protFloor = Math.min(DINNER_PROTEIN_FLOOR, TARGETS.p);
   const proteinNeed = Math.max(0, protFloor - eatenP);
   const portions = {};
   mainKeys.forEach((k) => {
@@ -671,7 +673,7 @@ export default function CuttingProtocol() {
   const dailyProtein = (k) => {
     const d = DINNER_PROTEINS[k];
     const eatenP = (result.lunch?.p || 0) + (result.preWorkout?.p || 0);
-    const need = Math.max(0, Math.min(120, targets.p) - eatenP);
+    const need = Math.max(0, Math.min(DINNER_PROTEIN_FLOOR, targets.p) - eatenP);
     return Math.max(0, Math.round(need / d.p / d.step) * d.step);
   };
   const carbKcalNow = (result.plan.pasta || 0) * 3.55 + (result.plan.nissin || 0) * 291 + (result.plan.pho || 0) * 210 + (result.plan.bifun || 0) * 3.45;
