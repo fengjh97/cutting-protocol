@@ -249,8 +249,8 @@ function estimateLunchMacros(kcal) {
 const DINNER_PROTEINS = {
   beef:    { label: '牛肉 切り落とし(生)', sub: 'Beef · raw wt',        tag: 'RED MEAT',      p: 0.19,         c: 0, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: false, logName: '牛肉',   note: '带脂肪 · 可自动补脂' },
   chicken: { label: '速食鸡胸(整块)',     sub: 'Ready-eat · per pack', tag: 'POULTRY · LEAN', p: 22,   f: 2,    c: 1, step: 1,  unitEN: '块',   logUnit: '块', lean: true,  logName: '鸡胸',   note: '每块≈100g/22g蛋白 · 按整块算' },
-  duck:     { label: '合鸭胸(去皮)', sub: 'Aigamo skinless',  tag: 'DUCK · 去皮', p: 0.21,  f: 0.06, c: 0.005, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: false, logName: '合鸭(去皮)', note: '瘦版 · 脂肪靠脂肪源补 · 二选一' },
-  duckskin: { label: '合鸭胸(带皮)', sub: 'Aigamo with skin', tag: 'DUCK · 带皮', p: 0.142, f: 0.29, c: 0.001, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: false, logName: '合鸭(带皮)', note: '肥版 · 自带脂肪很足 · 二选一' },
+  duck:     { label: '合鸭胸(去皮)', sub: 'Skinless · 1份≈100g', tag: 'DUCK · 去皮', p: 21, f: 6,  c: 0.5, step: 1, unitEN: '份', logUnit: '份', lean: false, maxUnits: 4, logName: '合鸭(去皮)', note: '1份≈100g · P21/F6/140kcal · 二选一' },
+  duckskin: { label: '合鸭胸(带皮)', sub: 'With skin · 1份≈100g', tag: 'DUCK · 带皮', p: 14, f: 29, c: 0.1, step: 1, unitEN: '份', logUnit: '份', lean: false, maxUnits: 3, logName: '合鸭(带皮)', note: '1份≈100g · P14/F29/304kcal · 二选一' },
   kfc:     { label: 'KFC オリジナルチキン', sub: 'KFC Original · per piece', tag: 'KFC · FAT+PRO', p: 18, f: 14, c: 8, step: 1, unitEN: '块', logUnit: '块', lean: false, logName: 'KFC鸡', note: '1块≈237kcal/P18·F14·C8 · 含盐1.7g/块' },
 };
 
@@ -1206,7 +1206,7 @@ export default function CuttingProtocol() {
           {(dinnerProteins.includes('duck') || dinnerProteins.includes('duckskin')) && (
             <div className="mt-3 text-[11px] font-mono text-honey tracking-wide leading-relaxed flex items-start gap-1.5">
               <span>ⓘ</span>
-              <span>合鴨<span className="text-terradeep">去皮 / 带皮 二选一</span>(同一份的两种状态,别两个都选)。<span className="text-terradeep">去皮</span>≈P21/F6/140kcal(瘦,脂肪靠下方「脂肪来源」补);<span className="text-terradeep">带皮</span>≈P14/F29/304kcal(肥,自带脂肪多、几乎不用再补)。临时值,买到看包装校准。</span>
+              <span>合鴨<span className="text-terradeep">去皮 / 带皮 二选一</span>,按<span className="text-terradeep">份</span>算(1份≈100g,市售一包多≈200g=2份)。<span className="text-terradeep">去皮</span>P21/F6/140kcal(瘦,脂肪靠下方「脂肪来源」补);<span className="text-terradeep">带皮</span>P14/F29/304kcal(肥,自带脂肪多、几乎不用再补)。买到看包装校准。</span>
             </div>
           )}
           {dinnerProteins.includes('kfc') && (
