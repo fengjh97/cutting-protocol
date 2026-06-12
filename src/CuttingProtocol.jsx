@@ -16,6 +16,8 @@ const PRE_ITEMS = {
   chicken: { p: 22, c: 1, f: 2, label: '速食鸡胸', unit: '块' },
   egg:     { p: 6, c: 0.5, f: 5, label: '全蛋', unit: '个' },
   banana:  { p: 1, c: 27, f: 0.25, label: '香蕉', unit: '根' },
+  // 超市カットパイン:每 1g(成分表 100g ≈ 54kcal/P0.6/C13.7/F0.1,钾150mg)
+  pineapple: { p: 0.006, c: 0.13, f: 0.001, label: '切块菠萝', unit: 'g' },
 };
 // ============ 高钾蔬菜/番茄汁(每 200ml;用来对冲晚餐高钠)============
 const DRINKS = {
@@ -486,20 +488,22 @@ const Card = ({ className = '', children }) => (
 );
 
 // 加减步进器(训练前加餐 / Oikos 共用)
-const Stepper = ({ zh, en, value, set, max = 5, accent = 'terra' }) => {
+const Stepper = ({ zh, en, value, set, max = 5, step = 1, unit, accent = 'terra' }) => {
   const ring = accent === 'honey' ? 'hover:border-honey hover:text-honey' : 'hover:border-terra hover:text-terra';
   return (
     <div className="flex-1 min-w-[120px]">
       <div className="text-[10px] font-mono tracking-[0.18em] uppercase text-inkfaint mb-2.5">{zh} / {en}</div>
       <div className="flex items-center gap-2.5">
         <button
-          onClick={() => set(Math.max(0, value - 1))}
+          onClick={() => set(Math.max(0, value - step))}
           aria-label={`减少${zh}`}
           className={`w-9 h-9 grid place-items-center rounded-full border border-line text-inksoft bg-card transition-all active:scale-90 ${ring}`}
         >−</button>
-        <span className="font-display text-3xl w-9 text-center text-ink tnum" style={{ fontWeight: 400 }}>{value}</span>
+        <span className={`font-display text-center text-ink tnum ${step > 1 ? 'text-2xl w-14' : 'text-3xl w-9'}`} style={{ fontWeight: 400 }}>
+          {value}{unit && <span className="text-[10px] font-mono text-inkfaint ml-0.5">{unit}</span>}
+        </span>
         <button
-          onClick={() => set(Math.min(max, value + 1))}
+          onClick={() => set(Math.min(max, value + step))}
           aria-label={`增加${zh}`}
           className={`w-9 h-9 grid place-items-center rounded-full border border-line text-inksoft bg-card transition-all active:scale-90 ${ring}`}
         >+</button>
@@ -610,6 +614,7 @@ export default function CuttingProtocol() {
   const [preChicken, setPreChicken] = useState(1);
   const [preEggs, setPreEggs] = useState(0);
   const [preBanana, setPreBanana] = useState(0);
+  const [prePine, setPrePine] = useState(0); // 切块菠萝 g(自己称重)
   const [dinnerOikos, setDinnerOikos] = useState(1);
   const [drinkKey, setDrinkKey] = useState('tomato'); // 高钾蔬菜/番茄汁(对冲钠)
   const [drinkMl, setDrinkMl] = useState(400);
@@ -627,13 +632,13 @@ export default function CuttingProtocol() {
   const totalK = drink.k + (Number(foodK) || 0);
   const kBalanced = totalK >= totalNa;
 
-  // 鸡胸/全蛋/香蕉/Oikos 都属于"配午餐 · 加餐"已吃掉的部分(不进晚餐处方)
+  // 鸡胸/全蛋/香蕉/菠萝/Oikos 都属于"配午餐 · 加餐"已吃掉的部分(不进晚餐处方)
   const preWorkout = useMemo(() => {
-    const p = preChicken * PRE_ITEMS.chicken.p + preEggs * PRE_ITEMS.egg.p + preBanana * PRE_ITEMS.banana.p + dinnerOikos * 12 + drink.p;
-    const c = preChicken * PRE_ITEMS.chicken.c + preEggs * PRE_ITEMS.egg.c + preBanana * PRE_ITEMS.banana.c + dinnerOikos * 5 + drink.c;
-    const f = preChicken * PRE_ITEMS.chicken.f + preEggs * PRE_ITEMS.egg.f + preBanana * PRE_ITEMS.banana.f;
+    const p = preChicken * PRE_ITEMS.chicken.p + preEggs * PRE_ITEMS.egg.p + preBanana * PRE_ITEMS.banana.p + prePine * PRE_ITEMS.pineapple.p + dinnerOikos * 12 + drink.p;
+    const c = preChicken * PRE_ITEMS.chicken.c + preEggs * PRE_ITEMS.egg.c + preBanana * PRE_ITEMS.banana.c + prePine * PRE_ITEMS.pineapple.c + dinnerOikos * 5 + drink.c;
+    const f = preChicken * PRE_ITEMS.chicken.f + preEggs * PRE_ITEMS.egg.f + preBanana * PRE_ITEMS.banana.f + prePine * PRE_ITEMS.pineapple.f;
     return { p, c, f, kcal: Math.round(p * 4 + c * 4 + f * 9) };
-  }, [preChicken, preEggs, preBanana, dinnerOikos, drink]);
+  }, [preChicken, preEggs, preBanana, prePine, dinnerOikos, drink]);
 
   const lunchDesign = useMemo(
     () => designLunch(lunchKcal, lunchProtein, lunchCarb),
@@ -686,7 +691,7 @@ export default function CuttingProtocol() {
     return 0;
   };
 
-  const fasted = preChicken === 0 && preEggs === 0 && preBanana === 0;
+  const fasted = preChicken === 0 && preEggs === 0 && preBanana === 0 && prePine === 0;
 
   // 两页翻页:配置(输入+零食) / 晚餐(处方+明细+采购)
   const PAGES = [
@@ -794,6 +799,7 @@ export default function CuttingProtocol() {
     if (preChicken > 0) items.push({ slot: 'pre-workout', name: '速食鸡胸', qty: preChicken, unit: '块', p: preChicken * 22, c: preChicken * 1, f: preChicken * 2, kcal: preChicken * 110 });
     if (preEggs > 0) items.push({ slot: 'pre-workout', name: '全蛋', qty: preEggs, unit: '个', p: preEggs * 6, c: r0(preEggs * 0.5), f: preEggs * 5, kcal: r0(preEggs * 72) });
     if (preBanana > 0) items.push({ slot: 'pre-workout', name: '香蕉', qty: preBanana, unit: '根', p: preBanana, c: preBanana * 27, f: r0(preBanana * 0.25), kcal: r0(preBanana * 113) });
+    if (prePine > 0) items.push({ slot: 'snack', name: '切块菠萝(カットパイン)', qty: prePine, unit: 'g', p: r0(prePine * 0.006), c: r0(prePine * 0.13), f: 0, kcal: r0(prePine * 0.55) });
     if (dinnerOikos > 0) items.push({ slot: 'snack', name: 'オイコス砂糖不使用', qty: dinnerOikos, unit: '个', p: dinnerOikos * 12, c: dinnerOikos * 5, f: 0, kcal: dinnerOikos * 68 });
     if (drink.kcal > 0) items.push({ slot: 'drink', name: DRINKS[drinkKey].label, qty: drinkMl, unit: 'ml', p: r0(drink.p), c: r0(drink.c), f: 0, kcal: drink.kcal, k_mg: drink.k });
     items.push({ slot: 'lunch', name: lunchMode === 'designer' ? '午餐(自制)' : '食堂午餐', qty: lunchKcal, unit: 'kcal估', p: r0(result.lunch.p), c: r0(result.lunch.c), f: r0(result.lunch.f), kcal: r0(result.lunch.kcal) });
@@ -907,6 +913,7 @@ export default function CuttingProtocol() {
               <Stepper zh="鸡胸" en="Chicken" value={preChicken} set={setPreChicken} />
               <Stepper zh="全蛋" en="Eggs" value={preEggs} set={setPreEggs} />
               <Stepper zh="香蕉" en="Banana" value={preBanana} set={setPreBanana} />
+              <Stepper zh="菠萝" en="Pineapple" value={prePine} set={setPrePine} step={50} max={500} unit="g" accent="honey" />
               <Stepper zh="Oikos" en="加餐" value={dinnerOikos} set={setDinnerOikos} accent="honey" />
             </div>
             <div className="mt-5 pt-4 border-t border-linesoft flex items-center gap-4 flex-wrap">
@@ -1416,6 +1423,7 @@ export default function CuttingProtocol() {
             {preChicken > 0 && <LogRow name={`鸡胸 × ${preChicken}`} p={preChicken * 22} c={preChicken * 1} f={preChicken * 2} k={preChicken * 110} />}
             {preEggs > 0 && <LogRow name={`全蛋 × ${preEggs}`} p={preEggs * 6} c={Math.round(preEggs * 0.5)} f={preEggs * 5} k={Math.round(preEggs * 72)} />}
             {preBanana > 0 && <LogRow name={`香蕉 × ${preBanana}`} p={preBanana} c={preBanana * 27} f={Math.round(preBanana * 0.25)} k={Math.round(preBanana * 113)} />}
+            {prePine > 0 && <LogRow name={`切块菠萝 ${prePine}g`} p={Math.round(prePine * 0.006)} c={Math.round(prePine * 0.13)} f={0} k={Math.round(prePine * 0.55)} />}
             {dinnerOikos > 0 && <LogRow name={`オイコス × ${dinnerOikos}`} p={dinnerOikos * 12} c={dinnerOikos * 5} f={0} k={dinnerOikos * 68} />}
             {drink.kcal > 0 && <LogRow name={`${DRINKS[drinkKey].label} ${drinkMl}ml`} p={Math.round(drink.p)} c={Math.round(drink.c)} f={0} k={drink.kcal} />}
             {fasted && <div className="px-4 py-2 text-xs text-inkfaint border-t border-linesoft">空腹训练</div>}
@@ -1481,7 +1489,7 @@ export default function CuttingProtocol() {
             <div className="space-y-3 font-mono text-xs">
               {[
                 { t: '12:00', d: '食堂午餐 / 替代 — Lunch (open feeding window)', hl: true },
-                { t: '15:00', d: `训练前 — ${preChicken > 0 ? `${preChicken}块鸡胸` : ''}${preChicken > 0 && (preEggs > 0 || preBanana > 0) ? ' + ' : ''}${preEggs > 0 ? `${preEggs}个全蛋` : ''}${preEggs > 0 && preBanana > 0 ? ' + ' : ''}${preBanana > 0 ? `${preBanana}根香蕉` : ''}${fasted ? '空腹' : ''}`, hl: false },
+                { t: '15:00', d: `训练前 — ${fasted ? '空腹' : [preChicken > 0 && `${preChicken}块鸡胸`, preEggs > 0 && `${preEggs}个全蛋`, preBanana > 0 && `${preBanana}根香蕉`, prePine > 0 && `${prePine}g菠萝`].filter(Boolean).join(' + ')}`, hl: false },
                 { t: '17:00', d: '训练时段 — MET7 1h + 力量(周3次)', hl: false },
                 { t: '19:00', d: '★ 训练后晚餐 — 按上方处方', hl: true },
                 { t: '20:00', d: '关窗 — Close feeding window', hl: false },
@@ -1552,6 +1560,7 @@ export default function CuttingProtocol() {
           { name: '速食小鸡胸(块)', note: '每块~100g / 22g蛋白', sel: preChicken > 0, weekly: wkQty(preChicken, '块') },
           { name: '卵(全蛋)', note: '训练前 / 补脂用', sel: preEggs > 0, weekly: wkQty(preEggs, '個') },
           { name: '香蕉', note: '训练前快碳水', sel: preBanana > 0, weekly: wkQty(preBanana, '根') },
+          { name: 'カットパイン(切块菠萝)', note: '加餐快碳水 · 54kcal/100g · 高钾150mg', sel: prePine > 0, weekly: wkQty(prePine, 'g') },
           { name: 'ダノン オイコス 砂糖不使用', note: '加餐 · P12/個', sel: dinnerOikos > 0, weekly: wkQty(dinnerOikos, '個') },
         ]} />
         <ShopCat title="电解质饮料(高钾对冲钠)" en="Drinks" items={Object.entries(DRINKS).map(([k, d]) => ({ name: d.label, note: `K${d.k} · ${d.kcal}kcal / 200ml`, sel: drinkKey === k, weekly: drinkKey === k ? wkQty(drinkMl, 'ml') : null }))} />
