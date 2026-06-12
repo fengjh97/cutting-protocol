@@ -249,7 +249,8 @@ function estimateLunchMacros(kcal) {
 const DINNER_PROTEINS = {
   beef:    { label: '牛肉 切り落とし(生)', sub: 'Beef · raw wt',        tag: 'RED MEAT',      p: 0.19,         c: 0, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: false, logName: '牛肉',   note: '带脂肪 · 可自动补脂' },
   chicken: { label: '速食鸡胸(整块)',     sub: 'Ready-eat · per pack', tag: 'POULTRY · LEAN', p: 22,   f: 2,    c: 1, step: 1,  unitEN: '块',   logUnit: '块', lean: true,  logName: '鸡胸',   note: '每块≈100g/22g蛋白 · 按整块算' },
-  duck:    { label: '速食合鸭胸(去皮)',   sub: 'Aigamo skinless · ready', tag: 'DUCK · 皮なし', p: 0.21, f: 0.06, c: 0.005, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: false, logName: '合鸭', note: '去皮合鴨胸 · 高蛋白中低脂 · 临时值待校准' },
+  duck:     { label: '合鸭胸(去皮)', sub: 'Aigamo skinless',  tag: 'DUCK · 去皮', p: 0.21,  f: 0.06, c: 0.005, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: false, logName: '合鸭(去皮)', note: '瘦版 · 脂肪靠脂肪源补 · 二选一' },
+  duckskin: { label: '合鸭胸(带皮)', sub: 'Aigamo with skin', tag: 'DUCK · 带皮', p: 0.142, f: 0.29, c: 0.001, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: false, logName: '合鸭(带皮)', note: '肥版 · 自带脂肪很足 · 二选一' },
   kfc:     { label: 'KFC オリジナルチキン', sub: 'KFC Original · per piece', tag: 'KFC · FAT+PRO', p: 18, f: 14, c: 8, step: 1, unitEN: '块', logUnit: '块', lean: false, logName: 'KFC鸡', note: '1块≈237kcal/P18·F14·C8 · 含盐1.7g/块' },
 };
 
@@ -261,7 +262,6 @@ const FAT_SOURCES = {
   olive:      { label: 'オリーブオイル', sub: 'Olive oil tsp',    tag: 'OIL',   f: 4.5, p: 0,   c: 0,   step: 1, unitEN: '小さじ', logUnit: '小さじ', logName: '橄榄油', max: 6 },
   nuts:       { label: '素焼きナッツ',   sub: 'Mixed nuts 10g',   tag: 'NUTS',  f: 5,   p: 2,   c: 2,   step: 1, unitEN: '×10g',  logUnit: '×10g', logName: '坚果',   max: 5 },
   avocado:    { label: 'アボカド',       sub: 'Avocado half',     tag: 'FRUIT', f: 15,  p: 1,   c: 4,   step: 1, unitEN: '半',     logUnit: '半',   logName: '牛油果', max: 2 },
-  duckskin:   { label: '鸭脂层(皮)',     sub: 'Duck skin/fat',    tag: 'DUCK FAT', f: 15, p: 1.5, c: 0, step: 1, unitEN: '份', logUnit: '份', logName: '鸭脂层', max: 3 },
 };
 
 // ============ 放纵餐(娱乐页:日本暴食套餐 · 不算赤字)============
@@ -591,7 +591,11 @@ export default function CuttingProtocol() {
   const [dinnerProteins, setDinnerProteins] = useState(['beef']);
   const [fatSources, setFatSources] = useState(['sauce', 'egg_fried']); // 脂肪来源(多选)
   const toggleFat = (k) => setFatSources((arr) => arr.includes(k) ? arr.filter((x) => x !== k) : [...arr, k]);
-  const toggleProtein = (k) => setDinnerProteins((arr) => arr.includes(k) ? (arr.length > 1 ? arr.filter((x) => x !== k) : arr) : [...arr, k]);
+  const toggleProtein = (k) => setDinnerProteins((arr) => {
+    if (arr.includes(k)) return arr.length > 1 ? arr.filter((x) => x !== k) : arr;
+    const excl = { duck: 'duckskin', duckskin: 'duck' }[k]; // 合鴨去皮/带皮 互斥,二选一
+    return [...arr.filter((x) => x !== excl), k];
+  });
 
   // 可编辑目标:TDEE + 目标 P/C/F/kcal(存本机)
   const [targets, setTargets] = useState(() => {
@@ -1199,10 +1203,10 @@ export default function CuttingProtocol() {
               <span>按<span className="text-terradeep">整块</span>算(每块速食鸡胸≈100g/22g蛋白),不是按克。鸡胸低脂,脂肪靠下方<span className="text-terradeep">「脂肪来源」</span>补。</span>
             </div>
           )}
-          {dinnerProteins.includes('duck') && (
+          {(dinnerProteins.includes('duck') || dinnerProteins.includes('duckskin')) && (
             <div className="mt-3 text-[11px] font-mono text-honey tracking-wide leading-relaxed flex items-start gap-1.5">
               <span>ⓘ</span>
-              <span>去皮合鴨胸,高蛋白中低脂,按克算。当前<span className="text-terradeep">临时值</span>(去皮≈每100g P21/F6/140kcal),脂肪还得靠下方<span className="text-terradeep">「脂肪来源」</span>补。<span className="text-terradeep">等你买到看包装背面再校准</span>。</span>
+              <span>合鴨<span className="text-terradeep">去皮 / 带皮 二选一</span>(同一份的两种状态,别两个都选)。<span className="text-terradeep">去皮</span>≈P21/F6/140kcal(瘦,脂肪靠下方「脂肪来源」补);<span className="text-terradeep">带皮</span>≈P14/F29/304kcal(肥,自带脂肪多、几乎不用再补)。临时值,买到看包装校准。</span>
             </div>
           )}
           {dinnerProteins.includes('kfc') && (
