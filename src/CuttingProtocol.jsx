@@ -259,10 +259,9 @@ const FAT_SOURCES = {
   egg_boiled: { label: '全蛋(水煮)',    sub: 'Boiled egg',       tag: 'EGG',   f: 5,   p: 6,   c: 0.5, step: 1, unitEN: '個',     logUnit: '個',   logName: '全蛋',   max: 8 },
   sauce:      { label: 'ペペロン酱',     sub: 'Garlic-oil sauce', tag: 'SAUCE', f: 10,  p: 0.9, c: 1.5, step: 1, unitEN: '包',     logUnit: '包',   logName: '酱',     max: 2 },
   olive:      { label: 'オリーブオイル', sub: 'Olive oil tsp',    tag: 'OIL',   f: 4.5, p: 0,   c: 0,   step: 1, unitEN: '小さじ', logUnit: '小さじ', logName: '橄榄油', max: 6 },
-  cheese:     { label: 'スライスチーズ', sub: 'Cheese slice',     tag: 'DAIRY', f: 5,   p: 4,   c: 0.5, step: 1, unitEN: '枚',     logUnit: '枚',   logName: '芝士',   max: 4 },
   nuts:       { label: '素焼きナッツ',   sub: 'Mixed nuts 10g',   tag: 'NUTS',  f: 5,   p: 2,   c: 2,   step: 1, unitEN: '×10g',  logUnit: '×10g', logName: '坚果',   max: 5 },
   avocado:    { label: 'アボカド',       sub: 'Avocado half',     tag: 'FRUIT', f: 15,  p: 1,   c: 4,   step: 1, unitEN: '半',     logUnit: '半',   logName: '牛油果', max: 2 },
-  mayo:       { label: 'マヨネーズ',     sub: 'Mayonnaise tbsp',  tag: 'SAUCE', f: 11,  p: 0.2, c: 0.3, step: 1, unitEN: '大さじ', logUnit: '大さじ', logName: '蛋黄酱', max: 3 },
+  duckskin:   { label: '鸭脂层(皮)',     sub: 'Duck skin/fat',    tag: 'DUCK FAT', f: 15, p: 1.5, c: 0, step: 1, unitEN: '份', logUnit: '份', logName: '鸭脂层', max: 3 },
 };
 
 // ============ 放纵餐(娱乐页:日本暴食套餐 · 不算赤字)============
