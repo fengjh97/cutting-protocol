@@ -168,6 +168,24 @@ function designLunch(targetKcal, proteinKey, carbKey) {
   };
 }
 
+// ============ 午餐「记一下」· 实际吃了什么(自己数量,自动合计)============
+// kind:'count' 按个/包/块数(step 1);'gram' 按克(step 50)。p/c/f = 每"单位"宏量
+const TALLY_ITEMS = {
+  chicken: { label: '速食鸡胸',       unit: '块', p: 22,    c: 1,    f: 2,     step: 1,  max: 10,   kind: 'count' },
+  egg:     { label: '全蛋',           unit: '个', p: 6,     c: 0.5,  f: 5,     step: 1,  max: 10,   kind: 'count' },
+  oikos:   { label: 'オイコス',       unit: '個', p: 12,    c: 5,    f: 0,     step: 1,  max: 6,    kind: 'count' },
+  onigiri: { label: '饭团 おにぎり',  unit: '个', p: 3,     c: 39,   f: 0.5,   step: 1,  max: 6,    kind: 'count' },
+  nissin:  { label: '日清非油炸面',   unit: '包', p: 6.7,   c: 55,   f: 4.9,   step: 1,  max: 4,    kind: 'count' },
+  pho:     { label: '越南米粉(60g)', unit: '包', p: 4,     c: 43,   f: 2,     step: 1,  max: 4,    kind: 'count' },
+  banana:  { label: '香蕉',           unit: '根', p: 1,     c: 27,   f: 0.25,  step: 1,  max: 4,    kind: 'count' },
+  rice:    { label: '米饭(熟)',      unit: 'g',  p: 0.026, c: 0.28, f: 0.003, step: 50, max: 1000, kind: 'gram' },
+  beef:    { label: '牛肉(水煮)',    unit: 'g',  p: 0.19,  c: 0,    f: 0.072, step: 50, max: 600,  kind: 'gram' },
+  salmon:  { label: '三文鱼',         unit: 'g',  p: 0.20,  c: 0,    f: 0.13,  step: 50, max: 500,  kind: 'gram' },
+  sweet:   { label: '烤红薯',         unit: 'g',  p: 0.02,  c: 0.20, f: 0.001, step: 50, max: 600,  kind: 'gram' },
+  pasta:   { label: '干意面',         unit: 'g',  p: 0.12,  c: 0.71, f: 0.015, step: 50, max: 300,  kind: 'gram' },
+  pine:    { label: '切块菠萝',       unit: 'g',  p: 0.006, c: 0.13, f: 0.001, step: 50, max: 500,  kind: 'gram' },
+};
+
 // ============ 三种方案锚点(训练前可调 · 晚餐固定 1 Oikos · 碳水全靠主食)============
 const PLANS = {
   pasta: {
@@ -593,6 +611,8 @@ export default function CuttingProtocol() {
   const [lunchMode, setLunchMode] = useState('quick');
   const [lunchProtein, setLunchProtein] = useState('beef');
   const [lunchCarb, setLunchCarb] = useState('rice');
+  const [tally, setTally] = useState({}); // 「记一下」午餐:{itemKey: 数量}
+  const setTallyQty = (k, v) => setTally((t) => ({ ...t, [k]: Math.max(0, v) }));
   const [beefFat, setBeefFat] = useState(13);
   const [dinnerProteins, setDinnerProteins] = useState(['beef']);
   const [fatSources, setFatSources] = useState(['sauce', 'egg_fried']); // 脂肪来源(多选)
@@ -645,6 +665,21 @@ export default function CuttingProtocol() {
     [lunchKcal, lunchProtein, lunchCarb]
   );
 
+  // 「记一下」午餐:把所选数量直接合计成宏量(不做任何升级,你吃多少算多少)
+  const lunchTally = useMemo(() => {
+    let p = 0, c = 0, f = 0;
+    Object.entries(tally).forEach(([k, qty]) => {
+      const it = TALLY_ITEMS[k];
+      if (!it || !qty) return;
+      p += it.p * qty; c += it.c * qty; f += it.f * qty;
+    });
+    return { p, c, f, kcal: p * 4 + c * 4 + f * 9 };
+  }, [tally]);
+  // 记账模式下,把合计 kcal 同步给 lunchKcal(让明细/JSON/时间线显示真实总热量)
+  useEffect(() => {
+    if (lunchMode === 'tally') setLunchKcal(Math.round(lunchTally.kcal));
+  }, [lunchMode, lunchTally]);
+
   // 零食(成分表识别结果);并入今日固定摄入,晚餐据此回算
   const [snack, setSnack] = useState(null); // {name,serving,note,confidence,p,c,f,kcal}
   const effectivePre = useMemo(() => {
@@ -660,10 +695,12 @@ export default function CuttingProtocol() {
   const result = useMemo(() => {
     const override = lunchMode === 'designer'
       ? { p: lunchDesign.total.p, c: lunchDesign.total.c, f: lunchDesign.total.f, kcal: lunchDesign.total.kcal }
+      : lunchMode === 'tally'
+      ? { p: lunchTally.p, c: lunchTally.c, f: lunchTally.f, kcal: lunchTally.kcal }
       : null;
     // Oikos 已并入 effectivePre(配午餐/加餐),晚餐里不再放 → 传 0
     return calculate(lunchKcal, planKey, override, beefFat, effectivePre, 0, dinnerProteins, targets, fatSources);
-  }, [lunchKcal, planKey, lunchMode, lunchDesign, beefFat, effectivePre, dinnerProteins, targets, fatSources]);
+  }, [lunchKcal, planKey, lunchMode, lunchDesign, lunchTally, beefFat, effectivePre, dinnerProteins, targets, fatSources]);
 
   // 采购:每天用量 × 天数 → 一周参考量(可买的取整)
   const wkQty = (daily, unit) => {
@@ -802,7 +839,15 @@ export default function CuttingProtocol() {
     if (prePine > 0) items.push({ slot: 'snack', name: '切块菠萝(カットパイン)', qty: prePine, unit: 'g', p: r0(prePine * 0.006), c: r0(prePine * 0.13), f: 0, kcal: r0(prePine * 0.55) });
     if (dinnerOikos > 0) items.push({ slot: 'snack', name: 'オイコス砂糖不使用', qty: dinnerOikos, unit: '个', p: dinnerOikos * 12, c: dinnerOikos * 5, f: 0, kcal: dinnerOikos * 68 });
     if (drink.kcal > 0) items.push({ slot: 'drink', name: DRINKS[drinkKey].label, qty: drinkMl, unit: 'ml', p: r0(drink.p), c: r0(drink.c), f: 0, kcal: drink.kcal, k_mg: drink.k });
-    items.push({ slot: 'lunch', name: lunchMode === 'designer' ? '午餐(自制)' : '食堂午餐', qty: lunchKcal, unit: 'kcal估', p: r0(result.lunch.p), c: r0(result.lunch.c), f: r0(result.lunch.f), kcal: r0(result.lunch.kcal) });
+    if (lunchMode === 'tally') {
+      Object.entries(tally).forEach(([k, qty]) => {
+        const it = TALLY_ITEMS[k];
+        if (!it || !qty) return;
+        items.push({ slot: 'lunch', name: `午餐 · ${it.label}`, qty, unit: it.unit, p: r0(it.p * qty), c: r0(it.c * qty), f: r0(it.f * qty), kcal: r0((it.p * 4 + it.c * 4 + it.f * 9) * qty) });
+      });
+    } else {
+      items.push({ slot: 'lunch', name: lunchMode === 'designer' ? '午餐(自制)' : '食堂午餐', qty: lunchKcal, unit: 'kcal估', p: r0(result.lunch.p), c: r0(result.lunch.c), f: r0(result.lunch.f), kcal: r0(result.lunch.kcal) });
+    }
     if (snack) items.push({ slot: 'snack', name: snack.name, qty: 1, unit: snack.serving || '份', p: r0(snack.p), c: r0(snack.c), f: r0(snack.f), kcal: r0(snack.kcal) });
     result.proteinList.forEach((pp) => items.push({ slot: 'dinner', name: pp.logName, qty: pp.units, unit: pp.logUnit, p: r0(pp.units * pp.p), c: r0(pp.units * pp.c), f: r0(pp.units * pp.fat), kcal: r0(pp.units * (pp.p * 4 + pp.c * 4 + pp.fat * 9)) }));
     if (result.plan.pasta > 0) items.push({ slot: 'dinner', name: '干意面', qty: result.plan.pasta, unit: 'g', p: r0(result.plan.pasta * 0.12), c: r0(result.plan.pasta * 0.71), f: r0(result.plan.pasta * 0.015), kcal: r0(result.plan.pasta * 3.55) });
@@ -934,12 +979,12 @@ export default function CuttingProtocol() {
           <Card className="p-5 sm:p-6">
             {/* Mode Toggle */}
             <div className="flex p-1 rounded-full bg-paper2 mb-6">
-              {[['quick', '直接输入 / Quick'], ['designer', '设计午餐 / Designer']].map(([k, t]) => (
+              {[['quick', '输入 kcal'], ['tally', '记一下'], ['designer', '设计午餐']].map(([k, t]) => (
                 <button
                   key={k}
                   onClick={() => setLunchMode(k)}
-                  className={`flex-1 px-4 py-2 rounded-full text-[11px] font-mono tracking-[0.12em] uppercase transition-all ${
-                    lunchMode === k ? 'bg-card text-terradeep shadow-warm' : 'text-inksoft hover:text-ink'
+                  className={`flex-1 px-2 py-2 rounded-full text-[12px] font-cjk transition-all ${
+                    lunchMode === k ? 'bg-card text-terradeep shadow-warm font-medium' : 'text-inksoft hover:text-ink'
                   }`}
                 >
                   {t}
@@ -978,6 +1023,74 @@ export default function CuttingProtocol() {
                   </div>
                 )}
               </>
+            )}
+
+            {lunchMode === 'tally' && (
+              <div className="space-y-5">
+                <div className="text-[11px] text-inksoft font-cjk leading-relaxed">
+                  点一点中午<span className="text-terradeep">实际吃了多少</span> —— 块 / 个 / 包直接数,米饭牛肉这些按 50g 一档。下面自动合计,<span className="text-terradeep">不会帮你升级</span>,晚餐据此规划。
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {Object.entries(TALLY_ITEMS).map(([k, it]) => {
+                    const qty = tally[k] || 0;
+                    const active = qty > 0;
+                    const stepKcal = Math.round((it.p * 4 + it.c * 4 + it.f * 9) * it.step);
+                    return (
+                      <div
+                        key={k}
+                        className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
+                          active ? 'border-terra bg-terra/[0.05] shadow-warm' : 'border-line bg-card'
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[13px] font-cjk text-ink truncate" style={{ fontWeight: 500 }}>{it.label}</div>
+                          <div className="text-[10px] font-mono text-inkfaint mt-0.5">
+                            {active
+                              ? `${Math.round((it.p * 4 + it.c * 4 + it.f * 9) * qty)}kcal · P${Math.round(it.p * qty)} C${Math.round(it.c * qty)} F${Math.round(it.f * qty)}`
+                              : `每${it.kind === 'gram' ? `${it.step}g` : it.unit} ≈ ${stepKcal}kcal`}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => setTallyQty(k, qty - it.step)}
+                            aria-label={`减少${it.label}`}
+                            className="w-8 h-8 grid place-items-center rounded-full border border-line text-inksoft bg-card transition-all active:scale-90 hover:border-terra hover:text-terra"
+                          >−</button>
+                          <span className="font-display text-xl w-12 text-center text-ink tnum" style={{ fontWeight: 400 }}>
+                            {qty}{it.kind === 'gram' && qty > 0 && <span className="text-[9px] font-mono text-inkfaint ml-0.5">g</span>}
+                          </span>
+                          <button
+                            onClick={() => setTallyQty(k, Math.min(it.max, qty + it.step))}
+                            aria-label={`增加${it.label}`}
+                            className="w-8 h-8 grid place-items-center rounded-full border border-line text-inksoft bg-card transition-all active:scale-90 hover:border-terra hover:text-terra"
+                          >+</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="rounded-2xl bg-paper border border-line p-5">
+                  <div className="flex items-baseline justify-between mb-3">
+                    <div className="text-[10px] font-mono text-honey tracking-[0.28em]">LUNCH · 记账合计</div>
+                    <div className="text-right">
+                      <span className="font-display text-2xl text-ink tnum" style={{ fontWeight: 400 }}>{Math.round(lunchTally.kcal)}</span>
+                      <span className="text-[10px] text-inkfaint ml-1 font-mono">KCAL</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 pt-3 border-t border-linesoft">
+                    {[['蛋白', lunchTally.p], ['碳水', lunchTally.c], ['脂肪', lunchTally.f]].map(([kk, v]) => (
+                      <div key={kk} className="text-center">
+                        <div className="text-[9px] font-mono text-inkfaint tracking-widest">{kk}</div>
+                        <div className="font-mono text-base text-ink mt-0.5 tnum">{Math.round(v)}<span className="text-[10px] text-inkfaint ml-0.5">g</span></div>
+                      </div>
+                    ))}
+                  </div>
+                  {lunchTally.kcal === 0 && (
+                    <div className="mt-3 text-[10px] font-mono text-inkfaint tracking-wide text-center">还没记 · 上面点一点中午吃的</div>
+                  )}
+                </div>
+              </div>
             )}
 
             {lunchMode === 'designer' && (
@@ -1428,8 +1541,8 @@ export default function CuttingProtocol() {
             {drink.kcal > 0 && <LogRow name={`${DRINKS[drinkKey].label} ${drinkMl}ml`} p={Math.round(drink.p)} c={Math.round(drink.c)} f={0} k={drink.kcal} />}
             {fasted && <div className="px-4 py-2 text-xs text-inkfaint border-t border-linesoft">空腹训练</div>}
 
-            <LogGroup label={`LUNCH · ${lunchMode === 'designer' ? '自制' : '食堂'}`} />
-            <LogRow name={`${lunchMode === 'designer' ? '午餐设计' : '食堂'} ~${lunchKcal}kcal`} p={Math.round(result.lunch.p)} c={Math.round(result.lunch.c)} f={Math.round(result.lunch.f)} k={Math.round(result.lunch.kcal)} />
+            <LogGroup label={`LUNCH · ${lunchMode === 'designer' ? '自制' : lunchMode === 'tally' ? '记账' : '食堂'}`} />
+            <LogRow name={`${lunchMode === 'designer' ? '午餐设计' : lunchMode === 'tally' ? '午餐记账' : '食堂'} ~${Math.round(result.lunch.kcal)}kcal`} p={Math.round(result.lunch.p)} c={Math.round(result.lunch.c)} f={Math.round(result.lunch.f)} k={Math.round(result.lunch.kcal)} />
 
             {snack && <LogGroup label="SNACK · 加餐" />}
             {snack && <LogRow name={snack.name} p={Math.round(snack.p)} c={Math.round(snack.c)} f={Math.round(snack.f)} k={Math.round(snack.kcal)} />}
