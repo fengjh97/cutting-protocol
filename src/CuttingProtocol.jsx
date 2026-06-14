@@ -1,28 +1,26 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
-import {
-  Activity,
-  Apple,
-  CalendarDays,
-  Camera,
-  CheckCircle2,
-  ChevronDown,
-  ClipboardList,
-  Dumbbell,
-  Flame,
-  Gauge,
-  Goal,
-  Leaf,
-  Minus,
-  Plus,
-  RotateCcw,
-  Settings2,
-  ShoppingBasket,
-  Sparkles,
-  Utensils,
-  X,
-  Zap,
-} from 'lucide-react';
+import Activity from 'lucide-react/dist/esm/icons/activity.mjs';
+import Apple from 'lucide-react/dist/esm/icons/apple.mjs';
+import CalendarDays from 'lucide-react/dist/esm/icons/calendar-days.mjs';
+import Camera from 'lucide-react/dist/esm/icons/camera.mjs';
+import CheckCircle2 from 'lucide-react/dist/esm/icons/circle-check.mjs';
+import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down.mjs';
+import ClipboardList from 'lucide-react/dist/esm/icons/clipboard-list.mjs';
+import Dumbbell from 'lucide-react/dist/esm/icons/dumbbell.mjs';
+import Flame from 'lucide-react/dist/esm/icons/flame.mjs';
+import Gauge from 'lucide-react/dist/esm/icons/gauge.mjs';
+import Goal from 'lucide-react/dist/esm/icons/goal.mjs';
+import Leaf from 'lucide-react/dist/esm/icons/leaf.mjs';
+import Minus from 'lucide-react/dist/esm/icons/minus.mjs';
+import Plus from 'lucide-react/dist/esm/icons/plus.mjs';
+import RotateCcw from 'lucide-react/dist/esm/icons/rotate-ccw.mjs';
+import Settings2 from 'lucide-react/dist/esm/icons/settings-2.mjs';
+import ShoppingBasket from 'lucide-react/dist/esm/icons/shopping-basket.mjs';
+import Sparkles from 'lucide-react/dist/esm/icons/sparkles.mjs';
+import Utensils from 'lucide-react/dist/esm/icons/utensils.mjs';
+import X from 'lucide-react/dist/esm/icons/x.mjs';
+import Zap from 'lucide-react/dist/esm/icons/zap.mjs';
 
 const asset = (name) => `${import.meta.env.BASE_URL}assets/${name}`;
 const generated = (name) => asset(`generated/${name}`);
@@ -50,7 +48,7 @@ const CARB_PLANS = {
     step: 10,
     perUnit: { p: 0.14, c: 0.66, f: 0.023 },
     kcalUnit: 3.44,
-    color: '#a8d46f',
+    color: '#9fb58f',
   },
   nissin: {
     name: '日清非油炸',
@@ -360,7 +358,7 @@ function MacroOrbit3D({ tone = 'warm' }) {
       const dots = Array.from({ length: 46 }, (_, index) => ({
         angle: index * 0.72,
         radius: 70 + (index % 9) * 22,
-        color: ['#ff8068', '#ffcf69', '#a8d46f'][index % 3],
+        color: ['#c8a86a', '#6f8f7a', '#d9d0bd'][index % 3],
         size: 2.5 + (index % 5),
       }));
 
@@ -369,8 +367,8 @@ function MacroOrbit3D({ tone = 'warm' }) {
         const { width, height } = canvas.getBoundingClientRect();
         context.clearRect(0, 0, width, height);
         const gradient = context.createRadialGradient(width * 0.55, height * 0.28, 0, width * 0.55, height * 0.28, Math.max(width, height) * 0.75);
-        gradient.addColorStop(0, 'rgba(255,207,105,0.18)');
-        gradient.addColorStop(0.45, 'rgba(255,128,104,0.08)');
+        gradient.addColorStop(0, 'rgba(200,168,106,0.10)');
+        gradient.addColorStop(0.45, 'rgba(111,143,122,0.08)');
         gradient.addColorStop(1, 'rgba(0,0,0,0)');
         context.fillStyle = gradient;
         context.fillRect(0, 0, width, height);
@@ -381,7 +379,7 @@ function MacroOrbit3D({ tone = 'warm' }) {
           const y = height * 0.46 + Math.sin(dot.angle) * dot.radius * 0.52 * (height / 844);
           context.beginPath();
           context.fillStyle = dot.color;
-          context.globalAlpha = 0.38;
+          context.globalAlpha = 0.24;
           context.arc(x, y, dot.size, 0, Math.PI * 2);
           context.fill();
         });
@@ -432,8 +430,8 @@ function MacroOrbit3D({ tone = 'warm' }) {
     scene.add(sageLight);
 
     const palette = tone === 'cool'
-      ? [0x83d6ff, 0xa8d46f, 0xffcf69]
-      : [0xff8b71, 0xffcf69, 0xa8d46f];
+      ? [0x6f8f7a, 0xb9a36c, 0xd9d0bd]
+      : [0xc8a86a, 0x6f8f7a, 0xd9d0bd];
 
     const sphereGeo = new THREE.SphereGeometry(0.16, 32, 32);
     const spheres = palette.flatMap((color, band) => {
@@ -462,7 +460,7 @@ function MacroOrbit3D({ tone = 'warm' }) {
       const material = new THREE.LineBasicMaterial({
         color: palette[band],
         transparent: true,
-        opacity: 0.22,
+        opacity: 0.14,
       });
       const line = new THREE.LineLoop(geometry, material);
       line.rotation.z = band * 0.34;
@@ -483,10 +481,10 @@ function MacroOrbit3D({ tone = 'warm' }) {
     const particles = new THREE.Points(
       particleGeo,
       new THREE.PointsMaterial({
-        color: 0xffe1a3,
+        color: 0xd8c7a3,
         size: 0.035,
         transparent: true,
-        opacity: 0.46,
+        opacity: 0.22,
       }),
     );
     scene.add(particles);
@@ -528,7 +526,7 @@ function MacroOrbit3D({ tone = 'warm' }) {
     };
   }, [tone]);
 
-  return <div ref={mountRef} className="pointer-events-none fixed inset-0 -z-10 opacity-70" data-three-orbit />;
+  return <div ref={mountRef} className="pointer-events-none fixed inset-0 -z-10 opacity-45" data-three-orbit />;
 }
 
 export default function CuttingProtocol() {
@@ -768,23 +766,23 @@ export default function CuttingProtocol() {
   };
 
   return (
-    <div className="min-h-screen overflow-hidden text-zinc-50">
+    <div className="min-h-screen overflow-hidden text-[#eee8dc]">
       <MacroOrbit3D tone={tab === 'cheat' ? 'cool' : 'warm'} />
-      <div className="fixed inset-0 -z-20 bg-[radial-gradient(circle_at_50%_-10%,rgba(255,181,92,0.24),transparent_38%),radial-gradient(circle_at_0%_20%,rgba(122,214,208,0.16),transparent_32%),linear-gradient(135deg,#0d0f10_0%,#17120f_45%,#101615_100%)]" />
-      <div className="fixed inset-0 -z-10 bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.028)_1px,transparent_1px)] bg-[size:48px_48px] opacity-35" />
+      <div className="premium-app-bg fixed inset-0 -z-20" />
+      <div className="premium-grid-bg fixed inset-0 -z-10 opacity-20" />
 
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 pb-28 pt-4 sm:px-6 lg:px-8">
-        <header className="sticky top-3 z-40 flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/35 px-2 py-2 backdrop-blur-2xl sm:gap-3 sm:px-3">
+        <header className="premium-header-shadow sticky top-3 z-40 flex items-center justify-between gap-2 rounded-lg border border-[#d8c7a3]/12 bg-[#090b0a]/75 px-2 py-2 backdrop-blur-2xl sm:gap-3 sm:px-3">
           <button onClick={() => setTab('plan')} className="flex min-w-0 items-center gap-2 text-left">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-zinc-950">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#d8c7a3] text-[#11110d]">
               <Sparkles className="h-4 w-4" />
             </span>
-            <span className="hidden min-w-0 sm:block">
-              <span className="block truncate font-display text-base leading-none">Cutting Lab</span>
-              <span className="mt-1 block truncate text-[10px] uppercase tracking-[0.24em] text-zinc-400">dinner pilot</span>
+            <span className="block min-w-0">
+              <span className="block truncate font-display text-base leading-none text-[#f2eadb]">Cutting Lab</span>
+              <span className="mt-1 block truncate text-[10px] uppercase tracking-[0.24em] text-[#918a7c]">daily console</span>
             </span>
           </button>
-          <nav className="ml-auto hidden shrink-0 grid-cols-4 rounded-lg bg-white/7 p-1 lg:grid">
+          <nav className="ml-auto hidden shrink-0 grid-cols-4 rounded-lg border border-[#d8c7a3]/10 bg-[#151612]/70 p-1 lg:grid">
             <NavButtons tab={tab} setTab={setTab} mode="top" />
           </nav>
         </header>
@@ -896,14 +894,14 @@ export default function CuttingProtocol() {
 
       <button
         onClick={() => setSnackOpen(true)}
-        className="fixed bottom-24 right-5 z-50 grid h-14 w-14 place-items-center rounded-lg border border-white/15 bg-[#ff8068] text-white shadow-[0_16px_40px_-18px_#ff8068] transition hover:-translate-y-0.5 lg:bottom-5"
+        className="premium-fab-shadow fixed bottom-5 right-5 z-50 hidden h-14 w-14 place-items-center rounded-lg border border-[#d8c7a3]/18 bg-[#d8c7a3] text-[#11110d] transition hover:-translate-y-0.5 lg:grid"
         aria-label="零食加餐"
       >
         <Camera className="h-6 w-6" />
-        {snackActive && <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[#a8d46f]" />}
+        {snackActive && <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[#6f8f7a]" />}
       </button>
 
-      <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-4 rounded-lg border border-white/10 bg-black/65 p-1 backdrop-blur-2xl lg:hidden">
+      <nav className="premium-nav-shadow fixed inset-x-3 bottom-3 z-40 grid grid-cols-4 rounded-lg border border-[#d8c7a3]/12 bg-[#080908]/82 p-1 backdrop-blur-2xl lg:hidden">
         <NavButtons tab={tab} setTab={setTab} mode="bottom" />
       </nav>
     </div>
@@ -920,7 +918,7 @@ function NavButtons({ tab, setTab, mode }) {
         className={`grid h-11 place-items-center rounded-md px-2 text-[11px] transition ${
           mode === 'top' ? 'min-w-20 grid-cols-[16px_auto] gap-1.5' : 'grid-rows-[18px_auto] gap-0.5'
         } ${
-          tab === item.id ? 'bg-white text-zinc-950 shadow-[0_10px_30px_-18px_rgba(255,255,255,0.9)]' : 'text-zinc-400 hover:bg-white/10 hover:text-white'
+          tab === item.id ? 'premium-nav-active-shadow bg-[#d8c7a3] text-[#11110d]' : 'text-[#918a7c] hover:bg-[#d8c7a3]/8 hover:text-[#eee8dc]'
         }`}
         aria-label={item.label}
       >
@@ -932,7 +930,7 @@ function NavButtons({ tab, setTab, mode }) {
 }
 
 function Hero({ model, targets, onFuel, fuelActive, fuelSummary, onSnack, onCopy, copyStatus }) {
-  const deficitTone = model.deficit >= 650 ? 'text-[#a8d46f]' : model.deficit >= 300 ? 'text-[#ffcf69]' : 'text-[#ff8068]';
+  const deficitTone = model.deficit >= 650 ? 'text-[#9fb58f]' : model.deficit >= 300 ? 'text-[#d8c7a3]' : 'text-[#c77e68]';
   const copyMeta = {
     idle: { label: '复制', sub: '今日记录', icon: ClipboardList },
     copying: { label: '复制中', sub: 'clipboard', icon: ClipboardList },
@@ -941,37 +939,37 @@ function Hero({ model, targets, onFuel, fuelActive, fuelSummary, onSnack, onCopy
   }[copyStatus] || { label: '复制', sub: '今日记录', icon: ClipboardList };
 
   return (
-    <section className="relative grid min-h-[78vh] items-end gap-6 py-4 lg:grid-cols-[minmax(0,1.03fr)_minmax(360px,0.97fr)] lg:items-center">
+    <section className="premium-hero-grid relative grid min-h-[72vh] items-end gap-6 py-4 lg:items-center">
       <div className="relative order-2 lg:order-1">
         <div className="mb-5 flex flex-wrap items-center gap-2">
-          <div className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/8 px-3 py-2 text-xs text-zinc-300 backdrop-blur-xl">
-            <Activity className="h-4 w-4 text-[#a8d46f]" />
-            <span>83 kg · 25% BF · 16:8 IF · 今日 {targets.kcal} kcal</span>
+          <div className="inline-flex items-center gap-2 rounded-lg border border-[#d8c7a3]/12 bg-[#11130f]/78 px-3 py-2 text-xs text-[#bdb4a3] backdrop-blur-xl">
+            <Activity className="h-4 w-4 text-[#9fb58f]" />
+            <span>83 kg · 25% BF · 16:8 IF · {targets.kcal} kcal target</span>
           </div>
           <button
             data-home-fuel-button
             onClick={onFuel}
             className={`inline-flex max-w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs backdrop-blur-xl transition hover:-translate-y-0.5 ${
-              fuelActive ? 'border-[#a8d46f]/35 bg-[#a8d46f]/12 text-[#d8ffc9]' : 'border-white/10 bg-white/8 text-zinc-300 hover:border-[#ffcf69]/40'
+              fuelActive ? 'border-[#9fb58f]/35 bg-[#9fb58f]/12 text-[#d8e7cf]' : 'border-[#d8c7a3]/12 bg-[#11130f]/78 text-[#bdb4a3] hover:border-[#d8c7a3]/32'
             }`}
             aria-label={`补给：${fuelSummary}`}
           >
-            <Dumbbell className={`h-4 w-4 shrink-0 ${fuelActive ? 'text-[#a8d46f]' : 'text-[#ffcf69]'}`} />
+            <Dumbbell className={`h-4 w-4 shrink-0 ${fuelActive ? 'text-[#9fb58f]' : 'text-[#d8c7a3]'}`} />
             <span className="shrink-0 font-cjk font-semibold">补给</span>
-            <span className={`rounded-md px-2 py-0.5 font-mono text-[10px] ${fuelActive ? 'bg-[#a8d46f] text-zinc-950' : 'bg-white/10 text-zinc-300'}`}>
+            <span className={`rounded-md px-2 py-0.5 font-mono text-[10px] ${fuelActive ? 'bg-[#9fb58f] text-[#10110d]' : 'bg-[#d8c7a3]/10 text-[#cfc4b2]'}`}>
               {fuelActive ? 'ON' : 'OFF'}
             </span>
-            <span className="hidden max-w-[260px] truncate text-zinc-400 sm:inline">{fuelSummary}</span>
+            <span className="hidden max-w-[260px] truncate text-[#918a7c] sm:inline">{fuelSummary}</span>
           </button>
         </div>
-        <h1 className="max-w-3xl font-display text-5xl leading-[0.92] tracking-normal text-white sm:text-7xl lg:text-8xl">
-          今晚吃得
-          <span className="block text-[#ffcf69]">刚刚好</span>
+        <h1 className="max-w-2xl font-display text-4xl leading-[0.98] tracking-normal text-[#f3ecdc] sm:text-6xl lg:text-7xl">
+          今晚吃什么
+          <span className="block text-[#9fb58f]">一眼定</span>
         </h1>
-        <p className="mt-5 max-w-xl text-sm leading-7 text-zinc-300 sm:text-base">
-          中午吃了多少，训练前垫了什么，晚餐自己收口。肉、主食、脂肪和水果都算好，打开手机先看答案。
+        <p className="mt-5 max-w-xl text-sm leading-7 text-[#bdb4a3] sm:text-base">
+          输入今天已经吃掉的部分，系统把晚餐、补给和赤字压成一张清楚的执行卡。少解释，直接吃。
         </p>
-        <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <div className="mt-6 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
           <HeroAction icon={Zap} label="零食" onClick={onSnack} />
           <HeroAction icon={copyMeta.icon} label={copyMeta.label} sub={copyMeta.sub} onClick={onCopy} dataAttr="copy-plan-button" />
           <HeroAction icon={Goal} label={`${model.deficit > 0 ? '-' : '+'}${Math.abs(model.deficit)}`} sub="今日赤字" />
@@ -979,19 +977,19 @@ function Hero({ model, targets, onFuel, fuelActive, fuelSummary, onSnack, onCopy
       </div>
 
       <div className="relative order-1 lg:order-2">
-        <div className="absolute -inset-8 rounded-[2rem] bg-[#ff8068]/10 blur-3xl" />
-        <div className="relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.06] shadow-[0_30px_90px_-50px_rgba(0,0,0,0.95)] backdrop-blur-xl">
-          <img src={generated('protocol-hero.jpg')} alt="Cutting Lab dinner visual" className="h-[280px] w-full object-cover sm:h-[420px]" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-transparent" />
+        <div className="absolute -inset-6 rounded-lg bg-[#d8c7a3]/8 blur-3xl" />
+        <div className="premium-card-shadow relative overflow-hidden rounded-lg border border-[#d8c7a3]/12 bg-[#11130f]/86 backdrop-blur-xl">
+          <img src={generated('protocol-hero-premium.jpg')} alt="Cutting Lab dinner visual" className="h-[280px] w-full object-cover object-center saturate-[0.92] contrast-[1.04] sm:h-[440px]" />
+          <div className="premium-hero-overlay absolute inset-0" />
           <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
-                <div className="text-[10px] uppercase tracking-[0.28em] text-[#ffcf69]">今晚</div>
-                <div className="font-display text-4xl leading-none text-white sm:text-5xl">{Math.round(model.dinner.kcal)}</div>
-                <div className="mt-1 text-xs text-zinc-400">晚餐热量</div>
+                <div className="text-[10px] uppercase tracking-[0.28em] text-[#d8c7a3]">dinner</div>
+                <div className="font-display text-4xl leading-none text-[#f3ecdc] sm:text-5xl">{Math.round(model.dinner.kcal)}</div>
+                <div className="mt-1 text-xs text-[#918a7c]">晚餐热量</div>
               </div>
-              <div className={`rounded-lg bg-black/45 px-3 py-2 text-right backdrop-blur ${deficitTone}`}>
-                <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">今日赤字</div>
+              <div className={`rounded-lg border border-[#d8c7a3]/12 bg-[#090b0a]/72 px-3 py-2 text-right backdrop-blur ${deficitTone}`}>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-[#918a7c]">今日赤字</div>
                 <div className="font-mono text-xl">{model.deficit > 0 ? '-' : '+'}{Math.abs(model.deficit)}</div>
               </div>
             </div>
@@ -1052,15 +1050,15 @@ function PlanView(props) {
           />
           {lunchMode === 'quick' ? (
             <div className="mt-5">
-              <label className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Lunch kcal</label>
+              <label className="text-[10px] uppercase tracking-[0.24em] text-[#918a7c]">Lunch kcal</label>
               <div className="mt-2 flex items-end gap-3">
                 <input
                   type="number"
                   value={lunchKcal}
                   onChange={(event) => setLunchKcal(clamp(event.target.value, 0, 5000))}
-                  className="w-36 border-b border-white/20 bg-transparent font-display text-6xl leading-none text-white outline-none focus:border-[#ffcf69]"
+                  className="w-36 border-b border-[#d8c7a3]/24 bg-transparent font-display text-6xl leading-none text-[#f2eadb] outline-none focus:border-[#d8c7a3]"
                 />
-                <span className="pb-2 text-xs uppercase tracking-[0.2em] text-zinc-500">kcal</span>
+                <span className="pb-2 text-xs uppercase tracking-[0.2em] text-[#918a7c]">kcal</span>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 {[600, 700, 800, 900, 1000].map((value) => (
@@ -1093,11 +1091,11 @@ function PlanView(props) {
                 key={key}
                 onClick={() => setCarbPlan(key)}
                 className={`rounded-lg border p-3 text-left transition ${
-                  carbPlan === key ? 'border-[#ffcf69] bg-[#ffcf69]/12 text-white' : 'border-white/10 bg-white/[0.04] text-zinc-400 hover:border-white/25 hover:text-white'
+                  carbPlan === key ? 'border-[#d8c7a3]/55 bg-[#d8c7a3]/12 text-[#f2eadb]' : 'border-[#d8c7a3]/10 bg-[#11130f]/72 text-[#918a7c] hover:border-[#d8c7a3]/28 hover:text-[#f2eadb]'
                 }`}
               >
                 <div className="font-cjk text-sm font-semibold">{plan.short}</div>
-                <div className="mt-1 text-[10px] text-zinc-500">{plan.sub}</div>
+                <div className="mt-1 text-[10px] text-[#918a7c]">{plan.sub}</div>
               </button>
             ))}
           </div>
@@ -1154,9 +1152,9 @@ function PlanView(props) {
                   type="number"
                   value={beefFat}
                   onChange={(event) => setBeefFat(clamp(event.target.value, 0, 40))}
-                  className="h-11 w-20 rounded-lg border border-white/10 bg-white/5 text-center font-mono text-lg outline-none focus:border-[#ffcf69]"
+                  className="h-11 w-20 rounded-lg border border-[#d8c7a3]/12 bg-[#080908]/42 text-center font-mono text-lg text-[#f2eadb] outline-none focus:border-[#d8c7a3]"
                 />
-                <span className="text-xs text-zinc-500">脂質 g / 100g raw · 水煮按 80%</span>
+                <span className="text-xs text-[#918a7c]">脂質 g / 100g raw · 水煮按 80%</span>
               </div>
             </OptionBlock>
 
@@ -1177,7 +1175,7 @@ function PlanView(props) {
                   />
                 ))}
               </div>
-              <button onClick={resetDefaults} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-400 transition hover:border-[#ff8068]/60 hover:text-[#ff8068]">
+              <button onClick={resetDefaults} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#d8c7a3]/12 px-3 py-2 text-xs text-[#918a7c] transition hover:border-[#c77e68]/60 hover:text-[#c77e68]">
                 <RotateCcw className="h-4 w-4" />
                 重置默认
               </button>
@@ -1194,7 +1192,7 @@ function PlanView(props) {
             ))}
           </div>
           {hasDinnerAdjustments && (
-            <button onClick={resetDinnerAdjustments} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-400 transition hover:border-[#ff8068]/60 hover:text-[#ff8068]">
+            <button onClick={resetDinnerAdjustments} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#d8c7a3]/12 px-3 py-2 text-xs text-[#918a7c] transition hover:border-[#c77e68]/60 hover:text-[#c77e68]">
               <RotateCcw className="h-4 w-4" />
               重置微调
             </button>
@@ -1203,10 +1201,10 @@ function PlanView(props) {
 
         <Panel eyebrow="04 · 今日节奏" title="看一眼就够" icon={Gauge}>
           <div className="space-y-3">
-            <MacroBar label="蛋白" value={model.total.p} target={targets.p} unit="g" color="#ff8068" />
-            <MacroBar label="碳水" value={model.total.c} target={targets.c} unit="g" color="#ffcf69" />
-            <MacroBar label="脂肪" value={model.total.f} target={targets.f} unit="g" color="#a8d46f" />
-            <MacroBar label="热量" value={model.total.kcal} target={targets.kcal} unit="kcal" color="#7bd6d0" />
+            <MacroBar label="蛋白" value={model.total.p} target={targets.p} unit="g" color="#c77e68" />
+            <MacroBar label="碳水" value={model.total.c} target={targets.c} unit="g" color="#d8c7a3" />
+            <MacroBar label="脂肪" value={model.total.f} target={targets.f} unit="g" color="#9fb58f" />
+            <MacroBar label="热量" value={model.total.kcal} target={targets.kcal} unit="kcal" color="#8fb8ad" />
           </div>
         </Panel>
       </section>
@@ -1278,12 +1276,12 @@ function DetailView(props) {
           <TargetInput label="盐" unit="g" value={saltG} onChange={(value) => setSaltG(clamp(value, 0, 20))} />
           <TargetInput label="食物钾" unit="mg" value={foodK} onChange={(value) => setFoodK(clamp(value, 0, 8000))} />
         </div>
-        <div className={`mt-4 rounded-lg border p-4 ${balanceOk ? 'border-[#a8d46f]/30 bg-[#a8d46f]/10' : 'border-[#ff8068]/30 bg-[#ff8068]/10'}`}>
+        <div className={`mt-4 rounded-lg border p-4 ${balanceOk ? 'border-[#9fb58f]/30 bg-[#9fb58f]/10' : 'border-[#c77e68]/30 bg-[#c77e68]/10'}`}>
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm text-zinc-300">K / Na</span>
-            <span className={balanceOk ? 'text-[#a8d46f]' : 'text-[#ff8068]'}>{balanceOk ? '平衡' : '钾偏低'}</span>
+            <span className={balanceOk ? 'text-[#9fb58f]' : 'text-[#c77e68]'}>{balanceOk ? '平衡' : '钾偏低'}</span>
           </div>
-          <div className="mt-2 text-xs text-zinc-500">钾 {Math.round(model.potassium)} mg · 钠 {Math.round(model.sodium)} mg</div>
+          <div className="mt-2 text-xs text-[#918a7c]">钾 {Math.round(model.potassium)} mg · 钠 {Math.round(model.sodium)} mg</div>
         </div>
       </Panel>
     </main>
@@ -1293,11 +1291,11 @@ function DetailView(props) {
 function ShopView({ model, shopDays, setShopDays }) {
   return (
     <main className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
-      <section className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.06]">
+      <section className="overflow-hidden rounded-lg border border-[#d8c7a3]/12 bg-[#10120f]/92">
         <img src={generated('shop-basket.jpg')} alt="weekly grocery basket" className="h-[360px] w-full object-cover" />
         <div className="p-4">
-          <div className="text-[10px] uppercase tracking-[0.28em] text-[#ffcf69]">备货模式</div>
-          <h2 className="mt-1 font-display text-4xl">按 {shopDays} 天备货</h2>
+          <div className="text-[10px] uppercase tracking-[0.28em] text-[#b9a36c]">备货模式</div>
+          <h2 className="mt-1 font-display text-4xl text-[#f2eadb]">按 {shopDays} 天备货</h2>
           <div className="mt-4 flex gap-2">
             {[3, 5, 7, 10].map((days) => (
               <Chip key={days} active={shopDays === days} onClick={() => setShopDays(days)}>{days} 天</Chip>
@@ -1308,12 +1306,12 @@ function ShopView({ model, shopDays, setShopDays }) {
       <Panel eyebrow="买这些就行" title="采购清单" icon={CalendarDays}>
         <div className="grid gap-2">
           {model.shopping.map((item) => (
-            <div key={item.key} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-lg border border-white/10 bg-black/25 px-3 py-3">
+            <div key={item.key} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-lg border border-[#d8c7a3]/10 bg-[#080908]/42 px-3 py-3">
               <div>
-                <div className="font-cjk text-sm text-white">{item.name}</div>
-                <div className="mt-1 text-xs text-zinc-500">每天 {round(item.qty)}{item.unit}</div>
+                <div className="font-cjk text-sm text-[#f2eadb]">{item.name}</div>
+                <div className="mt-1 text-xs text-[#918a7c]">每天 {round(item.qty)}{item.unit}</div>
               </div>
-              <div className="rounded-md bg-white px-2.5 py-1 font-mono text-sm text-zinc-950">{item.weeklyQty}{item.unit}</div>
+              <div className="rounded-md bg-[#d8c7a3] px-2.5 py-1 font-mono text-sm text-[#11110d]">{item.weeklyQty}{item.unit}</div>
             </div>
           ))}
         </div>
@@ -1338,11 +1336,11 @@ function CheatView({ cheat, setCheat, cheatTotal, cheatSurplus, tdee, dayKcal })
       <Panel eyebrow="放松一下" title="想吃也能算" icon={Flame}>
         <div className="grid gap-2 sm:grid-cols-2">
           {CHEAT_ITEMS.map((item) => (
-            <div key={item.id} className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+            <div key={item.id} className="rounded-lg border border-[#d8c7a3]/10 bg-[#080908]/42 p-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="font-cjk text-sm text-white">{item.label}</div>
-                  <div className="mt-1 text-xs text-zinc-500">{item.kcal} kcal</div>
+                  <div className="font-cjk text-sm text-[#f2eadb]">{item.label}</div>
+                  <div className="mt-1 text-xs text-[#918a7c]">{item.kcal} kcal</div>
                 </div>
                 <MiniStepper value={cheat[item.id] || 0} onChange={(value) => setQty(item.id, value)} />
               </div>
@@ -1350,18 +1348,18 @@ function CheatView({ cheat, setCheat, cheatTotal, cheatSurplus, tdee, dayKcal })
           ))}
         </div>
       </Panel>
-      <section className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.06]">
+      <section className="overflow-hidden rounded-lg border border-[#d8c7a3]/12 bg-[#10120f]/92">
         <img src={asset('cheat.jpg')} alt="cheat meal" className="h-56 w-full object-cover" />
         <div className="p-5">
-          <div className="text-[10px] uppercase tracking-[0.28em] text-[#ff8068]">吃完大概这样</div>
-          <div className="mt-2 font-display text-6xl text-white">{cheatTotal}</div>
-          <div className="text-sm text-zinc-500">放松热量</div>
+          <div className="text-[10px] uppercase tracking-[0.28em] text-[#c77e68]">吃完大概这样</div>
+          <div className="mt-2 font-display text-6xl text-[#f2eadb]">{cheatTotal}</div>
+          <div className="text-sm text-[#918a7c]">放松热量</div>
           <div className="mt-5 grid grid-cols-3 gap-2">
             <ResultPill label="今日总摄入" value={Math.round(dayKcal + cheatTotal)} />
             <ResultPill label="TDEE" value={tdee} />
             <ResultPill label="盈余" value={(cheatSurplus >= 0 ? '+' : '') + cheatSurplus} hot={cheatSurplus > 0} />
           </div>
-          <button onClick={() => setCheat({})} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-400 transition hover:border-[#ff8068]/60 hover:text-[#ff8068]">
+          <button onClick={() => setCheat({})} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-[#d8c7a3]/12 px-3 py-2 text-xs text-[#918a7c] transition hover:border-[#c77e68]/60 hover:text-[#c77e68]">
             <RotateCcw className="h-4 w-4" />
             清空
           </button>
@@ -1404,43 +1402,43 @@ function FuelDrawer({ open, setOpen, pre, setPre, setMapQty, drinkKey, setDrinkK
 
   return (
     <div className="fixed inset-0 z-[70]">
-      <button className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} aria-label="关闭补给" />
-      <aside className="absolute inset-y-0 right-0 flex w-[min(460px,94vw)] flex-col border-l border-white/10 bg-[#101312] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/10 p-4">
+      <button className="absolute inset-0 bg-black/68 backdrop-blur-sm" onClick={() => setOpen(false)} aria-label="关闭补给" />
+      <aside className="absolute inset-y-0 right-0 flex w-[min(460px,94vw)] flex-col border-l border-[#d8c7a3]/12 bg-[#0d0f0c] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[#d8c7a3]/10 p-4">
           <div className="flex items-center gap-3">
             <img src={asset('pre.jpg')} alt="" className="h-12 w-12 rounded-lg object-cover" />
             <div>
-              <div className="font-display text-xl text-white">补给开关</div>
-              <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">训练前吃什么喝什么</div>
+              <div className="font-display text-xl text-[#f2eadb]">补给开关</div>
+              <div className="text-[10px] uppercase tracking-[0.22em] text-[#918a7c]">训练前吃什么喝什么</div>
             </div>
           </div>
-          <button onClick={() => setOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 text-zinc-400 hover:text-white" aria-label="关闭">
+          <button onClick={() => setOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-[#d8c7a3]/12 text-[#918a7c] hover:text-[#f2eadb]" aria-label="关闭">
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
-          <div className={`rounded-lg border p-4 ${fuelActive ? 'border-[#a8d46f]/30 bg-[#a8d46f]/10' : 'border-white/10 bg-white/[0.045]'}`}>
+          <div className={`rounded-lg border p-4 ${fuelActive ? 'border-[#9fb58f]/30 bg-[#9fb58f]/10' : 'border-[#d8c7a3]/10 bg-[#10120f]'}`}>
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">当前状态</span>
-              <span className={fuelActive ? 'text-[#a8d46f]' : 'text-zinc-400'}>{fuelActive ? '已补给' : '不补给'}</span>
+              <span className="text-[10px] uppercase tracking-[0.24em] text-[#918a7c]">当前状态</span>
+              <span className={fuelActive ? 'text-[#9fb58f]' : 'text-[#918a7c]'}>{fuelActive ? '已补给' : '不补给'}</span>
             </div>
-            <div className="mt-2 text-sm leading-6 text-zinc-200">{summary}</div>
-            <div className="mt-2 font-mono text-xs text-zinc-500">P{round(fuelMacro.p)} C{round(fuelMacro.c)} F{round(fuelMacro.f)} · {Math.round(fuelMacro.kcal)} kcal</div>
+            <div className="mt-2 text-sm leading-6 text-[#ddd5c6]">{summary}</div>
+            <div className="mt-2 font-mono text-xs text-[#918a7c]">P{round(fuelMacro.p)} C{round(fuelMacro.c)} F{round(fuelMacro.f)} · {Math.round(fuelMacro.kcal)} kcal</div>
           </div>
 
           <div className="mt-4 grid grid-cols-3 gap-2">
-            <button onClick={applyNoFuel} className="rounded-lg border border-white/10 bg-white/[0.04] p-3 text-left transition hover:border-[#ff8068]/50">
-              <div className="font-cjk text-sm font-semibold text-white">一键不补给</div>
-              <div className="mt-1 text-[10px] text-zinc-500">不吃也不喝</div>
+            <button onClick={applyNoFuel} className="rounded-lg border border-[#d8c7a3]/10 bg-[#10120f] p-3 text-left transition hover:border-[#c77e68]/50">
+              <div className="font-cjk text-sm font-semibold text-[#f2eadb]">一键不补给</div>
+              <div className="mt-1 text-[10px] text-[#918a7c]">不吃也不喝</div>
             </button>
-            <button onClick={applyLightFuel} className="rounded-lg border border-[#ffcf69]/30 bg-[#ffcf69]/10 p-3 text-left transition hover:-translate-y-0.5">
-              <div className="font-cjk text-sm font-semibold text-white">轻补给</div>
-              <div className="mt-1 text-[10px] text-zinc-500">香蕉 + 番茄汁</div>
+            <button onClick={applyLightFuel} className="rounded-lg border border-[#d8c7a3]/30 bg-[#d8c7a3]/10 p-3 text-left transition hover:-translate-y-0.5">
+              <div className="font-cjk text-sm font-semibold text-[#f2eadb]">轻补给</div>
+              <div className="mt-1 text-[10px] text-[#918a7c]">香蕉 + 番茄汁</div>
             </button>
-            <button onClick={applyPineappleFuel} className="rounded-lg border border-[#a8d46f]/30 bg-[#a8d46f]/10 p-3 text-left transition hover:-translate-y-0.5">
-              <div className="font-cjk text-sm font-semibold text-white">菠萝盒</div>
-              <div className="mt-1 text-[10px] text-zinc-500">240g + 番茄汁</div>
+            <button onClick={applyPineappleFuel} className="rounded-lg border border-[#9fb58f]/30 bg-[#9fb58f]/10 p-3 text-left transition hover:-translate-y-0.5">
+              <div className="font-cjk text-sm font-semibold text-[#f2eadb]">菠萝盒</div>
+              <div className="mt-1 text-[10px] text-[#918a7c]">240g + 番茄汁</div>
             </button>
           </div>
 
@@ -1512,14 +1510,14 @@ function CopyPanel({ open, setOpen, text, onCopied }) {
 
   return (
     <div className="fixed inset-0 z-[80]">
-      <button className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} aria-label="关闭复制面板" />
-      <aside className="absolute inset-x-3 bottom-3 rounded-lg border border-white/10 bg-[#111311] p-4 shadow-2xl sm:left-auto sm:right-5 sm:w-[min(520px,92vw)]">
+      <button className="absolute inset-0 bg-black/68 backdrop-blur-sm" onClick={() => setOpen(false)} aria-label="关闭复制面板" />
+      <aside className="absolute inset-x-3 bottom-3 rounded-lg border border-[#d8c7a3]/12 bg-[#0d0f0c] p-4 shadow-2xl sm:left-auto sm:right-5 sm:w-[min(520px,92vw)]">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="font-display text-xl text-white">手动复制</div>
-            <div className="mt-1 text-xs leading-5 text-zinc-500">浏览器拦截了自动复制，文本已经选中。手机上直接长按复制也可以。</div>
+            <div className="font-display text-xl text-[#f2eadb]">手动复制</div>
+            <div className="mt-1 text-xs leading-5 text-[#918a7c]">浏览器拦截了自动复制，文本已经选中。手机上直接长按复制也可以。</div>
           </div>
-          <button onClick={() => setOpen(false)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/10 text-zinc-400 hover:text-white" aria-label="关闭">
+          <button onClick={() => setOpen(false)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[#d8c7a3]/12 text-[#918a7c] hover:text-[#f2eadb]" aria-label="关闭">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -1527,10 +1525,10 @@ function CopyPanel({ open, setOpen, text, onCopied }) {
           ref={textareaRef}
           readOnly
           value={text}
-          className="mt-4 h-48 w-full resize-none rounded-lg border border-white/10 bg-black/35 p-3 font-mono text-xs leading-5 text-zinc-200 outline-none focus:border-[#ffcf69]"
+          className="mt-4 h-48 w-full resize-none rounded-lg border border-[#d8c7a3]/12 bg-[#080908]/58 p-3 font-mono text-xs leading-5 text-[#ddd5c6] outline-none focus:border-[#d8c7a3]"
         />
         <div className="mt-3 flex justify-end gap-2">
-          <button onClick={retryCopy} className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-zinc-950">
+          <button onClick={retryCopy} className="inline-flex items-center gap-2 rounded-lg bg-[#d8c7a3] px-3 py-2 text-xs font-semibold text-[#11110d]">
             <ClipboardList className="h-4 w-4" />
             再复制一次
           </button>
@@ -1549,26 +1547,26 @@ function SnackDrawer({ open, setOpen, snack, setSnack, active, dinnerSummary }) 
 
   return (
     <div className="fixed inset-0 z-[70]">
-      <button className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} aria-label="关闭零食加餐" />
-      <aside className="absolute inset-y-0 right-0 flex w-[min(430px,94vw)] flex-col border-l border-white/10 bg-[#111311] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/10 p-4">
+      <button className="absolute inset-0 bg-black/68 backdrop-blur-sm" onClick={() => setOpen(false)} aria-label="关闭零食加餐" />
+      <aside className="absolute inset-y-0 right-0 flex w-[min(430px,94vw)] flex-col border-l border-[#d8c7a3]/12 bg-[#0d0f0c] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[#d8c7a3]/10 p-4">
           <div className="flex items-center gap-3">
             <img src={generated('snack-scanner.jpg')} alt="" className="h-12 w-12 rounded-lg object-cover" />
             <div>
-              <div className="font-display text-xl text-white">零食加餐</div>
-              <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">自己填一下也行</div>
+              <div className="font-display text-xl text-[#f2eadb]">零食加餐</div>
+              <div className="text-[10px] uppercase tracking-[0.22em] text-[#918a7c]">自己填一下也行</div>
             </div>
           </div>
-          <button onClick={() => setOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 text-zinc-400 hover:text-white" aria-label="关闭">
+          <button onClick={() => setOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-[#d8c7a3]/12 text-[#918a7c] hover:text-[#f2eadb]" aria-label="关闭">
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-4">
-          <label className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">名称</label>
+          <label className="text-[10px] uppercase tracking-[0.22em] text-[#918a7c]">名称</label>
           <input
             value={snack.name}
             onChange={(event) => setField('name', event.target.value)}
-            className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-[#ffcf69]"
+            className="mt-2 h-11 w-full rounded-lg border border-[#d8c7a3]/12 bg-[#080908]/42 px-3 text-sm text-[#f2eadb] outline-none focus:border-[#d8c7a3]"
           />
           <div className="mt-4 grid grid-cols-4 gap-2">
             {[
@@ -1580,12 +1578,12 @@ function SnackDrawer({ open, setOpen, snack, setSnack, active, dinnerSummary }) 
               <TargetInput key={key} label={label} unit={key === 'kcal' ? '' : 'g'} value={snack[key]} onChange={(value) => setField(key, value)} />
             ))}
           </div>
-          <div className="mt-5 rounded-lg border border-[#ffcf69]/20 bg-[#ffcf69]/10 p-4">
-            <div className="text-[10px] uppercase tracking-[0.22em] text-[#ffcf69]">晚餐会跟着收口</div>
-            <div className="mt-2 text-sm leading-6 text-zinc-300">{dinnerSummary || '晚餐已砍到很低'} · 全天 {Math.round(snack.kcal)} kcal snack</div>
+          <div className="mt-5 rounded-lg border border-[#d8c7a3]/20 bg-[#d8c7a3]/10 p-4">
+            <div className="text-[10px] uppercase tracking-[0.22em] text-[#d8c7a3]">晚餐会跟着收口</div>
+            <div className="mt-2 text-sm leading-6 text-[#cfc4b2]">{dinnerSummary || '晚餐已砍到很低'} · 全天 {Math.round(snack.kcal)} kcal snack</div>
           </div>
           {active && (
-            <button onClick={() => setSnack({ name: '手动加餐', p: 0, c: 0, f: 0, kcal: 0 })} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-400 hover:text-[#ff8068]">
+            <button onClick={() => setSnack({ name: '手动加餐', p: 0, c: 0, f: 0, kcal: 0 })} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-[#d8c7a3]/12 px-3 py-2 text-xs text-[#918a7c] hover:text-[#c77e68]">
               <RotateCcw className="h-4 w-4" />
               清除加餐
             </button>
@@ -1598,14 +1596,14 @@ function SnackDrawer({ open, setOpen, snack, setSnack, active, dinnerSummary }) 
 
 function Panel({ eyebrow, title, icon: Icon, children }) {
   return (
-    <section className="rounded-lg border border-white/10 bg-white/[0.055] p-4 shadow-[0_24px_80px_-60px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:p-5">
+    <section className="premium-panel-shadow rounded-lg border border-[#d8c7a3]/12 bg-[#10120f]/92 p-4 backdrop-blur-xl sm:p-5">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.28em] text-[#ffcf69]">{eyebrow}</div>
-          <h2 className="mt-1 font-display text-2xl text-white">{title}</h2>
+          <div className="text-[10px] uppercase tracking-[0.28em] text-[#b9a36c]">{eyebrow}</div>
+          <h2 className="mt-1 font-display text-2xl text-[#f2eadb]">{title}</h2>
         </div>
         {Icon && (
-          <span className="grid h-9 w-9 place-items-center rounded-lg bg-white text-zinc-950">
+          <span className="grid h-9 w-9 place-items-center rounded-lg bg-[#d8c7a3] text-[#11110d]">
             <Icon className="h-4 w-4" />
           </span>
         )}
@@ -1618,10 +1616,10 @@ function Panel({ eyebrow, title, icon: Icon, children }) {
 function HeroAction({ icon: Icon, label, sub, onClick, dataAttr }) {
   const Comp = onClick ? 'button' : 'div';
   return (
-    <Comp data-copy-plan-button={dataAttr === 'copy-plan-button' ? true : undefined} onClick={onClick} className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-3 text-left backdrop-blur-xl transition hover:border-white/25">
-      <Icon className="mb-2 h-4 w-4 text-[#ffcf69]" />
-      <div className="text-sm text-white">{label}</div>
-      {sub && <div className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{sub}</div>}
+    <Comp data-copy-plan-button={dataAttr === 'copy-plan-button' ? true : undefined} onClick={onClick} className="min-w-0 rounded-lg border border-[#d8c7a3]/12 bg-[#11130f]/82 px-3 py-2.5 text-left backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-[#d8c7a3]/28 hover:bg-[#171912] sm:py-3">
+      <Icon className="mb-1.5 h-4 w-4 text-[#b9a36c]" />
+      <div className="truncate text-sm text-[#f2eadb]">{label}</div>
+      {sub && <div className="mt-0.5 truncate text-[10px] uppercase tracking-[0.12em] text-[#918a7c] sm:tracking-[0.18em]">{sub}</div>}
     </Comp>
   );
 }
@@ -1630,22 +1628,22 @@ function MetricTile({ label, value, target, unit }) {
   const diff = value - target;
   const ok = Math.abs(diff) <= (unit ? Math.max(8, target * 0.08) : Math.max(80, target * 0.05));
   return (
-    <div className="rounded-lg bg-white/10 p-2 backdrop-blur">
-      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-400">{label}</div>
-      <div className="mt-1 font-mono text-lg text-white">{Math.round(value)}</div>
-      <div className={`text-[10px] ${ok ? 'text-[#a8d46f]' : 'text-[#ffcf69]'}`}>{diff >= 0 ? '+' : ''}{Math.round(diff)}{unit}</div>
+    <div className="rounded-lg border border-[#d8c7a3]/10 bg-[#080908]/58 p-2 backdrop-blur">
+      <div className="text-[10px] uppercase tracking-[0.16em] text-[#918a7c]">{label}</div>
+      <div className="mt-1 font-mono text-lg text-[#f2eadb]">{Math.round(value)}</div>
+      <div className={`text-[10px] ${ok ? 'text-[#9fb58f]' : 'text-[#d8c7a3]'}`}>{diff >= 0 ? '+' : ''}{Math.round(diff)}{unit}</div>
     </div>
   );
 }
 
 function Segmented({ value, onChange, options }) {
   return (
-    <div className="grid grid-cols-2 rounded-lg bg-black/25 p-1">
+    <div className="grid grid-cols-2 rounded-lg border border-[#d8c7a3]/10 bg-[#080908]/48 p-1">
       {options.map((option) => (
         <button
           key={option.value}
           onClick={() => onChange(option.value)}
-          className={`rounded-md px-3 py-2 text-sm transition ${value === option.value ? 'bg-white text-zinc-950' : 'text-zinc-400 hover:text-white'}`}
+          className={`rounded-md px-3 py-2 text-sm transition ${value === option.value ? 'bg-[#d8c7a3] text-[#11110d]' : 'text-[#918a7c] hover:text-[#f2eadb]'}`}
         >
           {option.label}
         </button>
@@ -1659,7 +1657,7 @@ function Chip({ active, onClick, children }) {
     <button
       onClick={onClick}
       className={`rounded-lg border px-3 py-2 text-xs transition ${
-        active ? 'border-[#ffcf69] bg-[#ffcf69]/15 text-[#ffcf69]' : 'border-white/10 bg-white/[0.04] text-zinc-400 hover:border-white/25 hover:text-white'
+        active ? 'border-[#d8c7a3]/55 bg-[#d8c7a3]/14 text-[#f0dfb9]' : 'border-[#d8c7a3]/10 bg-[#11130f]/72 text-[#918a7c] hover:border-[#d8c7a3]/28 hover:text-[#f2eadb]'
       }`}
     >
       {children}
@@ -1670,14 +1668,14 @@ function Chip({ active, onClick, children }) {
 function OptionBlock({ title, children }) {
   return (
     <div>
-      <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-zinc-500">{title}</div>
+      <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-[#918a7c]">{title}</div>
       {children}
     </div>
   );
 }
 
 function OptionCard({ active, onClick, title, meta, tone = 'gold' }) {
-  const color = tone === 'green' ? '#a8d46f' : tone === 'amber' ? '#ffb55c' : '#ffcf69';
+  const color = tone === 'green' ? '#9fb58f' : tone === 'amber' ? '#c8a86a' : '#d8c7a3';
   return (
     <button
       onClick={onClick}
@@ -1687,40 +1685,40 @@ function OptionCard({ active, onClick, title, meta, tone = 'gold' }) {
         background: active ? `${color}1f` : 'rgba(255,255,255,0.045)',
       }}
     >
-      <div className="font-cjk text-sm font-semibold text-white">{title}</div>
-      <div className="mt-1 text-[10px] text-zinc-500">{meta}</div>
+      <div className="font-cjk text-sm font-semibold text-[#f2eadb]">{title}</div>
+      <div className="mt-1 text-[10px] text-[#918a7c]">{meta}</div>
     </button>
   );
 }
 
 function Disclosure({ open, onToggle, title, subtitle, children }) {
   return (
-    <section className="rounded-lg border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+    <section className="rounded-lg border border-[#d8c7a3]/12 bg-[#10120f]/86 backdrop-blur-xl">
       <button onClick={onToggle} className="flex w-full items-center justify-between gap-3 p-4 text-left">
         <span>
-          <span className="flex items-center gap-2 font-display text-2xl text-white">
-            <Settings2 className="h-4 w-4 text-[#ffcf69]" />
+          <span className="flex items-center gap-2 font-display text-2xl text-[#f2eadb]">
+            <Settings2 className="h-4 w-4 text-[#b9a36c]" />
             {title}
           </span>
-          <span className="mt-1 block text-xs text-zinc-500">{subtitle}</span>
+          <span className="mt-1 block text-xs text-[#918a7c]">{subtitle}</span>
         </span>
-        <ChevronDown className={`h-5 w-5 text-zinc-500 transition ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`h-5 w-5 text-[#918a7c] transition ${open ? 'rotate-180' : ''}`} />
       </button>
-      {open && <div className="border-t border-white/10 p-4">{children}</div>}
+      {open && <div className="border-t border-[#d8c7a3]/10 p-4">{children}</div>}
     </section>
   );
 }
 
 function StepperRow({ label, meta, value, unit, step, max, onChange }) {
   return (
-    <div className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-lg border border-white/10 bg-black/20 p-3">
+    <div className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-lg border border-[#d8c7a3]/10 bg-[#080908]/42 p-3">
       <div className="min-w-0">
-        <div className="truncate font-cjk text-sm font-semibold text-white">{label}</div>
-        <div className="mt-1 truncate text-[10px] text-zinc-500">{meta}</div>
+        <div className="truncate font-cjk text-sm font-semibold text-[#f2eadb]">{label}</div>
+        <div className="mt-1 truncate text-[10px] text-[#918a7c]">{meta}</div>
       </div>
       <div className="flex items-center gap-1">
         <IconSquare label={`减少${label}`} onClick={() => onChange(value - step)} icon={Minus} />
-        <span className="w-14 text-center font-mono text-sm text-white">{round(value)}{value > 0 && unit === 'g' ? 'g' : ''}</span>
+        <span className="w-14 text-center font-mono text-sm text-[#f2eadb]">{round(value)}{value > 0 && unit === 'g' ? 'g' : ''}</span>
         <IconSquare label={`增加${label}`} onClick={() => onChange(Math.min(max, value + step))} icon={Plus} />
       </div>
     </div>
@@ -1731,7 +1729,7 @@ function MiniStepper({ value, onChange }) {
   return (
     <div className="flex items-center gap-1">
       <IconSquare label="减少" onClick={() => onChange(value - 1)} icon={Minus} />
-      <span className="w-7 text-center font-mono text-sm text-white">{value}</span>
+      <span className="w-7 text-center font-mono text-sm text-[#f2eadb]">{value}</span>
       <IconSquare label="增加" onClick={() => onChange(value + 1)} icon={Plus} />
     </div>
   );
@@ -1739,7 +1737,7 @@ function MiniStepper({ value, onChange }) {
 
 function IconSquare({ label, onClick, icon: Icon }) {
   return (
-    <button onClick={onClick} aria-label={label} className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:border-[#ffcf69]/60 hover:text-[#ffcf69]">
+    <button onClick={onClick} aria-label={label} className="grid h-8 w-8 place-items-center rounded-lg border border-[#d8c7a3]/10 bg-[#11130f]/72 text-[#918a7c] transition hover:border-[#d8c7a3]/55 hover:text-[#d8c7a3]">
       <Icon className="h-4 w-4" />
     </button>
   );
@@ -1747,16 +1745,16 @@ function IconSquare({ label, onClick, icon: Icon }) {
 
 function TargetInput({ label, unit, value, onChange }) {
   return (
-    <label className="block rounded-lg border border-white/10 bg-black/20 p-3">
-      <span className="block text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</span>
+    <label className="block rounded-lg border border-[#d8c7a3]/10 bg-[#080908]/42 p-3">
+      <span className="block text-[10px] uppercase tracking-[0.18em] text-[#918a7c]">{label}</span>
       <span className="mt-1 flex items-baseline gap-1">
         <input
           type="number"
           value={round(value, 1)}
           onChange={(event) => onChange(event.target.value)}
-          className="min-w-0 flex-1 bg-transparent font-mono text-lg text-white outline-none"
+          className="min-w-0 flex-1 bg-transparent font-mono text-lg text-[#f2eadb] outline-none"
         />
-        <span className="text-[10px] text-zinc-500">{unit}</span>
+        <span className="text-[10px] text-[#918a7c]">{unit}</span>
       </span>
     </label>
   );
@@ -1764,28 +1762,28 @@ function TargetInput({ label, unit, value, onChange }) {
 
 function FoodRow({ item, index, onTune }) {
   const colorMap = {
-    red: '#ff8068',
-    amber: '#ffb55c',
-    gold: '#ffcf69',
-    green: '#a8d46f',
+    red: '#c77e68',
+    amber: '#c8a86a',
+    gold: '#d8c7a3',
+    green: '#9fb58f',
   };
   const color = colorMap[item.tone] || '#ffffff';
   const adjustmentLabel = item.adjustment > 0 ? `+${round(item.adjustment)}` : round(item.adjustment);
   return (
-    <div data-dinner-tune-row className="grid grid-cols-[38px_1fr_auto] items-center gap-3 rounded-lg border border-white/10 bg-black/25 p-3">
+    <div data-dinner-tune-row className="grid grid-cols-[38px_1fr_auto] items-center gap-3 rounded-lg border border-[#d8c7a3]/10 bg-[#080908]/46 p-3">
       <span className="grid h-9 w-9 place-items-center rounded-lg font-mono text-xs text-zinc-950" style={{ backgroundColor: color }}>
         {String(index + 1).padStart(2, '0')}
       </span>
       <div className="min-w-0">
-        <div className="truncate font-cjk text-sm font-semibold text-white">{item.name}</div>
-        <div className="mt-1 truncate text-[10px] text-zinc-500">
+        <div className="truncate font-cjk text-sm font-semibold text-[#f2eadb]">{item.name}</div>
+        <div className="mt-1 truncate text-[10px] text-[#918a7c]">
           P{round(item.macro.p)} · C{round(item.macro.c)} · F{round(item.macro.f)}
-          {item.adjustment !== 0 && <span className="text-[#ffcf69]"> · 调整 {adjustmentLabel}{item.unit}</span>}
+          {item.adjustment !== 0 && <span className="text-[#d8c7a3]"> · 调整 {adjustmentLabel}{item.unit}</span>}
         </div>
       </div>
       <div className="text-right">
-        <div className="font-display text-2xl leading-none text-white">{round(item.qty)}</div>
-        <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-zinc-500">{item.unit}</div>
+        <div className="font-display text-2xl leading-none text-[#f2eadb]">{round(item.qty)}</div>
+        <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-[#918a7c]">{item.unit}</div>
         {onTune && (
           <div className="mt-2 flex items-center justify-end gap-1">
             <IconSquare label={`减少${item.name}`} onClick={() => onTune(item, -item.step)} icon={Minus} />
@@ -1803,31 +1801,31 @@ function MacroBar({ label, value, target, unit, color }) {
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
-        <span className="text-sm text-zinc-300">{label}</span>
-        <span className="font-mono text-xs text-zinc-500">{Math.round(value)} / {target} {unit}</span>
+        <span className="text-sm text-[#cfc4b2]">{label}</span>
+        <span className="font-mono text-xs text-[#918a7c]">{Math.round(value)} / {target} {unit}</span>
       </div>
-      <div className="relative h-2 overflow-hidden rounded-full bg-white/10">
+      <div className="relative h-2 overflow-hidden rounded-full bg-[#d8c7a3]/10">
         <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: color }} />
       </div>
-      <div className="mt-1 text-right text-[10px] text-zinc-500">{diff >= 0 ? '+' : ''}{diff}{unit}</div>
+      <div className="mt-1 text-right text-[10px] text-[#918a7c]">{diff >= 0 ? '+' : ''}{diff}{unit}</div>
     </div>
   );
 }
 
 function LedgerRow({ label, macro, strong }) {
   return (
-    <div className={`grid grid-cols-[1fr_auto] items-center gap-3 border-t border-white/10 py-3 first:border-t-0 ${strong ? 'text-white' : 'text-zinc-300'}`}>
+    <div className={`grid grid-cols-[1fr_auto] items-center gap-3 border-t border-[#d8c7a3]/10 py-3 first:border-t-0 ${strong ? 'text-[#f2eadb]' : 'text-[#cfc4b2]'}`}>
       <div className="font-cjk text-sm">{label}</div>
-      <div className="font-mono text-xs text-zinc-500">P{round(macro.p)} C{round(macro.c)} F{round(macro.f)} · {Math.round(macroKcal(macro))} kcal</div>
+      <div className="font-mono text-xs text-[#918a7c]">P{round(macro.p)} C{round(macro.c)} F{round(macro.f)} · {Math.round(macroKcal(macro))} kcal</div>
     </div>
   );
 }
 
 function ResultPill({ label, value, hot }) {
   return (
-    <div className={`rounded-lg border p-3 ${hot ? 'border-[#ff8068]/30 bg-[#ff8068]/10' : 'border-white/10 bg-black/20'}`}>
-      <div className="text-[10px] text-zinc-500">{label}</div>
-      <div className={`mt-1 font-mono text-lg ${hot ? 'text-[#ff8068]' : 'text-white'}`}>{value}</div>
+    <div className={`rounded-lg border p-3 ${hot ? 'border-[#c77e68]/30 bg-[#c77e68]/10' : 'border-[#d8c7a3]/10 bg-[#080908]/42'}`}>
+      <div className="text-[10px] text-[#918a7c]">{label}</div>
+      <div className={`mt-1 font-mono text-lg ${hot ? 'text-[#c77e68]' : 'text-[#f2eadb]'}`}>{value}</div>
     </div>
   );
 }
