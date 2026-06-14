@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ClipboardList,
-  Download,
   Dumbbell,
   Flame,
   Gauge,
@@ -223,6 +222,36 @@ function scaleMacro(item, qty) {
     c: item.c * qty,
     f: item.f * qty,
   });
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall through to the textarea path for mobile browsers that expose but block Clipboard API.
+    }
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  textarea.style.top = '0';
+  textarea.style.fontSize = '16px';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, text.length);
+
+  try {
+    const ok = document.execCommand('copy');
+    if (!ok) throw new Error('copy command failed');
+  } finally {
+    document.body.removeChild(textarea);
+  }
 }
 
 function getPreEntries(pre) {
@@ -526,6 +555,10 @@ export default function CuttingProtocol() {
   const [dinnerAdjustments, setDinnerAdjustments] = useState({});
   const [snack, setSnack] = useState({ name: '手动加餐', p: 0, c: 0, f: 0, kcal: 0 });
   const [cheat, setCheat] = useState({});
+  const [copyStatus, setCopyStatus] = useState('idle');
+  const [copyText, setCopyText] = useState('');
+  const [copyPanelOpen, setCopyPanelOpen] = useState(false);
+  const copyResetRef = useRef(0);
 
   const setMapQty = (setter, key, value, max = Infinity) => {
     setter((current) => {
@@ -698,26 +731,40 @@ export default function CuttingProtocol() {
     setSnack({ name: '手动加餐', p: 0, c: 0, f: 0, kcal: 0 });
   };
 
-  const downloadJSON = () => {
+  useEffect(() => () => window.clearTimeout(copyResetRef.current), []);
+
+  const buildDailyPlanPayload = () => ({
+    date: new Date().toISOString().slice(0, 10),
+    targets,
+    lunch: model.lunch,
+    pre: model.pre,
+    drink: { key: drinkKey, ml: drinkMl, macro: model.drink },
+    snack,
+    dinnerAdjustments,
+    dinner: { items: model.dinnerItems, macro: model.dinner },
+    total: model.total,
+    deficit: model.deficit,
+  });
+
+  const copyDailyPlan = async () => {
     const payload = {
-      date: new Date().toISOString().slice(0, 10),
-      targets,
-      lunch: model.lunch,
-      pre: model.pre,
-      drink: { key: drinkKey, ml: drinkMl, macro: model.drink },
-      snack,
-      dinnerAdjustments,
-      dinner: { items: model.dinnerItems, macro: model.dinner },
-      total: model.total,
-      deficit: model.deficit,
+      ...buildDailyPlanPayload(),
+      copiedAt: new Date().toISOString(),
     };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `cutting-protocol-${payload.date}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    const text = JSON.stringify(payload, null, 2);
+    setCopyText(text);
+    window.clearTimeout(copyResetRef.current);
+    setCopyStatus('copying');
+    try {
+      await copyTextToClipboard(text);
+      setCopyPanelOpen(false);
+      setCopyStatus('copied');
+    } catch (error) {
+      console.error(error);
+      setCopyStatus('failed');
+      setCopyPanelOpen(true);
+    }
+    copyResetRef.current = window.setTimeout(() => setCopyStatus('idle'), 1800);
   };
 
   return (
@@ -749,7 +796,8 @@ export default function CuttingProtocol() {
           fuelActive={fuelActive}
           fuelSummary={fuelSummary}
           onSnack={() => setSnackOpen(true)}
-          onDownload={downloadJSON}
+          onCopy={copyDailyPlan}
+          copyStatus={copyStatus}
         />
 
         {tab === 'plan' && (
@@ -834,6 +882,18 @@ export default function CuttingProtocol() {
         dinnerSummary={model.dinnerItems.slice(0, 4).map((item) => `${item.short || item.name} ${round(item.qty)}${item.unit}`).join(' · ')}
       />
 
+      <CopyPanel
+        open={copyPanelOpen}
+        setOpen={setCopyPanelOpen}
+        text={copyText}
+        onCopied={() => {
+          setCopyPanelOpen(false);
+          setCopyStatus('copied');
+          window.clearTimeout(copyResetRef.current);
+          copyResetRef.current = window.setTimeout(() => setCopyStatus('idle'), 1800);
+        }}
+      />
+
       <button
         onClick={() => setSnackOpen(true)}
         className="fixed bottom-24 right-5 z-50 grid h-14 w-14 place-items-center rounded-lg border border-white/15 bg-[#ff8068] text-white shadow-[0_16px_40px_-18px_#ff8068] transition hover:-translate-y-0.5 lg:bottom-5"
@@ -871,8 +931,14 @@ function NavButtons({ tab, setTab, mode }) {
   });
 }
 
-function Hero({ model, targets, onFuel, fuelActive, fuelSummary, onSnack, onDownload }) {
+function Hero({ model, targets, onFuel, fuelActive, fuelSummary, onSnack, onCopy, copyStatus }) {
   const deficitTone = model.deficit >= 650 ? 'text-[#a8d46f]' : model.deficit >= 300 ? 'text-[#ffcf69]' : 'text-[#ff8068]';
+  const copyMeta = {
+    idle: { label: '复制', sub: '今日记录', icon: ClipboardList },
+    copying: { label: '复制中', sub: 'clipboard', icon: ClipboardList },
+    copied: { label: '已复制', sub: '可直接粘贴', icon: CheckCircle2 },
+    failed: { label: '复制失败', sub: '再点一次', icon: ClipboardList },
+  }[copyStatus] || { label: '复制', sub: '今日记录', icon: ClipboardList };
 
   return (
     <section className="relative grid min-h-[78vh] items-end gap-6 py-4 lg:grid-cols-[minmax(0,1.03fr)_minmax(360px,0.97fr)] lg:items-center">
@@ -907,7 +973,7 @@ function Hero({ model, targets, onFuel, fuelActive, fuelSummary, onSnack, onDown
         </p>
         <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <HeroAction icon={Zap} label="零食" onClick={onSnack} />
-          <HeroAction icon={Download} label="导出" onClick={onDownload} />
+          <HeroAction icon={copyMeta.icon} label={copyMeta.label} sub={copyMeta.sub} onClick={onCopy} dataAttr="copy-plan-button" />
           <HeroAction icon={Goal} label={`${model.deficit > 0 ? '-' : '+'}${Math.abs(model.deficit)}`} sub="今日赤字" />
         </div>
       </div>
@@ -1418,6 +1484,62 @@ function FuelDrawer({ open, setOpen, pre, setPre, setMapQty, drinkKey, setDrinkK
   );
 }
 
+function CopyPanel({ open, setOpen, text, onCopied }) {
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const timer = window.setTimeout(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.select();
+      textareaRef.current?.setSelectionRange(0, text.length);
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [open, text]);
+
+  if (!open) return null;
+
+  const retryCopy = async () => {
+    try {
+      await copyTextToClipboard(text);
+      onCopied();
+    } catch {
+      textareaRef.current?.focus();
+      textareaRef.current?.select();
+      textareaRef.current?.setSelectionRange(0, text.length);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[80]">
+      <button className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} aria-label="关闭复制面板" />
+      <aside className="absolute inset-x-3 bottom-3 rounded-lg border border-white/10 bg-[#111311] p-4 shadow-2xl sm:left-auto sm:right-5 sm:w-[min(520px,92vw)]">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-display text-xl text-white">手动复制</div>
+            <div className="mt-1 text-xs leading-5 text-zinc-500">浏览器拦截了自动复制，文本已经选中。手机上直接长按复制也可以。</div>
+          </div>
+          <button onClick={() => setOpen(false)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/10 text-zinc-400 hover:text-white" aria-label="关闭">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <textarea
+          ref={textareaRef}
+          readOnly
+          value={text}
+          className="mt-4 h-48 w-full resize-none rounded-lg border border-white/10 bg-black/35 p-3 font-mono text-xs leading-5 text-zinc-200 outline-none focus:border-[#ffcf69]"
+        />
+        <div className="mt-3 flex justify-end gap-2">
+          <button onClick={retryCopy} className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-zinc-950">
+            <ClipboardList className="h-4 w-4" />
+            再复制一次
+          </button>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 function SnackDrawer({ open, setOpen, snack, setSnack, active, dinnerSummary }) {
   if (!open) return null;
 
@@ -1493,10 +1615,10 @@ function Panel({ eyebrow, title, icon: Icon, children }) {
   );
 }
 
-function HeroAction({ icon: Icon, label, sub, onClick }) {
+function HeroAction({ icon: Icon, label, sub, onClick, dataAttr }) {
   const Comp = onClick ? 'button' : 'div';
   return (
-    <Comp onClick={onClick} className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-3 text-left backdrop-blur-xl transition hover:border-white/25">
+    <Comp data-copy-plan-button={dataAttr === 'copy-plan-button' ? true : undefined} onClick={onClick} className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-3 text-left backdrop-blur-xl transition hover:border-white/25">
       <Icon className="mb-2 h-4 w-4 text-[#ffcf69]" />
       <div className="text-sm text-white">{label}</div>
       {sub && <div className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{sub}</div>}
