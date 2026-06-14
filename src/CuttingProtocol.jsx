@@ -223,6 +223,11 @@ const PLANS = {
     tagline: 'RICE VERMICELLI · PLAIN',
     desc: '不加任何料 · 纯碳水几乎零脂 · 按克算',
   },
+  soba: {
+    name: '荞麦面',
+    tagline: 'SOBA · BUCKWHEAT',
+    desc: '荞麦低GI更健康 · 按克算(干面)',
+  },
 };
 
 // ============ 计算逻辑(支持任意 kcal,含外推)============
@@ -284,6 +289,20 @@ const FAT_SOURCES = {
   olive:      { label: 'オリーブオイル', sub: 'Olive oil tsp',    tag: 'OIL',   f: 4.5, p: 0,   c: 0,   step: 1, unitEN: '小さじ', logUnit: '小さじ', logName: '橄榄油', max: 6 },
   nuts:       { label: '素焼きナッツ',   sub: 'Mixed nuts 10g',   tag: 'NUTS',  f: 5,   p: 2,   c: 2,   step: 1, unitEN: '×10g',  logUnit: '×10g', logName: '坚果',   max: 5 },
   avocado:    { label: 'アボカド',       sub: 'Avocado half',     tag: 'FRUIT', f: 15,  p: 1,   c: 4,   step: 1, unitEN: '半',     logUnit: '半',   logName: '牛油果', max: 2 },
+};
+
+// ============ 晚餐补充碳水(水果 / 酸奶;日本超市好买,自己选量,自动并入晚餐)============
+// 你选多少就吃多少(固定,不自动增减);主食方案据剩余热量自动缩量来配平。
+// p/c/f = 每"单位"宏量;kind:'count' 按个/根/個(step1),'gram' 按克(step 50)
+const DINNER_CARBS = {
+  banana:    { label: '香蕉',           sub: 'Banana',      unit: '根', p: 1,     c: 27,   f: 0.3,   step: 1,  max: 4,   kind: 'count' },
+  apple:     { label: '苹果',           sub: 'Apple',       unit: '个', p: 0.4,   c: 35,   f: 0.3,   step: 1,  max: 3,   kind: 'count' },
+  kiwi:      { label: '奇异果',         sub: 'Kiwi',        unit: '个', p: 1,     c: 14,   f: 0.2,   step: 1,  max: 4,   kind: 'count' },
+  mikan:     { label: '蜜柑 みかん',    sub: 'Mandarin',    unit: '个', p: 0.5,   c: 9,    f: 0.1,   step: 1,  max: 5,   kind: 'count' },
+  grape:     { label: '葡萄',           sub: 'Grapes',      unit: 'g',  p: 0.004, c: 0.16, f: 0.001, step: 50, max: 400, kind: 'gram' },
+  pineapple: { label: '切块菠萝',       sub: 'Pineapple',   unit: 'g',  p: 0.006, c: 0.13, f: 0.001, step: 50, max: 400, kind: 'gram' },
+  blueberry: { label: '蓝莓',           sub: 'Blueberry',   unit: 'g',  p: 0.007, c: 0.13, f: 0.005, step: 25, max: 200, kind: 'gram' },
+  yogurt:    { label: '无糖酸奶',       sub: 'Plain yogurt',unit: 'g',  p: 0.036, c: 0.049,f: 0.03,  step: 50, max: 400, kind: 'gram' },
 };
 
 // ============ 放纵餐(娱乐页:日本暴食套餐 · 不算赤字)============
@@ -361,7 +380,7 @@ const CHEAT_PLACES = [
     { name: 'ビール350ml', kcal: 140 }, { name: 'ビール500ml', kcal: 200 }, { name: 'ハイボール缶', kcal: 160 }, { name: 'チューハイ350', kcal: 179 }, { name: '日本酒1合', kcal: 193 }, { name: 'ワイングラス', kcal: 80 }, { name: '唐揚げ3個', kcal: 280 }, { name: 'フライドポテト', kcal: 300 }, { name: '枝豆', kcal: 80 } ] },
 ];
 
-function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkout = { p: 22, c: 1, f: 2, kcal: 110 }, oikosIn = 1, dinnerProteinsIn = ['beef'], targetsIn = DEFAULT_TARGETS, fatSourcesIn = ['sauce', 'egg_fried']) {
+function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkout = { p: 22, c: 1, f: 2, kcal: 110 }, oikosIn = 1, dinnerProteinsIn = ['beef'], targetsIn = DEFAULT_TARGETS, fatSourcesIn = ['sauce', 'egg_fried'], dinnerCarbsIn = {}) {
   // 安全网:用局部常量净化输入(不改写参数本身,避免 iOS 只读报错)
   const lunchKcal = Number.isFinite(lunchKcalIn) ? Math.max(0, Math.min(5000, lunchKcalIn)) : 0;
   const beefFatPer100g = Number.isFinite(beefFatIn) ? Math.max(0, Math.min(40, beefFatIn)) : 9;
@@ -426,20 +445,26 @@ function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkou
   });
   const fatMacro = () => fatKeys.reduce((a, k) => { const fsx = FAT_SOURCES[k]; const u = fatPortions[k] || 0; return { p: a.p + u * fsx.p, c: a.c + u * fsx.c, f: a.f + u * fsx.f }; }, { p: 0, c: 0, f: 0 });
 
+  // ===== 2.5 晚餐补充碳水(水果/酸奶):用户固定选量,先并入,主食据剩余预算配平 =====
+  const dcEntries = Object.entries(dinnerCarbsIn || {}).filter(([k, q]) => DINNER_CARBS[k] && q > 0);
+  const dcMacro = dcEntries.reduce((a, [k, q]) => { const d = DINNER_CARBS[k]; return { p: a.p + d.p * q, c: a.c + d.c * q, f: a.f + d.f * q }; }, { p: 0, c: 0, f: 0 });
+  const dcKcal = dcMacro.p * 4 + dcMacro.c * 4 + dcMacro.f * 9;
+
   // ===== 3. 碳水:把剩余热量预算全部填进主食(碳水可略超,守目标 kcal 上限)=====
   const protKcal = () => mP() * 4 + mC() * 4 + mF() * 9;
   const fatKcal = () => { const m = fatMacro(); return m.p * 4 + m.c * 4 + m.f * 9; };
-  let pasta = 0, nissin = 0, pho = 0, bifun = 0, carbFoodP = 0, carbFoodC = 0, carbFoodF = 0;
+  let pasta = 0, nissin = 0, pho = 0, bifun = 0, soba = 0, carbFoodP = 0, carbFoodC = 0, carbFoodF = 0;
   const setCarb = (budget) => {
     if (planKey === 'pasta') { pasta = Math.max(0, Math.round(budget / 3.55 / 10) * 10); carbFoodP = pasta * 0.12; carbFoodC = pasta * 0.71; carbFoodF = pasta * 0.015; }
     else if (planKey === 'nissin') { nissin = Math.max(0, Math.round(budget / 291)); carbFoodP = nissin * 6.7; carbFoodC = nissin * 55; carbFoodF = nissin * 4.9; }
     else if (planKey === 'pho') { pho = Math.max(0, Math.round(budget / 210)); carbFoodP = pho * 4; carbFoodC = pho * 43; carbFoodF = pho * 2; }
     else if (planKey === 'bifun') { bifun = Math.max(0, Math.round(budget / 3.45 / 10) * 10); carbFoodP = bifun * 0.06; carbFoodC = bifun * 0.79; carbFoodF = bifun * 0.005; }
+    else if (planKey === 'soba') { soba = Math.max(0, Math.round(budget / 3.44 / 10) * 10); carbFoodP = soba * 0.14; carbFoodC = soba * 0.66; carbFoodF = soba * 0.023; }
   };
-  setCarb(Math.max(0, TARGETS.kcal - eatenKcal - protKcal() - fatKcal()));
+  setCarb(Math.max(0, TARGETS.kcal - eatenKcal - protKcal() - fatKcal() - dcKcal));
 
   // 守上限:超了先缩碳水 → 再砍脂肪来源(kcal最大的一份)→ 最后兜底缩主蛋白
-  const dayKcal = () => eatenKcal + protKcal() + fatKcal() + (carbFoodP * 4 + carbFoodC * 4 + carbFoodF * 9);
+  const dayKcal = () => eatenKcal + protKcal() + fatKcal() + dcKcal + (carbFoodP * 4 + carbFoodC * 4 + carbFoodF * 9);
   let guard = 0;
   while (dayKcal() > TARGETS.kcal + 5 && guard < 200) {
     guard += 1;
@@ -447,6 +472,7 @@ function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkou
     else if (planKey === 'nissin' && nissin > 0) { nissin -= 1; carbFoodP = nissin * 6.7; carbFoodC = nissin * 55; carbFoodF = nissin * 4.9; }
     else if (planKey === 'pho' && pho > 0) { pho -= 1; carbFoodP = pho * 4; carbFoodC = pho * 43; carbFoodF = pho * 2; }
     else if (planKey === 'bifun' && bifun > 0) { bifun = Math.max(0, bifun - 10); carbFoodP = bifun * 0.06; carbFoodC = bifun * 0.79; carbFoodF = bifun * 0.005; }
+    else if (planKey === 'soba' && soba > 0) { soba = Math.max(0, soba - 10); carbFoodP = soba * 0.14; carbFoodC = soba * 0.66; carbFoodF = soba * 0.023; }
     else {
       let bk = null, bv = -1;
       fatKeys.forEach((k) => { if (fatPortions[k] > 0) { const fsx = FAT_SOURCES[k]; const kc = (fsx.p * 4 + fsx.c * 4 + fsx.f * 9) * fsx.step; if (kc > bv) { bv = kc; bk = k; } } });
@@ -460,7 +486,9 @@ function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkou
   // ===== 4. 组装:主蛋白 + 脂肪来源 都进 proteinList(菜单/明细/JSON 自动渲染)=====
   const proteinList = mainKeys.map((k) => { const u = un(k); return { key: k, units: portions[k] || 0, p: u.p, fat: u.fat, c: u.c, label: u.label, sub: u.sub, logName: u.logName, logUnit: u.logUnit, unitEN: u.unitEN }; }).filter((x) => x.units > 0);
   fatKeys.forEach((k) => { const fsx = FAT_SOURCES[k]; const u = fatPortions[k] || 0; if (u > 0) proteinList.push({ key: 'fat_' + k, units: u, p: fsx.p, fat: fsx.f, c: fsx.c, label: fsx.label, sub: fsx.sub, logName: fsx.logName, logUnit: fsx.logUnit, unitEN: fsx.unitEN }); });
-  const plan = { proteins: proteinList, pasta, nissin, pho, bifun, banana: 0, oikos: oikosCount };
+  // 补充碳水(水果/酸奶)并入晚餐项 → 菜单/明细/JSON 自动渲染 + 计入晚餐宏量
+  dcEntries.forEach(([k, q]) => { const d = DINNER_CARBS[k]; proteinList.push({ key: 'carb_' + k, units: q, p: d.p, fat: d.f, c: d.c, label: d.label, sub: d.sub, logName: d.label, logUnit: d.unit, unitEN: d.unit }); });
+  const plan = { proteins: proteinList, pasta, nissin, pho, bifun, soba, banana: 0, oikos: oikosCount, dinnerCarbs: dcEntries.map(([k, q]) => ({ key: k, units: q })) };
 
   // ===== 5. 实际晚餐宏量 =====
   const fm = proteinList.reduce((a, x) => ({ p: a.p + x.units * x.p, c: a.c + x.units * x.c, f: a.f + x.units * x.fat }), { p: 0, c: 0, f: 0 });
@@ -617,6 +645,8 @@ export default function CuttingProtocol() {
   const [dinnerProteins, setDinnerProteins] = useState(['beef']);
   const [fatSources, setFatSources] = useState(['sauce', 'egg_fried']); // 脂肪来源(多选)
   const toggleFat = (k) => setFatSources((arr) => arr.includes(k) ? arr.filter((x) => x !== k) : [...arr, k]);
+  const [dinnerCarbs, setDinnerCarbs] = useState({}); // 晚餐补充碳水(水果/酸奶):{key: 数量}
+  const setDinnerCarbQty = (k, v) => setDinnerCarbs((m) => ({ ...m, [k]: Math.max(0, v) }));
   const toggleProtein = (k) => setDinnerProteins((arr) => arr.includes(k) ? (arr.length > 1 ? arr.filter((x) => x !== k) : arr) : [...arr, k]);
 
   // 可编辑目标:TDEE + 目标 P/C/F/kcal(存本机)
@@ -699,8 +729,8 @@ export default function CuttingProtocol() {
       ? { p: lunchTally.p, c: lunchTally.c, f: lunchTally.f, kcal: lunchTally.kcal }
       : null;
     // Oikos 已并入 effectivePre(配午餐/加餐),晚餐里不再放 → 传 0
-    return calculate(lunchKcal, planKey, override, beefFat, effectivePre, 0, dinnerProteins, targets, fatSources);
-  }, [lunchKcal, planKey, lunchMode, lunchDesign, lunchTally, beefFat, effectivePre, dinnerProteins, targets, fatSources]);
+    return calculate(lunchKcal, planKey, override, beefFat, effectivePre, 0, dinnerProteins, targets, fatSources, dinnerCarbs);
+  }, [lunchKcal, planKey, lunchMode, lunchDesign, lunchTally, beefFat, effectivePre, dinnerProteins, targets, fatSources, dinnerCarbs]);
 
   // 采购:每天用量 × 天数 → 一周参考量(可买的取整)
   const wkQty = (daily, unit) => {
@@ -718,11 +748,12 @@ export default function CuttingProtocol() {
     const need = Math.max(0, Math.min(DINNER_PROTEIN_FLOOR, targets.p) - eatenP);
     return Math.max(0, Math.round(need / d.p / d.step) * d.step);
   };
-  const carbKcalNow = (result.plan.pasta || 0) * 3.55 + (result.plan.nissin || 0) * 291 + (result.plan.pho || 0) * 210 + (result.plan.bifun || 0) * 3.45;
+  const carbKcalNow = (result.plan.pasta || 0) * 3.55 + (result.plan.nissin || 0) * 291 + (result.plan.pho || 0) * 210 + (result.plan.bifun || 0) * 3.45 + (result.plan.soba || 0) * 3.44;
   const dailyCarb = (k) => {
     const b = carbKcalNow > 0 ? carbKcalNow : 500;
     if (k === 'pasta') return Math.round(b / 3.55 / 10) * 10;
     if (k === 'bifun') return Math.round(b / 3.45 / 10) * 10;
+    if (k === 'soba') return Math.round(b / 3.44 / 10) * 10;
     if (k === 'nissin') return Math.max(1, Math.round(b / 291));
     if (k === 'pho') return Math.max(1, Math.round(b / 210));
     return 0;
@@ -823,6 +854,7 @@ export default function CuttingProtocol() {
     if (p.nissin > 0) parts.push(`日清 ${p.nissin}包`);
     if (p.pho > 0) parts.push(`米粉 ${p.pho}包`);
     if (p.bifun > 0) parts.push(`纯干米粉 ${p.bifun}g`);
+    if (p.soba > 0) parts.push(`荞麦面 ${p.soba}g`);
     if ((p.oikos || 0) > 0) parts.push(`Oikos ${p.oikos}个`);
     const over = result.total.kcal > targets.kcal + 5;
     return (parts.join(' · ') || '晚餐已砍到最低') + ` ｜ 全天 ${Math.round(result.total.kcal)} kcal` + (over ? `(已超 ${targets.kcal},见晚餐页提示)` : '');
@@ -854,6 +886,7 @@ export default function CuttingProtocol() {
     if (result.plan.nissin > 0) items.push({ slot: 'dinner', name: '日清非油炸面', qty: result.plan.nissin, unit: '包', p: r0(result.plan.nissin * 6.7), c: r0(result.plan.nissin * 55), f: r0(result.plan.nissin * 4.9), kcal: r0(result.plan.nissin * 291) });
     if (result.plan.pho > 0) items.push({ slot: 'dinner', name: '越南米粉', qty: result.plan.pho, unit: '包', p: r0(result.plan.pho * 4), c: r0(result.plan.pho * 43), f: r0(result.plan.pho * 2), kcal: r0(result.plan.pho * 210) });
     if (result.plan.bifun > 0) items.push({ slot: 'dinner', name: '纯干米粉', qty: result.plan.bifun, unit: 'g', p: r0(result.plan.bifun * 0.06), c: r0(result.plan.bifun * 0.79), f: r0(result.plan.bifun * 0.005), kcal: r0(result.plan.bifun * 3.45) });
+    if (result.plan.soba > 0) items.push({ slot: 'dinner', name: '荞麦面(干)', qty: result.plan.soba, unit: 'g', p: r0(result.plan.soba * 0.14), c: r0(result.plan.soba * 0.66), f: r0(result.plan.soba * 0.023), kcal: r0(result.plan.soba * 3.44) });
     return {
       date: new Date().toISOString().slice(0, 10),
       targets: { ...targets, tdee },
@@ -1293,6 +1326,53 @@ export default function CuttingProtocol() {
           )}
         </section>
 
+        {/* ============ 03.6 · DINNER FRUIT / YOGURT ============ */}
+        <section className="rise mb-9" style={{ animationDelay: '345ms' }}>
+          <SectionHead no="🍓" zh="补充碳水 · 水果/酸奶" en="Fruit / Yogurt" accent="honey" />
+          <div className="text-[11px] text-inksoft mb-3 font-cjk leading-relaxed">
+            想吃<span className="text-terradeep">水果或酸奶</span>当晚餐碳水?在这选量(块/个按数,葡萄蓝莓酸奶按克),它们<span className="text-terradeep">直接并入晚餐</span>,上面选的<span className="text-terradeep">主食会自动缩量</span>来配平热量。日本超市都好买。
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {Object.entries(DINNER_CARBS).map(([k, it]) => {
+              const qty = dinnerCarbs[k] || 0;
+              const active = qty > 0;
+              const stepKcal = Math.round((it.p * 4 + it.c * 4 + it.f * 9) * it.step);
+              return (
+                <div
+                  key={k}
+                  className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
+                    active ? 'border-honey bg-honey/[0.07] shadow-warm' : 'border-line bg-card'
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-cjk text-ink truncate" style={{ fontWeight: 500 }}>{it.label}</div>
+                    <div className="text-[10px] font-mono text-inkfaint mt-0.5">
+                      {active
+                        ? `${Math.round((it.p * 4 + it.c * 4 + it.f * 9) * qty)}kcal · P${Math.round(it.p * qty)} C${Math.round(it.c * qty)} F${Math.round(it.f * qty)}`
+                        : `每${it.kind === 'gram' ? `${it.step}g` : it.unit} ≈ ${stepKcal}kcal · C${Math.round(it.c * it.step)}`}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => setDinnerCarbQty(k, qty - it.step)}
+                      aria-label={`减少${it.label}`}
+                      className="w-8 h-8 grid place-items-center rounded-full border border-line text-inksoft bg-card transition-all active:scale-90 hover:border-honey hover:text-honey"
+                    >−</button>
+                    <span className="font-display text-xl w-12 text-center text-ink tnum" style={{ fontWeight: 400 }}>
+                      {qty}{it.kind === 'gram' && qty > 0 && <span className="text-[9px] font-mono text-inkfaint ml-0.5">g</span>}
+                    </span>
+                    <button
+                      onClick={() => setDinnerCarbQty(k, Math.min(it.max, qty + it.step))}
+                      aria-label={`增加${it.label}`}
+                      className="w-8 h-8 grid place-items-center rounded-full border border-line text-inksoft bg-card transition-all active:scale-90 hover:border-honey hover:text-honey"
+                    >+</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
         {/* ============ 04 · BEEF FAT ============ */}
         <section className="rise mb-9" style={{ animationDelay: '360ms' }}>
           <SectionHead no="04" zh="牛肉脂肪校准" en="Beef Fat" />
@@ -1364,6 +1444,7 @@ export default function CuttingProtocol() {
               <FoodItem icon="03" name="日清非油炸泡面" sub="Non-fried Ramen" qty={result.plan.nissin} unit="PACK" />
               <FoodItem icon="04" name="越南米粉" sub="Vietnamese Pho · 60g" qty={result.plan.pho} unit="PACK" />
               <FoodItem icon="04" name="纯干米粉" sub="Plain rice vermicelli · dry" qty={result.plan.bifun} unit="GRAM" />
+              <FoodItem icon="05" name="荞麦面" sub="Soba · Buckwheat · dry" qty={result.plan.soba} unit="GRAM" />
               <FoodItem icon="06" name="香蕉(中)" sub="Banana · Medium" qty={result.plan.banana} unit="PCS" />
               <FoodItem icon="07" name="オイコス 砂糖不使用" sub="OIKOS Plain · Dessert" qty={result.plan.oikos || 0} unit="PCS" />
             </div>
@@ -1553,6 +1634,7 @@ export default function CuttingProtocol() {
             {result.plan.nissin > 0 && <LogRow name={`日清 × ${result.plan.nissin}`} p={Math.round(result.plan.nissin * 6.7)} c={Math.round(result.plan.nissin * 55)} f={Math.round(result.plan.nissin * 4.9)} k={Math.round(result.plan.nissin * 291)} />}
             {result.plan.pho > 0 && <LogRow name={`越南米粉 × ${result.plan.pho}`} p={Math.round(result.plan.pho * 4)} c={Math.round(result.plan.pho * 43)} f={Math.round(result.plan.pho * 2)} k={Math.round(result.plan.pho * 210)} />}
             {result.plan.bifun > 0 && <LogRow name={`纯干米粉 ${result.plan.bifun}g`} p={Math.round(result.plan.bifun * 0.06)} c={Math.round(result.plan.bifun * 0.79)} f={Math.round(result.plan.bifun * 0.005)} k={Math.round(result.plan.bifun * 3.45)} />}
+            {result.plan.soba > 0 && <LogRow name={`荞麦面 ${result.plan.soba}g`} p={Math.round(result.plan.soba * 0.14)} c={Math.round(result.plan.soba * 0.66)} f={Math.round(result.plan.soba * 0.023)} k={Math.round(result.plan.soba * 3.44)} />}
             {result.plan.banana > 0 && <LogRow name={`香蕉 × ${result.plan.banana}`} p={result.plan.banana} c={result.plan.banana * 27} f={Math.round(result.plan.banana * 0.25)} k={Math.round(result.plan.banana * 113)} />}
             {(result.plan.oikos || 0) > 0 && <LogRow name={`オイコス × ${result.plan.oikos}`} p={result.plan.oikos * 12} c={result.plan.oikos * 5} f={0} k={result.plan.oikos * 71} />}
 
@@ -1667,8 +1749,9 @@ export default function CuttingProtocol() {
 
         <div className="text-[10px] font-mono text-sagedeep tracking-wide px-1 mb-2">⭐ 蛋白 / 主食:每样都给量,轮着吃也按各自天数备够</div>
         <ShopCat title="晚餐蛋白源" en="Dinner Protein" items={Object.entries(DINNER_PROTEINS).map(([k, d]) => { const per = dailyProtein(k); return { name: d.label, note: `每天约 ${per}${d.logUnit} · ${d.note}`, sel: dinnerProteins.includes(k), weekly: wkQty(per, d.logUnit) }; })} />
-        <ShopCat title="晚餐碳水主食" en="Carb Staple" items={Object.entries(PLANS).map(([k, d]) => { const u = (k === 'pasta' || k === 'bifun') ? 'g' : '包'; const per = dailyCarb(k); return { name: d.name, note: `每天约 ${per}${u} · ${d.desc}`, sel: planKey === k, weekly: wkQty(per, u) }; })} />
+        <ShopCat title="晚餐碳水主食" en="Carb Staple" items={Object.entries(PLANS).map(([k, d]) => { const u = (k === 'pasta' || k === 'bifun' || k === 'soba') ? 'g' : '包'; const per = dailyCarb(k); return { name: d.name, note: `每天约 ${per}${u} · ${d.desc}`, sel: planKey === k, weekly: wkQty(per, u) }; })} />
         <ShopCat title="脂肪来源" en="Fat Source" items={Object.entries(FAT_SOURCES).map(([k, d]) => ({ name: d.label, note: `${d.f}g脂 / ${d.unitEN}${d.p ? ` · P${d.p}` : ''}`, sel: fatSources.includes(k), weekly: wkQty(plUnits('fat_' + k), d.logUnit) }))} />
+        <ShopCat title="晚餐水果 / 酸奶" en="Fruit / Yogurt" items={Object.entries(DINNER_CARBS).map(([k, d]) => { const q = dinnerCarbs[k] || 0; return { name: d.label, note: `${d.kind === 'gram' ? `每${d.step}g` : `每${d.unit}`} ≈ C${Math.round(d.c * d.step)}`, sel: q > 0, weekly: q > 0 ? wkQty(q, d.unit) : null }; })} />
         <ShopCat title="训练前 · 加餐" en="Pre / Snack" items={[
           { name: '速食小鸡胸(块)', note: '每块~100g / 22g蛋白', sel: preChicken > 0, weekly: wkQty(preChicken, '块') },
           { name: '卵(全蛋)', note: '训练前 / 补脂用', sel: preEggs > 0, weekly: wkQty(preEggs, '個') },
