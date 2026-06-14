@@ -279,6 +279,7 @@ const DINNER_PROTEINS = {
   duck:     { label: '合鸭胸(去皮)', sub: 'Skinless · 1份≈100g', tag: 'DUCK · 去皮', p: 21, f: 6,  c: 0.5, step: 1, unitEN: '份', logUnit: '份', lean: false, maxUnits: 4, logName: '合鸭(去皮)', note: '1份≈100g · P21/F6/140kcal · 瘦版' },
   duckskin: { label: '合鸭胸(带皮)', sub: 'With skin · 1份≈100g', tag: 'DUCK · 带皮', p: 14, f: 29, c: 0.1, step: 1, unitEN: '份', logUnit: '份', lean: false, maxUnits: 3, logName: '合鸭(带皮)', note: '1份≈100g · P14/F29/304kcal · 肥版' },
   kfc:     { label: 'KFC オリジナルチキン', sub: 'KFC Original · per piece', tag: 'KFC · FAT+PRO', p: 18, f: 14, c: 8, step: 1, unitEN: '块', logUnit: '块', lean: false, logName: 'KFC鸡', note: '1块≈237kcal/P18·F14·C8 · 含盐1.7g/块' },
+  oikos:   { label: 'オイコス(高蛋白酸奶)', sub: 'Oikos · per cup', tag: 'DAIRY · LEAN', p: 12, f: 0, c: 5, step: 1, unitEN: '個', logUnit: '個', lean: true, maxUnits: 8, logName: 'オイコス', note: '1個≈68kcal/P12 · 高蛋白零脂 · 当主蛋白' },
 };
 
 // 脂肪来源(可多选;脂肪缺口在所选来源之间均分,各自取整 + 封顶)
