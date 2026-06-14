@@ -661,11 +661,11 @@ export default function CuttingProtocol() {
   useEffect(() => { try { localStorage.setItem('targets', JSON.stringify(targets)); } catch {} }, [targets]);
   useEffect(() => { try { localStorage.setItem('tdee', String(tdee)); } catch {} }, [tdee]);
   const setTarget = (k, v, max) => setTargets((t) => ({ ...t, [k]: Math.max(0, Math.min(max, Number(v) || 0)) }));
-  const [preChicken, setPreChicken] = useState(1);
+  const [preChicken, setPreChicken] = useState(0);
   const [preEggs, setPreEggs] = useState(0);
   const [preBanana, setPreBanana] = useState(0);
   const [prePine, setPrePine] = useState(0); // 切块菠萝 g(自己称重)
-  const [dinnerOikos, setDinnerOikos] = useState(1);
+  const [dinnerOikos, setDinnerOikos] = useState(0);
   const [drinkKey, setDrinkKey] = useState('tomato'); // 高钾蔬菜/番茄汁(对冲钠)
   const [drinkMl, setDrinkMl] = useState(400);
   const [saltG, setSaltG] = useState(6.5);    // 今日食盐(晚上)g
@@ -983,29 +983,6 @@ export default function CuttingProtocol() {
         <main key={page} className="min-h-[44vh]">
 
         {page === 0 && (<>
-        {/* ============ 00 · PRE-WORKOUT ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '80ms' }}>
-          <SectionHead no="00" zh="训练前加餐" en="Pre-Workout" />
-          <Card className="p-5 sm:p-6">
-            <div className="flex gap-x-6 gap-y-5 flex-wrap">
-              <Stepper zh="鸡胸" en="Chicken" value={preChicken} set={setPreChicken} />
-              <Stepper zh="全蛋" en="Eggs" value={preEggs} set={setPreEggs} />
-              <Stepper zh="香蕉" en="Banana" value={preBanana} set={setPreBanana} />
-              <Stepper zh="菠萝" en="Pineapple" value={prePine} set={setPrePine} step={50} max={500} unit="g" accent="honey" />
-              <Stepper zh="Oikos" en="加餐" value={dinnerOikos} set={setDinnerOikos} accent="honey" />
-            </div>
-            <div className="mt-5 pt-4 border-t border-linesoft flex items-center gap-4 flex-wrap">
-              <span className="text-xs font-mono text-inksoft tracking-wide">
-                → P{preWorkout.p} · C{Math.round(preWorkout.c)} · F{preWorkout.f} =
-                <span className="text-ink font-medium"> {preWorkout.kcal} kcal</span>
-              </span>
-              {fasted && (
-                <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-honey/15 text-honey tracking-wider">空腹训练</span>
-              )}
-            </div>
-          </Card>
-        </section>
-
         {/* ============ 01 · LUNCH ============ */}
         <section className="rise mb-9" style={{ animationDelay: '160ms' }}>
           <SectionHead no="01" zh="中午摄入" en="Lunch Intake" />
@@ -1537,6 +1514,32 @@ export default function CuttingProtocol() {
                 </div>
               )}
               <div className="mt-2 text-[9px] font-mono text-inkfaint leading-relaxed">ⓘ 食物钾默认粗估 2000mg(你菜单的牛肉/鸡胸/红薯/豆/Oikos),按实际改;只补钾不够,水也要喝够。</div>
+            </div>
+          </Card>
+        </section>
+
+        {/* ============ 训练前加餐(可选 · 默认空腹,要加自己点)============ */}
+        <section className="rise mb-9" style={{ animationDelay: '520ms' }}>
+          <SectionHead no="🍳" zh="训练前加餐" en="Pre-Workout" accent="honey" />
+          <div className="text-[11px] text-inksoft mb-3 font-cjk leading-relaxed">
+            默认<span className="text-terradeep">空腹</span>(全为 0)。如果训练前想垫一口,在这点；会计入今日摄入、晚餐据此回算。
+          </div>
+          <Card className="p-5 sm:p-6">
+            <div className="flex gap-x-6 gap-y-5 flex-wrap">
+              <Stepper zh="鸡胸" en="Chicken" value={preChicken} set={setPreChicken} />
+              <Stepper zh="全蛋" en="Eggs" value={preEggs} set={setPreEggs} />
+              <Stepper zh="香蕉" en="Banana" value={preBanana} set={setPreBanana} />
+              <Stepper zh="菠萝" en="Pineapple" value={prePine} set={setPrePine} step={50} max={500} unit="g" accent="honey" />
+              <Stepper zh="Oikos" en="加餐" value={dinnerOikos} set={setDinnerOikos} accent="honey" />
+            </div>
+            <div className="mt-5 pt-4 border-t border-linesoft flex items-center gap-4 flex-wrap">
+              <span className="text-xs font-mono text-inksoft tracking-wide">
+                → P{preWorkout.p} · C{Math.round(preWorkout.c)} · F{preWorkout.f} =
+                <span className="text-ink font-medium"> {preWorkout.kcal} kcal</span>
+              </span>
+              {fasted && (
+                <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-honey/15 text-honey tracking-wider">空腹训练</span>
+              )}
             </div>
           </Card>
         </section>
