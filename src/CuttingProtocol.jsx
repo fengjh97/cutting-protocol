@@ -225,6 +225,30 @@ function scaleMacro(item, qty) {
   });
 }
 
+function getPreEntries(pre) {
+  return Object.entries(pre).filter(([key, qty]) => PRE_ITEMS[key] && qty > 0);
+}
+
+function describePre(pre) {
+  const entries = getPreEntries(pre);
+  if (!entries.length) return '不吃';
+  return entries.map(([key, qty]) => `${PRE_ITEMS[key].label} ${round(qty)}${PRE_ITEMS[key].unit}`).join(' / ');
+}
+
+function describeDrink(drinkKey, drinkMl) {
+  const drink = DRINKS[drinkKey] || DRINKS.none;
+  if (drinkKey === 'none' || drinkMl <= 0) return '不喝';
+  return `${drink.label} ${round(drinkMl)}ml`;
+}
+
+function isFuelActive(pre, drinkKey, drinkMl) {
+  return getPreEntries(pre).length > 0 || (drinkKey !== 'none' && drinkMl > 0);
+}
+
+function describeFuel(pre, drinkKey, drinkMl) {
+  return `${describePre(pre)} · ${describeDrink(drinkKey, drinkMl)}`;
+}
+
 function roundTo(value, step) {
   if (!Number.isFinite(value) || value <= 0) return 0;
   return Math.max(0, Math.round(value / step) * step);
@@ -480,6 +504,7 @@ export default function CuttingProtocol() {
   const [foodK, setFoodK] = useState(2000);
   const [shopDays, setShopDays] = useState(7);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [fuelOpen, setFuelOpen] = useState(false);
   const [snackOpen, setSnackOpen] = useState(false);
   const [snack, setSnack] = useState({ name: '手动加餐', p: 0, c: 0, f: 0, kcal: 0 });
   const [cheat, setCheat] = useState({});
@@ -610,6 +635,8 @@ export default function CuttingProtocol() {
 
   const cheatTotal = CHEAT_ITEMS.reduce((sum, item) => sum + (cheat[item.id] || 0) * item.kcal, 0);
   const cheatSurplus = Math.round(model.total.kcal + cheatTotal - tdee);
+  const fuelActive = isFuelActive(pre, drinkKey, drinkMl);
+  const fuelSummary = describeFuel(pre, drinkKey, drinkMl);
   const snackActive = snack.kcal > 0 || snack.p > 0 || snack.c > 0 || snack.f > 0;
 
   const resetDefaults = () => {
@@ -670,7 +697,15 @@ export default function CuttingProtocol() {
           </nav>
         </header>
 
-        <Hero model={model} targets={targets} onSnack={() => setSnackOpen(true)} onDownload={downloadJSON} />
+        <Hero
+          model={model}
+          targets={targets}
+          onFuel={() => setFuelOpen(true)}
+          fuelActive={fuelActive}
+          fuelSummary={fuelSummary}
+          onSnack={() => setSnackOpen(true)}
+          onDownload={downloadJSON}
+        />
 
         {tab === 'plan' && (
           <PlanView
@@ -730,6 +765,19 @@ export default function CuttingProtocol() {
         )}
       </div>
 
+      <FuelDrawer
+        open={fuelOpen}
+        setOpen={setFuelOpen}
+        pre={pre}
+        setPre={setPre}
+        setMapQty={setMapQty}
+        drinkKey={drinkKey}
+        setDrinkKey={setDrinkKey}
+        drinkMl={drinkMl}
+        setDrinkMl={setDrinkMl}
+        model={model}
+      />
+
       <SnackDrawer
         open={snackOpen}
         setOpen={setSnackOpen}
@@ -776,15 +824,32 @@ function NavButtons({ tab, setTab, mode }) {
   });
 }
 
-function Hero({ model, targets, onSnack, onDownload }) {
+function Hero({ model, targets, onFuel, fuelActive, fuelSummary, onSnack, onDownload }) {
   const deficitTone = model.deficit >= 650 ? 'text-[#a8d46f]' : model.deficit >= 300 ? 'text-[#ffcf69]' : 'text-[#ff8068]';
 
   return (
     <section className="relative grid min-h-[78vh] items-end gap-6 py-4 lg:grid-cols-[minmax(0,1.03fr)_minmax(360px,0.97fr)] lg:items-center">
       <div className="relative order-2 lg:order-1">
-        <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/8 px-3 py-2 text-xs text-zinc-300 backdrop-blur-xl">
-          <Activity className="h-4 w-4 text-[#a8d46f]" />
-          <span>83 kg · 25% BF · 16:8 IF · 今日 {targets.kcal} kcal</span>
+        <div className="mb-5 flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/8 px-3 py-2 text-xs text-zinc-300 backdrop-blur-xl">
+            <Activity className="h-4 w-4 text-[#a8d46f]" />
+            <span>83 kg · 25% BF · 16:8 IF · 今日 {targets.kcal} kcal</span>
+          </div>
+          <button
+            data-home-fuel-button
+            onClick={onFuel}
+            className={`inline-flex max-w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs backdrop-blur-xl transition hover:-translate-y-0.5 ${
+              fuelActive ? 'border-[#a8d46f]/35 bg-[#a8d46f]/12 text-[#d8ffc9]' : 'border-white/10 bg-white/8 text-zinc-300 hover:border-[#ffcf69]/40'
+            }`}
+            aria-label={`补给：${fuelSummary}`}
+          >
+            <Dumbbell className={`h-4 w-4 shrink-0 ${fuelActive ? 'text-[#a8d46f]' : 'text-[#ffcf69]'}`} />
+            <span className="shrink-0 font-cjk font-semibold">补给</span>
+            <span className={`rounded-md px-2 py-0.5 font-mono text-[10px] ${fuelActive ? 'bg-[#a8d46f] text-zinc-950' : 'bg-white/10 text-zinc-300'}`}>
+              {fuelActive ? 'ON' : 'OFF'}
+            </span>
+            <span className="hidden max-w-[260px] truncate text-zinc-400 sm:inline">{fuelSummary}</span>
+          </button>
         </div>
         <h1 className="max-w-3xl font-display text-5xl leading-[0.92] tracking-normal text-white sm:text-7xl lg:text-8xl">
           今晚吃得
@@ -1181,6 +1246,119 @@ function CheatView({ cheat, setCheat, cheatTotal, cheatSurplus, tdee, dayKcal })
         </div>
       </section>
     </main>
+  );
+}
+
+function FuelDrawer({ open, setOpen, pre, setPre, setMapQty, drinkKey, setDrinkKey, drinkMl, setDrinkMl, model }) {
+  if (!open) return null;
+
+  const fuelActive = isFuelActive(pre, drinkKey, drinkMl);
+  const summary = describeFuel(pre, drinkKey, drinkMl);
+  const fuelMacro = addMacros(model.pre, model.drink);
+
+  const applyNoFuel = () => {
+    setPre({});
+    setDrinkKey('none');
+    setDrinkMl(0);
+  };
+
+  const applyLightFuel = () => {
+    setPre({ banana: 1 });
+    setDrinkKey('tomato');
+    setDrinkMl(400);
+  };
+
+  const applyPineappleFuel = () => {
+    setPre({ pineapple: 1 });
+    setDrinkKey('tomato');
+    setDrinkMl(400);
+  };
+
+  const chooseDrink = (key) => {
+    setDrinkKey(key);
+    if (key === 'none') setDrinkMl(0);
+    else if (drinkMl <= 0) setDrinkMl(400);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70]">
+      <button className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} aria-label="关闭补给" />
+      <aside className="absolute inset-y-0 right-0 flex w-[min(460px,94vw)] flex-col border-l border-white/10 bg-[#101312] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-white/10 p-4">
+          <div className="flex items-center gap-3">
+            <img src={asset('pre.jpg')} alt="" className="h-12 w-12 rounded-lg object-cover" />
+            <div>
+              <div className="font-display text-xl text-white">补给开关</div>
+              <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">训练前吃什么喝什么</div>
+            </div>
+          </div>
+          <button onClick={() => setOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 text-zinc-400 hover:text-white" aria-label="关闭">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className={`rounded-lg border p-4 ${fuelActive ? 'border-[#a8d46f]/30 bg-[#a8d46f]/10' : 'border-white/10 bg-white/[0.045]'}`}>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">当前状态</span>
+              <span className={fuelActive ? 'text-[#a8d46f]' : 'text-zinc-400'}>{fuelActive ? '已补给' : '不补给'}</span>
+            </div>
+            <div className="mt-2 text-sm leading-6 text-zinc-200">{summary}</div>
+            <div className="mt-2 font-mono text-xs text-zinc-500">P{round(fuelMacro.p)} C{round(fuelMacro.c)} F{round(fuelMacro.f)} · {Math.round(fuelMacro.kcal)} kcal</div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <button onClick={applyNoFuel} className="rounded-lg border border-white/10 bg-white/[0.04] p-3 text-left transition hover:border-[#ff8068]/50">
+              <div className="font-cjk text-sm font-semibold text-white">一键不补给</div>
+              <div className="mt-1 text-[10px] text-zinc-500">不吃也不喝</div>
+            </button>
+            <button onClick={applyLightFuel} className="rounded-lg border border-[#ffcf69]/30 bg-[#ffcf69]/10 p-3 text-left transition hover:-translate-y-0.5">
+              <div className="font-cjk text-sm font-semibold text-white">轻补给</div>
+              <div className="mt-1 text-[10px] text-zinc-500">香蕉 + 番茄汁</div>
+            </button>
+            <button onClick={applyPineappleFuel} className="rounded-lg border border-[#a8d46f]/30 bg-[#a8d46f]/10 p-3 text-left transition hover:-translate-y-0.5">
+              <div className="font-cjk text-sm font-semibold text-white">菠萝盒</div>
+              <div className="mt-1 text-[10px] text-zinc-500">240g + 番茄汁</div>
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-5">
+            <OptionBlock title="吃什么">
+              <div className="grid gap-2 sm:grid-cols-2">
+                {Object.entries(PRE_ITEMS).map(([key, item]) => (
+                  <StepperRow
+                    key={key}
+                    label={item.label}
+                    meta={`每${item.step}${item.unit} · ${Math.round(macroKcal(scaleMacro(item, item.step)))} kcal`}
+                    value={pre[key] || 0}
+                    unit={item.unit}
+                    step={item.step}
+                    max={item.max}
+                    onChange={(value) => setMapQty(setPre, key, value, item.max)}
+                  />
+                ))}
+              </div>
+            </OptionBlock>
+
+            <OptionBlock title="喝什么">
+              <div className="grid grid-cols-3 gap-2">
+                {Object.entries(DRINKS).map(([key, item]) => (
+                  <OptionCard key={key} active={drinkKey === key} onClick={() => chooseDrink(key)} title={item.label} meta={item.sub} tone="green" />
+                ))}
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {[200, 400, 600].map((value) => (
+                  <Chip key={value} active={drinkMl === value} onClick={() => setDrinkMl(value)}>{value}ml</Chip>
+                ))}
+              </div>
+              <div className="mt-3">
+                <TargetInput label="饮料" unit="ml" value={drinkMl} onChange={(value) => setDrinkMl(clamp(value, 0, 2000))} />
+              </div>
+            </OptionBlock>
+          </div>
+        </div>
+      </aside>
+    </div>
   );
 }
 
