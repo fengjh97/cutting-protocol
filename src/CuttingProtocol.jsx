@@ -1,2119 +1,1467 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import * as THREE from 'three';
+import {
+  Activity,
+  Apple,
+  CalendarDays,
+  Camera,
+  CheckCircle2,
+  ChevronDown,
+  ClipboardList,
+  Download,
+  Dumbbell,
+  Flame,
+  Gauge,
+  Goal,
+  Leaf,
+  Minus,
+  Plus,
+  RotateCcw,
+  Settings2,
+  ShoppingBasket,
+  Sparkles,
+  Utensils,
+  X,
+  Zap,
+} from 'lucide-react';
 
-// ============ 食材营养数据 (每基础单位) ============
-const FOODS = {
-  beef:    { p: 0.19,  c: 0,    f: 0.09,  unit: 'g',   label: '牛肉切り落とし(生)' },
-  pasta:   { p: 0.12,  c: 0.71, f: 0.015, unit: 'g',   label: '干意面' },
-  sauce:   { p: 0.9,   c: 1.5,  f: 10,    unit: '包',  label: 'ペペロンチーノ酱' },
-  banana:  { p: 1,     c: 27,   f: 0.25,  unit: '根',  label: '香蕉(中)' },
-  nissin:  { p: 6.7,   c: 55,   f: 4.9,   unit: '包',  label: '日清非油炸泡面' },
-  pho:     { p: 4,     c: 43,   f: 2,     unit: '包',  label: '越南米粉(60g)' },
-  oikos:   { p: 12,    c: 5,    f: 0,     unit: '個',  label: 'オイコス砂糖不使用' },
-};
-
-// ============ 训练前食材(用于动态计算)============
-const PRE_ITEMS = {
-  chicken: { p: 22, c: 1, f: 2, label: '速食鸡胸', unit: '块' },
-  egg:     { p: 6, c: 0.5, f: 5, label: '全蛋', unit: '个' },
-  banana:  { p: 1, c: 27, f: 0.25, label: '香蕉', unit: '根' },
-  // 超市カットパイン:每 1g(成分表 100g ≈ 54kcal/P0.6/C13.7/F0.1,钾150mg)
-  pineapple: { p: 0.006, c: 0.13, f: 0.001, label: '切块菠萝', unit: 'g' },
-};
-// ============ 高钾蔬菜/番茄汁(每 200ml;用来对冲晚餐高钠)============
-const DRINKS = {
-  tomato: { label: 'カゴメ トマトジュース(無塩)', sub: 'No-salt tomato', kcal: 39, p: 1.8, c: 7.1, k: 600, na: 5,  note: '🥇低卡高钾,糖最低' },
-  yasai1: { label: 'カゴメ 野菜一日これ一本',     sub: 'Veg juice 100%', kcal: 75, p: 3.0, c: 14.5, k: 740, na: 80, note: '钾略高+蛋白3g,糖高' },
-  itoen:  { label: '伊藤園 1日分の野菜',          sub: 'Veg juice 100%', kcal: 75, p: 1.5, c: 15.0, k: 730, na: 40, note: '钾730,糖偏高' },
-  itoenK: { label: '伊藤園 栄養強化型',           sub: 'Fortified',      kcal: 72, p: 1.5, c: 13.0, k: 646, na: 5,  note: '铁/VC强化,纤维多' },
-};
+const asset = (name) => `${import.meta.env.BASE_URL}assets/${name}`;
+const generated = (name) => asset(`generated/${name}`);
 
 const DEFAULT_TARGETS = { p: 140, c: 225, f: 60, kcal: 2000 };
 const DEFAULT_TDEE = 2900;
-// 晚餐蛋白下限:晚餐把全天蛋白补到这个数(白天碳水为主,蛋白大头放晚上)
-const DINNER_PROTEIN_FLOOR = 135;
+const PROTEIN_FLOOR = 135;
 
-// ============ 午餐设计 · 蛋白源 ============
-const LUNCH_PROTEINS = {
-  chicken: {
-    label: '速食小鸡胸',
-    sub: 'READY-EAT CHICKEN',
-    tag: 'POULTRY · LEAN',
-    p: 0.22, c: 0.01, f: 0.02,
-    perPiece: 100,
-    pieceUnit: '块',
-    pieceUnitEn: 'PCS',
-    note: '低脂高蛋白 · 最经济',
-  },
-  salmon: {
-    label: '三文鱼(空气炸锅)',
-    sub: 'AIR-FRIED SALMON',
-    tag: 'FISH · OMEGA-3',
-    p: 0.20, c: 0, f: 0.13,
-    perPiece: null,
-    pieceUnit: 'g',
-    pieceUnitEn: 'GRAM',
-    note: '高脂高 Ω-3 · 饱和脂低',
-  },
-  beef: {
-    label: '牛肉 切り落とし(水煮)',
-    sub: 'BOILED BEEF',
-    tag: 'RED MEAT · IRON',
-    p: 0.19, c: 0, f: 0.09,
-    perPiece: null,
-    pieceUnit: 'g',
-    pieceUnitEn: 'GRAM',
-    note: '高铁高锌 · 中等脂肪',
-  },
-  oikos: {
-    label: 'オイコス(高蛋白酸奶)',
-    sub: 'OIKOS HI-PROTEIN',
-    tag: 'DAIRY · HI-PROTEIN',
-    p: 0.106, c: 0.044, f: 0,
-    perPiece: 113,
-    pieceUnit: '個',
-    pieceUnitEn: 'PCS',
-    note: '高蛋白零脂 · 当主蛋白',
-  },
-};
-
-// ============ 午餐设计 · 碳水源 ============
-const LUNCH_CARBS = {
-  rice: {
-    label: '米饭(熟)',
-    sub: 'COOKED RICE',
-    p: 0.026, c: 0.28, f: 0.003,
-    isDiscrete: false,
-  },
-  pho: {
-    label: '越南米粉(60g 包)',
-    sub: 'VIETNAMESE PHO PACK',
-    p: 4, c: 43, f: 2,
-    perPack: 60,
-    isDiscrete: true,
-  },
+const CARB_PLANS = {
   pasta: {
-    label: '干意面',
-    sub: 'DRY PASTA',
-    p: 0.12, c: 0.71, f: 0.015,
-    isDiscrete: false,
+    name: '意面 · Garlic oil',
+    short: '意面',
+    sub: '力量日最爽',
+    unit: 'g',
+    step: 10,
+    perUnit: { p: 0.12, c: 0.71, f: 0.015 },
+    kcalUnit: 3.55,
+    color: '#ffb55c',
   },
-  sweet: {
-    label: '烤红薯(熟)',
-    sub: 'ROASTED SWEET POTATO',
-    p: 0.02, c: 0.20, f: 0.001,
-    isDiscrete: false,
+  soba: {
+    name: '荞麦面 · Soba',
+    short: '荞麦',
+    sub: '清爽低负担',
+    unit: 'g',
+    step: 10,
+    perUnit: { p: 0.14, c: 0.66, f: 0.023 },
+    kcalUnit: 3.44,
+    color: '#a8d46f',
   },
   nissin: {
-    label: '日清非油炸面',
-    sub: 'NISSIN NON-FRIED',
-    p: 6.7, c: 55, f: 4.9,
-    perPack: 88,
-    isDiscrete: true,
-  },
-};
-
-function designLunch(targetKcal, proteinKey, carbKey) {
-  const prot = LUNCH_PROTEINS[proteinKey];
-  const carb = LUNCH_CARBS[carbKey];
-
-  // 目标蛋白:午餐偏碳水,蛋白只占约 22% 热量(碳水占大头),蛋白大头留给晚餐
-  // 800 kcal → 约 44 g 蛋白; 600 → 33 g; 1000 → 55 g
-  const targetP = Math.max(25, targetKcal * 0.22 / 4);
-
-  // 蛋白源克数
-  let protGrams = targetP / prot.p;
-  if (prot.perPiece) {
-    protGrams = Math.max(prot.perPiece, Math.round(protGrams / prot.perPiece) * prot.perPiece);
-  } else {
-    protGrams = Math.max(50, Math.round(protGrams / 10) * 10);
-  }
-  const protP = protGrams * prot.p;
-  const protC = protGrams * prot.c;
-  const protF = protGrams * prot.f;
-  const protKcal = protP * 4 + protC * 4 + protF * 9;
-
-  // 碳水源:剩余 kcal
-  const remainingKcal = Math.max(0, targetKcal - protKcal);
-  let carbGrams = 0, carbPacks = 0;
-  let carbP = 0, carbC = 0, carbF = 0;
-
-  if (carb.isDiscrete) {
-    const kcalPerPack = carb.p * 4 + carb.c * 4 + carb.f * 9;
-    carbPacks = Math.max(0, Math.round(remainingKcal / kcalPerPack));
-    carbGrams = carbPacks * carb.perPack;
-    carbP = carbPacks * carb.p;
-    carbC = carbPacks * carb.c;
-    carbF = carbPacks * carb.f;
-  } else {
-    const kcalPerG = carb.p * 4 + carb.c * 4 + carb.f * 9;
-    if (kcalPerG > 0) {
-      carbGrams = Math.max(0, Math.round((remainingKcal / kcalPerG) / 10) * 10);
-    }
-    carbP = carbGrams * carb.p;
-    carbC = carbGrams * carb.c;
-    carbF = carbGrams * carb.f;
-  }
-
-  const total = {
-    p: protP + carbP,
-    c: protC + carbC,
-    f: protF + carbF,
-  };
-  total.kcal = total.p * 4 + total.c * 4 + total.f * 9;
-
-  return {
-    protein: { key: proteinKey, grams: protGrams, ...prot },
-    carb: { key: carbKey, grams: carbGrams, packs: carbPacks, ...carb },
-    total,
-  };
-}
-
-// ============ 午餐「记一下」· 实际吃了什么(自己数量,自动合计)============
-// kind:'count' 按个/包/块数(step 1);'gram' 按克(step 50)。p/c/f = 每"单位"宏量
-const TALLY_ITEMS = {
-  chicken: { label: '速食鸡胸',       unit: '块', p: 22,    c: 1,    f: 2,     step: 1,  max: 10,   kind: 'count' },
-  egg:     { label: '全蛋',           unit: '个', p: 6,     c: 0.5,  f: 5,     step: 1,  max: 10,   kind: 'count' },
-  oikos:   { label: 'オイコス',       unit: '個', p: 12,    c: 5,    f: 0,     step: 1,  max: 6,    kind: 'count' },
-  onigiri: { label: '饭团 おにぎり',  unit: '个', p: 3,     c: 39,   f: 0.5,   step: 1,  max: 6,    kind: 'count' },
-  nissin:  { label: '日清非油炸面',   unit: '包', p: 6.7,   c: 55,   f: 4.9,   step: 1,  max: 4,    kind: 'count' },
-  pho:     { label: '越南米粉(60g)', unit: '包', p: 4,     c: 43,   f: 2,     step: 1,  max: 4,    kind: 'count' },
-  banana:  { label: '香蕉',           unit: '根', p: 1,     c: 27,   f: 0.25,  step: 1,  max: 4,    kind: 'count' },
-  rice:    { label: '米饭(熟)',      unit: 'g',  p: 0.026, c: 0.28, f: 0.003, step: 50, max: 1000, kind: 'gram' },
-  beef:    { label: '牛肉(水煮)',    unit: 'g',  p: 0.19,  c: 0,    f: 0.072, step: 50, max: 600,  kind: 'gram' },
-  salmon:  { label: '三文鱼',         unit: 'g',  p: 0.20,  c: 0,    f: 0.13,  step: 50, max: 500,  kind: 'gram' },
-  sweet:   { label: '烤红薯',         unit: 'g',  p: 0.02,  c: 0.20, f: 0.001, step: 50, max: 600,  kind: 'gram' },
-  pasta:   { label: '干意面',         unit: 'g',  p: 0.12,  c: 0.71, f: 0.015, step: 50, max: 300,  kind: 'gram' },
-  pine:    { label: '切块菠萝',       unit: 'g',  p: 0.006, c: 0.13, f: 0.001, step: 50, max: 500,  kind: 'gram' },
-};
-
-// ============ 三种方案锚点(训练前可调 · 晚餐固定 1 Oikos · 碳水全靠主食)============
-const PLANS = {
-  pasta: {
-    name: '意面 + 酱',
-    tagline: 'PASTA · SAUCE',
-    desc: '慢糖配脂肪,饱腹最强 · 推荐力量训练日',
-    anchors: {
-      600:  { beef: 220, pasta: 210, sauce: 1, banana: 0, nissin: 0, pho: 0, oikos: 1 },
-      800:  { beef: 160, pasta: 180, sauce: 1, banana: 0, nissin: 0, pho: 0, oikos: 1 },
-      1000: { beef: 100, pasta: 150, sauce: 1, banana: 0, nissin: 0, pho: 0, oikos: 1 },
-    },
-  },
-  nissin: {
-    name: '日清 × 2',
-    tagline: 'NISSIN · DOUBLE',
-    desc: '汤面清爽 · 推荐有氧日或想吃面',
-    anchors: {
-      600:  { beef: 260, pasta: 0, sauce: 1, banana: 0, nissin: 2, pho: 0, oikos: 1 },
-      800:  { beef: 180, pasta: 0, sauce: 1, banana: 0, nissin: 2, pho: 0, oikos: 1 },
-      1000: { beef: 110, pasta: 0, sauce: 1, banana: 0, nissin: 2, pho: 0, oikos: 1 },
-    },
+    name: '日清非油炸',
+    short: '日清',
+    sub: '懒人汤面',
+    unit: '包',
+    step: 1,
+    perUnit: { p: 6.7, c: 55, f: 4.9 },
+    kcalUnit: 291,
+    color: '#ff766f',
   },
   pho: {
-    name: '越南米粉 × 2',
-    tagline: 'PHO · DOUBLE',
-    desc: '低脂米粉清淡 · 嘴想换口味',
-    anchors: {
-      600:  { beef: 280, pasta: 0, sauce: 1, banana: 0, nissin: 0, pho: 2, oikos: 1 },
-      800:  { beef: 200, pasta: 0, sauce: 1, banana: 0, nissin: 0, pho: 2, oikos: 1 },
-      1000: { beef: 130, pasta: 0, sauce: 1, banana: 0, nissin: 0, pho: 2, oikos: 1 },
-    },
+    name: '越南米粉',
+    short: '米粉',
+    sub: '低脂换口味',
+    unit: '包',
+    step: 1,
+    perUnit: { p: 4, c: 43, f: 2 },
+    kcalUnit: 210,
+    color: '#7bd6d0',
   },
   bifun: {
     name: '纯干米粉',
-    tagline: 'RICE VERMICELLI · PLAIN',
-    desc: '不加任何料 · 纯碳水几乎零脂 · 按克算',
-  },
-  soba: {
-    name: '荞麦面',
-    tagline: 'SOBA · BUCKWHEAT',
-    desc: '荞麦低GI更健康 · 按克算(干面)',
+    short: '干米粉',
+    sub: '纯碳水补满',
+    unit: 'g',
+    step: 10,
+    perUnit: { p: 0.06, c: 0.79, f: 0.005 },
+    kcalUnit: 3.45,
+    color: '#f7df77',
   },
 };
 
-// ============ 计算逻辑(支持任意 kcal,含外推)============
-function interpolate(kcal, anchors) {
-  // 通用插值/外推函数 (基于 600/800/1000 三个锚点)
-  function lerp(key, discrete = false) {
-    let result;
-    if (kcal <= 800) {
-      // 600-800 段(含 600 以下外推)
-      const slope = (anchors[800][key] - anchors[600][key]) / 200;
-      result = anchors[600][key] + slope * (kcal - 600);
-    } else {
-      // 800-1000 段(含 1000 以上外推)
-      const slope = (anchors[1000][key] - anchors[800][key]) / 200;
-      result = anchors[800][key] + slope * (kcal - 800);
-    }
-    if (discrete) {
-      return Math.max(0, Math.round(result));
-    }
-    // 连续量取整到 10 g
-    return Math.max(0, Math.round(result / 10) * 10);
-  }
-  return {
-    beef:   lerp('beef'),
-    pasta:  lerp('pasta'),
-    sauce:  lerp('sauce',  true),
-    banana: lerp('banana', true),
-    nissin: lerp('nissin', true),
-    pho:    lerp('pho',    true),
-    oikos:  lerp('oikos',  true),
-  };
-}
-
-function estimateLunchMacros(kcal) {
-  return {
-    p: (kcal * 0.31) / 4,
-    c: (kcal * 0.49) / 4,
-    f: (kcal * 0.20) / 9,
-    kcal,
-  };
-}
-
-// 晚餐蛋白源。p/f/c = 每"单位"的宏量;step=取整步长;
-//   牛肉/虾仁 按克(step 10g),鸡胸按整块(step 1 块,每块≈100g/22P/2F/1C)
-// lean=true 的蛋白几乎不带脂肪 → 不靠"多加肉"补脂,改为酱放宽到 2 包
-const DINNER_PROTEINS = {
-  beef:    { label: '牛肉 切り落とし(生)', sub: 'Beef · raw wt',        tag: 'RED MEAT',      p: 0.19,         c: 0, step: 10, unitEN: 'GRAM', logUnit: 'g', lean: false, logName: '牛肉',   note: '带脂肪 · 可自动补脂' },
-  chicken: { label: '速食鸡胸(整块)',     sub: 'Ready-eat · per pack', tag: 'POULTRY · LEAN', p: 22,   f: 2,    c: 1, step: 1,  unitEN: '块',   logUnit: '块', lean: true,  logName: '鸡胸',   note: '每块≈100g/22g蛋白 · 按整块算' },
-  duck:     { label: '合鸭胸(去皮)', sub: 'Skinless · 1份≈100g', tag: 'DUCK · 去皮', p: 21, f: 6,  c: 0.5, step: 1, unitEN: '份', logUnit: '份', lean: false, maxUnits: 4, logName: '合鸭(去皮)', note: '1份≈100g · P21/F6/140kcal · 瘦版' },
-  duckskin: { label: '合鸭胸(带皮)', sub: 'With skin · 1份≈100g', tag: 'DUCK · 带皮', p: 14, f: 29, c: 0.1, step: 1, unitEN: '份', logUnit: '份', lean: false, maxUnits: 3, logName: '合鸭(带皮)', note: '1份≈100g · P14/F29/304kcal · 肥版' },
-  kfc:     { label: 'KFC オリジナルチキン', sub: 'KFC Original · per piece', tag: 'KFC · FAT+PRO', p: 18, f: 14, c: 8, step: 1, unitEN: '块', logUnit: '块', lean: false, logName: 'KFC鸡', note: '1块≈237kcal/P18·F14·C8 · 含盐1.7g/块' },
-  oikos:   { label: 'オイコス(高蛋白酸奶)', sub: 'Oikos · per cup', tag: 'DAIRY · LEAN', p: 12, f: 0, c: 5, step: 1, unitEN: '個', logUnit: '個', lean: true, maxUnits: 8, logName: 'オイコス', note: '1個≈68kcal/P12 · 高蛋白零脂 · 当主蛋白' },
+const PROTEINS = {
+  beef: {
+    label: '牛肉切り落とし',
+    short: '牛肉',
+    tag: 'raw · per g',
+    unit: 'g',
+    step: 10,
+    p: 0.19,
+    c: 0,
+    max: 650,
+    note: '脂肪按包装校准',
+  },
+  chicken: {
+    label: '速食鸡胸',
+    short: '鸡胸',
+    tag: 'per pack',
+    unit: '块',
+    step: 1,
+    p: 22,
+    c: 1,
+    f: 2,
+    max: 6,
+    note: '最稳高蛋白',
+  },
+  duck: {
+    label: '合鸭胸去皮',
+    short: '合鸭',
+    tag: '100g serve',
+    unit: '份',
+    step: 1,
+    p: 21,
+    c: 0.5,
+    f: 6,
+    max: 4,
+    note: '香但不太肥',
+  },
+  kfc: {
+    label: 'KFC 原味鸡',
+    short: 'KFC',
+    tag: 'per piece',
+    unit: '块',
+    step: 1,
+    p: 18,
+    c: 8,
+    f: 14,
+    max: 5,
+    note: '爽，但盐高',
+  },
+  oikos: {
+    label: 'Oikos 高蛋白酸奶',
+    short: 'Oikos',
+    tag: 'per cup',
+    unit: '個',
+    step: 1,
+    p: 12,
+    c: 5,
+    f: 0,
+    max: 8,
+    note: '零脂补蛋白',
+  },
 };
 
-// 脂肪来源(可多选;脂肪缺口在所选来源之间均分,各自取整 + 封顶)
 const FAT_SOURCES = {
-  egg_fried:  { label: '煎蛋',          sub: 'Pan-fried egg',    tag: 'EGG',   f: 7,   p: 6,   c: 0.4, step: 1, unitEN: '個',     logUnit: '個',   logName: '煎蛋',   max: 6 },
-  egg_boiled: { label: '全蛋(水煮)',    sub: 'Boiled egg',       tag: 'EGG',   f: 5,   p: 6,   c: 0.5, step: 1, unitEN: '個',     logUnit: '個',   logName: '全蛋',   max: 8 },
-  sauce:      { label: 'ペペロン酱',     sub: 'Garlic-oil sauce', tag: 'SAUCE', f: 10,  p: 0.9, c: 1.5, step: 1, unitEN: '包',     logUnit: '包',   logName: '酱',     max: 2 },
-  olive:      { label: 'オリーブオイル', sub: 'Olive oil tsp',    tag: 'OIL',   f: 4.5, p: 0,   c: 0,   step: 1, unitEN: '小さじ', logUnit: '小さじ', logName: '橄榄油', max: 6 },
-  nuts:       { label: '素焼きナッツ',   sub: 'Mixed nuts 10g',   tag: 'NUTS',  f: 5,   p: 2,   c: 2,   step: 1, unitEN: '×10g',  logUnit: '×10g', logName: '坚果',   max: 5 },
-  avocado:    { label: 'アボカド',       sub: 'Avocado half',     tag: 'FRUIT', f: 15,  p: 1,   c: 4,   step: 1, unitEN: '半',     logUnit: '半',   logName: '牛油果', max: 2 },
+  egg_fried: { label: '煎蛋', short: '煎蛋', unit: '个', step: 1, p: 6, c: 0.4, f: 7, max: 6 },
+  sauce: { label: 'ペペロン酱', short: '蒜油酱', unit: '包', step: 1, p: 0.9, c: 1.5, f: 10, max: 2 },
+  olive: { label: '橄榄油', short: '橄榄油', unit: '小勺', step: 1, p: 0, c: 0, f: 4.5, max: 6 },
+  nuts: { label: '素焼きナッツ', short: '坚果', unit: '10g', step: 1, p: 2, c: 2, f: 5, max: 5 },
+  avocado: { label: 'アボカド', short: '牛油果', unit: '半个', step: 1, p: 1, c: 4, f: 15, max: 2 },
 };
 
-// ============ 晚餐补充碳水(水果 / 酸奶;日本超市好买,自己选量,自动并入晚餐)============
-// 你选多少就吃多少(固定,不自动增减);主食方案据剩余热量自动缩量来配平。
-// p/c/f = 每"单位"宏量;kind:'count' 按个/根/個(step1),'gram' 按克(step 50)
-const DINNER_CARBS = {
-  banana:    { label: '香蕉',           sub: 'Banana',      unit: '根', p: 1,     c: 27,   f: 0.3,   step: 1,  max: 4,   kind: 'count' },
-  apple:     { label: '苹果',           sub: 'Apple',       unit: '个', p: 0.4,   c: 35,   f: 0.3,   step: 1,  max: 3,   kind: 'count' },
-  kiwi:      { label: '奇异果',         sub: 'Kiwi',        unit: '个', p: 1,     c: 14,   f: 0.2,   step: 1,  max: 4,   kind: 'count' },
-  mikan:     { label: '蜜柑 みかん',    sub: 'Mandarin',    unit: '个', p: 0.5,   c: 9,    f: 0.1,   step: 1,  max: 5,   kind: 'count' },
-  grape:     { label: '葡萄',           sub: 'Grapes',      unit: 'g',  p: 0.004, c: 0.16, f: 0.001, step: 50, max: 400, kind: 'gram' },
-  pineapple: { label: '切块菠萝',       sub: 'Pineapple',   unit: 'g',  p: 0.006, c: 0.13, f: 0.001, step: 50, max: 400, kind: 'gram' },
-  blueberry: { label: '蓝莓',           sub: 'Blueberry',   unit: 'g',  p: 0.007, c: 0.13, f: 0.005, step: 25, max: 200, kind: 'gram' },
-  yogurt:    { label: '无糖酸奶',       sub: 'Plain yogurt',unit: 'g',  p: 0.036, c: 0.049,f: 0.03,  step: 50, max: 400, kind: 'gram' },
+const DINNER_EXTRAS = {
+  banana: { label: '香蕉', unit: '根', step: 1, max: 4, p: 1, c: 27, f: 0.3 },
+  apple: { label: '苹果', unit: '个', step: 1, max: 3, p: 0.4, c: 35, f: 0.3 },
+  kiwi: { label: '奇异果', unit: '个', step: 1, max: 4, p: 1, c: 14, f: 0.2 },
+  pineapple: { label: '切块菠萝', unit: 'g', step: 50, max: 400, p: 0.006, c: 0.13, f: 0.001 },
+  yogurt: { label: '无糖酸奶', unit: 'g', step: 50, max: 400, p: 0.036, c: 0.049, f: 0.03 },
 };
 
-// ============ 放纵餐(娱乐页:日本暴食套餐 · 不算赤字)============
-const CHEAT_PLACES = [
-  // —— バーガー ——
-  { id: 'mcd', name: 'マクドナルド', en: "McDonald's", emoji: '🍔', items: [
-    { name: 'ビッグマック', kcal: 525 }, { name: 'ダブチ', kcal: 457 }, { name: 'てりやき', kcal: 478 }, { name: 'えびフィレオ', kcal: 393 }, { name: 'ポテトL', kcal: 517 }, { name: 'ナゲット15', kcal: 786 }, { name: '倍ビッグマック', kcal: 723 }, { name: 'トリチ', kcal: 657 }, { name: '倍てりやき', kcal: 731 }, { name: '倍チキンフィレオ', kcal: 725 }, { name: '倍えびフィレオ', kcal: 582 }, { name: 'マックフルーリー', kcal: 233 }, { name: '三角チョコパイ黒', kcal: 324 }, { name: 'ホットアップルパイ', kcal: 211 }, { name: 'ソフトツイスト', kcal: 146 }, { name: 'シェイクM', kcal: 367 } ] },
-  { id: 'mos', name: 'モスバーガー', en: 'MOS Burger', emoji: '🍔', items: [
-    { name: 'モスバーガー', kcal: 373 }, { name: 'モスチーズ', kcal: 401 }, { name: 'テリヤキ', kcal: 384 }, { name: 'スパイシーモス', kcal: 372 }, { name: 'とびきりハンバーグ', kcal: 485 }, { name: 'モスチキン', kcal: 269 }, { name: 'オニポテ', kcal: 420 }, { name: 'シェイクL', kcal: 290 } ] },
-  { id: 'lotteria', name: 'ロッテリア', en: 'Lotteria', emoji: '🧀', items: [
-    { name: '絶品チーズ', kcal: 450 }, { name: 'ベーコンチーズ', kcal: 519 }, { name: 'エビバーガー', kcal: 486 }, { name: 'リブサンド', kcal: 520 }, { name: 'ポテトL', kcal: 459 }, { name: 'ふるポテ', kcal: 357 }, { name: 'チーズダッカルビ', kcal: 480 }, { name: 'シェーキ', kcal: 280 } ] },
-  { id: 'bk', name: 'バーガーキング', en: 'Burger King', emoji: '👑', items: [
-    { name: 'ワッパー', kcal: 667 }, { name: 'ワッパーチーズ', kcal: 745 }, { name: 'ダブルワッパー', kcal: 900 }, { name: 'ベーコンワッパー', kcal: 1017 }, { name: 'ポテトL', kcal: 438 }, { name: 'オニオンリング', kcal: 410 }, { name: 'ナゲット9', kcal: 420 }, { name: 'シェイクM', kcal: 360 } ] },
-  { id: 'freshness', name: 'フレッシュネス', en: 'Freshness', emoji: '🥑', items: [
-    { name: 'クラシック', kcal: 429 }, { name: 'アボカドバーガー', kcal: 650 }, { name: 'アボカドチーズ', kcal: 721 }, { name: 'ベーコンエッグ', kcal: 540 }, { name: 'スパムバーガー', kcal: 480 }, { name: 'ポテトL', kcal: 346 }, { name: 'オニオンリング', kcal: 300 } ] },
-  { id: 'kfc', name: 'ケンタッキー', en: 'KFC', emoji: '🍗', items: [
-    { name: 'オリジナルチキン', kcal: 237 }, { name: 'ポテトL', kcal: 420 }, { name: 'ビスケット', kcal: 200 }, { name: 'カーネルクリスピー', kcal: 130 }, { name: 'ナゲット5', kcal: 230 }, { name: 'チキンフィレサンド', kcal: 415 } ] },
-  // —— 牛丼・丼・カツ ——
-  { id: 'yoshinoya', name: '吉野家', en: 'Yoshinoya', emoji: '🍚', items: [
-    { name: '牛丼 並', kcal: 635 }, { name: '牛丼 大盛', kcal: 863 }, { name: '牛丼 特盛', kcal: 1030 }, { name: '牛丼 超特盛', kcal: 1169 }, { name: 'チーズ牛丼 並', kcal: 796 }, { name: '牛カルビ丼', kcal: 850 }, { name: 'から揚げ3個', kcal: 300 } ] },
-  { id: 'sukiya', name: 'すき家', en: 'Sukiya', emoji: '🐄', items: [
-    { name: '牛丼 並', kcal: 733 }, { name: '牛丼 特盛', kcal: 1130 }, { name: '牛丼 メガ', kcal: 1458 }, { name: '3種チーズ牛丼', kcal: 908 }, { name: 'キムチ牛丼 並', kcal: 759 }, { name: 'ねぎ玉牛丼 並', kcal: 858 }, { name: '牛カルビ丼', kcal: 807 } ] },
-  { id: 'matsuya', name: '松屋', en: 'Matsuya', emoji: '🍛', items: [
-    { name: '牛めし 並', kcal: 687 }, { name: '牛めし 大盛', kcal: 887 }, { name: '牛めし 特盛', kcal: 1237 }, { name: 'オリジナルカレー', kcal: 897 }, { name: 'ビーフカレー', kcal: 1015 }, { name: '豚バラ生姜焼定食', kcal: 955 }, { name: 'ロースカツ定食', kcal: 1018 } ] },
-  { id: 'katsuya', name: 'かつや', en: 'Katsuya', emoji: '🍖', items: [
-    { name: 'カツ丼 竹', kcal: 1338 }, { name: 'カツ丼 松', kcal: 1905 }, { name: 'ソースカツ丼', kcal: 1149 }, { name: 'カツカレー 竹', kcal: 1568 }, { name: 'ロースカツ定食', kcal: 1415 }, { name: 'メンチカツ単品', kcal: 310 } ] },
-  { id: 'tenya', name: 'てんや', en: 'Tenya', emoji: '🍤', items: [
-    { name: '天丼', kcal: 734 }, { name: '天丼 大盛', kcal: 965 }, { name: '上天丼', kcal: 714 }, { name: '特上天丼', kcal: 805 }, { name: 'オールスター天丼', kcal: 889 }, { name: '海老天丼', kcal: 683 } ] },
-  { id: 'coco', name: 'CoCo壱番屋', en: 'CoCo Ichi', emoji: '🍛', items: [
-    { name: 'ポークカレー(200g)', kcal: 545 }, { name: 'ポークカレー(300g)', kcal: 701 }, { name: 'ポークカレー(400g)', kcal: 857 }, { name: 'ポークカレー(500g)', kcal: 1013 }, { name: 'ハヤシライス', kcal: 845 }, { name: '+ロースカツ', kcal: 415 }, { name: '+手仕込とんかつ', kcal: 571 }, { name: '+手仕込チキンカツ', kcal: 414 }, { name: '+ハンバーグ2個', kcal: 224 }, { name: '+メンチカツ', kcal: 346 }, { name: '+プチエビフライ', kcal: 88 }, { name: '+イカフライ', kcal: 138 }, { name: '+カニクリコロ2個', kcal: 384 }, { name: '+ソーセージ4本', kcal: 279 }, { name: '+チーズ', kcal: 195 }, { name: '+豚しゃぶ', kcal: 351 }, { name: '+なす6個', kcal: 171 }, { name: '+納豆', kcal: 86 }, { name: '+半熟タマゴ', kcal: 67 }, { name: '+ほうれん草', kcal: 11 } ] },
-  // —— 回転寿司 ——
-  { id: 'sushiro', name: 'スシロー', en: 'Sushiro', emoji: '🍣', items: [
-    { name: 'まぐろ(1皿)', kcal: 78 }, { name: 'サーモン(1皿)', kcal: 95 }, { name: 'はまち(1皿)', kcal: 73 }, { name: 'えび(1皿)', kcal: 73 }, { name: 'うなぎ(1皿)', kcal: 103 }, { name: 'いくら(1皿)', kcal: 118 }, { name: 'ハンバーグ(1皿)', kcal: 137 }, { name: '茶碗蒸し', kcal: 86 }, { name: 'ポテト', kcal: 189 } ] },
-  { id: 'kura', name: 'くら寿司', en: 'Kura', emoji: '🍣', items: [
-    { name: 'まぐろ(1皿)', kcal: 75 }, { name: 'サーモン(1皿)', kcal: 94 }, { name: 'はまち(1皿)', kcal: 80 }, { name: 'えび(1皿)', kcal: 68 }, { name: 'いくら(1皿)', kcal: 110 }, { name: 'うなぎ(1皿)', kcal: 105 }, { name: '茶碗蒸し', kcal: 90 }, { name: '魚介らーめん', kcal: 330 }, { name: 'シャリカレー', kcal: 420 } ] },
-  { id: 'hama', name: 'はま寿司', en: 'Hama', emoji: '🍣', items: [
-    { name: 'まぐろ(1皿)', kcal: 83 }, { name: 'サーモン(1皿)', kcal: 104 }, { name: 'はまち(1皿)', kcal: 85 }, { name: 'えび(1皿)', kcal: 70 }, { name: 'いくら(1皿)', kcal: 105 }, { name: 'うなぎ(1皿)', kcal: 108 }, { name: '茶碗蒸し', kcal: 87 }, { name: 'えび天ロール', kcal: 192 }, { name: 'ラーメン', kcal: 340 } ] },
-  // —— ラーメン・中華・麺 ——
-  { id: 'tenka', name: '天下一品', en: 'Tenkaippin', emoji: '🍜', items: [
-    { name: 'こってりラーメン', kcal: 949 }, { name: 'あっさり', kcal: 490 }, { name: 'こってりMAX', kcal: 1050 }, { name: '半チャーハン', kcal: 450 }, { name: 'チャーハン', kcal: 720 }, { name: '唐揚げ', kcal: 380 }, { name: '餃子', kcal: 290 }, { name: 'こってり替玉', kcal: 280 } ] },
-  { id: 'ichiran', name: '一蘭', en: 'Ichiran', emoji: '🍜', items: [
-    { name: 'とんこつラーメン', kcal: 525 }, { name: '替え玉', kcal: 236 }, { name: '釜だれとんこつ', kcal: 560 }, { name: 'チャーシュー入', kcal: 690 }, { name: '半熟塩ゆで卵', kcal: 90 }, { name: 'ラーメン+替え玉', kcal: 761 } ] },
-  { id: 'jiro', name: 'ラーメン二郎', en: 'Jiro', emoji: '🍜', items: [
-    { name: '小ラーメン', kcal: 1400 }, { name: '大ラーメン', kcal: 2000 }, { name: 'ぶたマシ', kcal: 400 }, { name: 'ニンニクアブラ', kcal: 150 } ] },
-  { id: 'iekei', name: '家系ラーメン', en: 'Iekei', emoji: '🍜', items: [
-    { name: 'ラーメン(並)', kcal: 900 }, { name: 'ライス', kcal: 250 }, { name: '味玉', kcal: 80 }, { name: 'のり', kcal: 30 }, { name: 'ライスおかわり', kcal: 250 } ] },
-  { id: 'ohsho', name: '餃子の王将', en: 'Ohsho', emoji: '🥟', items: [
-    { name: '餃子(6個)', kcal: 346 }, { name: '炒飯', kcal: 631 }, { name: '天津飯', kcal: 796 }, { name: '唐揚げ', kcal: 739 }, { name: '王将ラーメン', kcal: 597 }, { name: 'ソース焼そば', kcal: 387 }, { name: '天津炒飯', kcal: 858 } ] },
-  { id: 'marugame', name: '丸亀製麺', en: 'Marugame', emoji: '🍢', items: [
-    { name: '釜揚げ 並', kcal: 338 }, { name: '釜揚げ 大', kcal: 501 }, { name: '釜揚げ 得', kcal: 663 }, { name: '釜玉 並', kcal: 381 }, { name: '釜玉 大', kcal: 525 }, { name: '釜玉 得', kcal: 669 }, { name: 'ぶっかけ冷 並', kcal: 305 }, { name: 'ぶっかけ温 並', kcal: 301 }, { name: 'ぶっかけ 大', kcal: 445 }, { name: 'ぶっかけ 得', kcal: 588 }, { name: 'かけ 並', kcal: 299 }, { name: 'かけ 大', kcal: 445 }, { name: '釜玉明太 並', kcal: 399 }, { name: 'おろし醤油 並', kcal: 301 }, { name: 'かしわ天', kcal: 143 }, { name: 'えび天', kcal: 110 }, { name: 'いか天', kcal: 136 }, { name: 'ちくわ天', kcal: 164 }, { name: '野菜かき揚げ', kcal: 667 }, { name: '半熟卵天', kcal: 119 }, { name: 'いなり', kcal: 156 }, { name: 'おにぎり', kcal: 154 } ] },
-  { id: 'ringerhut', name: 'リンガーハット', en: 'Ringer Hut', emoji: '🥬', items: [
-    { name: '長崎ちゃんぽん', kcal: 604 }, { name: '野菜たっぷり', kcal: 762 }, { name: '皿うどん', kcal: 708 }, { name: '麺2倍', kcal: 830 }, { name: 'ぎょうざ5個', kcal: 210 }, { name: 'チャーハン', kcal: 560 }, { name: 'とり唐揚げ', kcal: 320 } ] },
-  // —— ピザ・ファミレス ——
-  { id: 'domino', name: 'ドミノ・ピザ', en: "Domino's", emoji: '🍕', items: [
-    { name: 'マルゲリータ(1切)', kcal: 118 }, { name: 'ガーリック(1切)', kcal: 175 }, { name: 'クアトロ(1切)', kcal: 160 }, { name: 'ペパロニ(1切)', kcal: 150 }, { name: 'M丸ごと', kcal: 944 }, { name: 'ポテトS', kcal: 273 }, { name: 'ナゲット5', kcal: 292 } ] },
-  { id: 'pizzahut', name: 'ピザハット', en: 'Pizza Hut', emoji: '🍕', items: [
-    { name: 'マルゲリータ(1切)', kcal: 140 }, { name: 'ペパロニ(1切)', kcal: 160 }, { name: 'てりやき(1切)', kcal: 155 }, { name: 'クアトロ(1切)', kcal: 165 }, { name: 'M丸ごと', kcal: 1120 }, { name: 'フライポテト', kcal: 185 }, { name: 'プレミアムチキン', kcal: 160 } ] },
-  { id: 'saizeriya', name: 'サイゼリヤ', en: 'Saizeriya', emoji: '🍝', items: [
-    { name: 'ミラノ風ドリア', kcal: 521 }, { name: 'ハンバーグ', kcal: 582 }, { name: 'ペペロンチーノ', kcal: 300 }, { name: 'マルゲリータ', kcal: 557 }, { name: '辛味チキン', kcal: 295 }, { name: 'エスカルゴ', kcal: 220 }, { name: 'ミートソース', kcal: 600 } ] },
-  { id: 'gusto', name: 'ガスト', en: 'Gusto', emoji: '🍴', items: [
-    { name: 'チーズINハンバーグ', kcal: 739 }, { name: '山盛りポテト', kcal: 731 }, { name: 'からあげ4個', kcal: 480 }, { name: 'マルゲリータ', kcal: 620 }, { name: '若鶏のグリル', kcal: 628 }, { name: 'ミラノ風ドリア', kcal: 520 }, { name: 'たらこパスタ', kcal: 640 }, { name: 'オムライス', kcal: 700 } ] },
-  // —— カフェ・スイーツ ——
-  { id: 'sbux', name: 'スターバックス', en: 'Starbucks', emoji: '☕', items: [
-    { name: 'フラペチーノV', kcal: 560 }, { name: 'キャラメルフラペ', kcal: 380 }, { name: 'スコーン', kcal: 420 }, { name: 'チーズケーキ', kcal: 380 } ] },
-  { id: 'misdo', name: 'ミスタードーナツ', en: 'Mister Donut', emoji: '🍩', items: [
-    { name: 'ポンデリング', kcal: 219 }, { name: 'オールドファッション', kcal: 293 }, { name: 'フレンチクルーラー', kcal: 156 }, { name: 'エンゼルクリーム', kcal: 201 }, { name: 'チョコファッション', kcal: 330 }, { name: 'ハニーディップ', kcal: 201 }, { name: 'ゴールデンチョコ', kcal: 253 } ] },
-  { id: 'krispy', name: 'クリスピークリーム', en: 'Krispy Kreme', emoji: '🍩', items: [
-    { name: 'オリジナルグレーズド', kcal: 213 }, { name: 'チョコスプリンクル', kcal: 287 }, { name: 'カスタード', kcal: 271 }, { name: 'チョコカスタード', kcal: 291 }, { name: 'ストロベリー', kcal: 252 }, { name: 'オールドファッション', kcal: 340 }, { name: 'クッキー&クリーム', kcal: 332 } ] },
-  { id: 'ice', name: 'アイス', en: 'Ice Cream', emoji: '🍦', items: [
-    { name: 'ハーゲンダッツ バニラ', kcal: 244 }, { name: 'ハーゲンダッツ 抹茶', kcal: 227 }, { name: '爽 バニラ', kcal: 230 }, { name: 'パルム', kcal: 225 }, { name: 'ジャイアントコーン', kcal: 255 }, { name: 'MOW', kcal: 225 }, { name: 'ピノ1箱', kcal: 186 } ] },
-  { id: 'konbini', name: 'コンビニ菓子', en: 'Konbini', emoji: '🍮', items: [
-    { name: 'シュークリーム', kcal: 210 }, { name: 'プリン', kcal: 150 }, { name: 'ポテチ1袋', kcal: 336 }, { name: '板チョコ1枚', kcal: 279 }, { name: 'メロンパン', kcal: 380 }, { name: 'あんまん', kcal: 270 }, { name: '肉まん', kcal: 250 }, { name: 'どら焼き', kcal: 240 } ] },
-  // —— 酒 ——
-  { id: 'sake', name: '酒・おつまみ', en: 'Drinks', emoji: '🍺', items: [
-    { name: 'ビール350ml', kcal: 140 }, { name: 'ビール500ml', kcal: 200 }, { name: 'ハイボール缶', kcal: 160 }, { name: 'チューハイ350', kcal: 179 }, { name: '日本酒1合', kcal: 193 }, { name: 'ワイングラス', kcal: 80 }, { name: '唐揚げ3個', kcal: 280 }, { name: 'フライドポテト', kcal: 300 }, { name: '枝豆', kcal: 80 } ] },
+const TALLY_ITEMS = {
+  chicken: { label: '鸡胸', unit: '块', step: 1, max: 10, p: 22, c: 1, f: 2 },
+  egg: { label: '全蛋', unit: '个', step: 1, max: 10, p: 6, c: 0.5, f: 5 },
+  oikos: { label: 'Oikos', unit: '個', step: 1, max: 6, p: 12, c: 5, f: 0 },
+  onigiri: { label: '饭团', unit: '个', step: 1, max: 6, p: 3, c: 39, f: 0.5 },
+  nissin: { label: '日清面', unit: '包', step: 1, max: 4, p: 6.7, c: 55, f: 4.9 },
+  rice: { label: '米饭', unit: 'g', step: 50, max: 1000, p: 0.026, c: 0.28, f: 0.003 },
+  beef: { label: '牛肉', unit: 'g', step: 50, max: 600, p: 0.19, c: 0, f: 0.072 },
+  pasta: { label: '干意面', unit: 'g', step: 50, max: 300, p: 0.12, c: 0.71, f: 0.015 },
+  banana: { label: '香蕉', unit: '根', step: 1, max: 4, p: 1, c: 27, f: 0.25 },
+};
+
+const PRE_ITEMS = {
+  chicken: { label: '鸡胸', unit: '块', step: 1, max: 5, p: 22, c: 1, f: 2 },
+  eggs: { label: '全蛋', unit: '个', step: 1, max: 6, p: 6, c: 0.5, f: 5 },
+  banana: { label: '香蕉', unit: '根', step: 1, max: 4, p: 1, c: 27, f: 0.25 },
+  pineapple: { label: '菠萝', unit: 'g', step: 50, max: 500, p: 0.006, c: 0.13, f: 0.001 },
+  oikos: { label: 'Oikos', unit: '個', step: 1, max: 5, p: 12, c: 5, f: 0 },
+};
+
+const DRINKS = {
+  tomato: { label: '无盐番茄汁', sub: 'K 600 / 200ml', p: 1.8, c: 7.1, f: 0, kcal: 39, k: 600, na: 5 },
+  yasai: { label: '野菜一日', sub: 'K 740 / 200ml', p: 3, c: 14.5, f: 0, kcal: 75, k: 740, na: 80 },
+  none: { label: '不补钾', sub: '今天省了', p: 0, c: 0, f: 0, kcal: 0, k: 0, na: 0 },
+};
+
+const CHEAT_ITEMS = [
+  { id: 'burger', label: '汉堡 + 薯条', kcal: 980 },
+  { id: 'ramen', label: '拉面 + 饭', kcal: 1200 },
+  { id: 'sushi', label: '回转寿司 12 皿', kcal: 1050 },
+  { id: 'pizza', label: 'Pizza 半张', kcal: 1150 },
+  { id: 'dessert', label: '甜品奶茶', kcal: 620 },
+  { id: 'katsu', label: '炸猪排咖喱', kcal: 1450 },
 ];
 
-function calculate(lunchKcalIn, planKey, lunchOverride, beefFatIn = 9, preWorkout = { p: 22, c: 1, f: 2, kcal: 110 }, oikosIn = 1, dinnerProteinsIn = ['beef'], targetsIn = DEFAULT_TARGETS, fatSourcesIn = ['sauce', 'egg_fried'], dinnerCarbsIn = {}) {
-  // 安全网:用局部常量净化输入(不改写参数本身,避免 iOS 只读报错)
-  const lunchKcal = Number.isFinite(lunchKcalIn) ? Math.max(0, Math.min(5000, lunchKcalIn)) : 0;
-  const beefFatPer100g = Number.isFinite(beefFatIn) ? Math.max(0, Math.min(40, beefFatIn)) : 9;
-  const oikosCount = Number.isFinite(oikosIn) ? Math.max(0, Math.min(10, oikosIn)) : 0;
-  const _ks = (Array.isArray(dinnerProteinsIn) ? dinnerProteinsIn : [dinnerProteinsIn]).filter((k) => DINNER_PROTEINS[k]);
-  const keys = _ks.length ? _ks : ['beef'];
-  const hasBeef = keys.includes('beef');
+const NAV = [
+  { id: 'plan', label: '今日', icon: Utensils },
+  { id: 'detail', label: '明细', icon: Gauge },
+  { id: 'shop', label: '采购', icon: ShoppingBasket },
+  { id: 'cheat', label: '放松', icon: Flame },
+];
 
-  // 目标(可由用户修改):净化兜底,防 NaN
-  const TARGETS = {
-    p: Number.isFinite(targetsIn?.p) ? Math.max(0, Math.min(500, targetsIn.p)) : DEFAULT_TARGETS.p,
-    c: Number.isFinite(targetsIn?.c) ? Math.max(0, Math.min(800, targetsIn.c)) : DEFAULT_TARGETS.c,
-    f: Number.isFinite(targetsIn?.f) ? Math.max(0, Math.min(300, targetsIn.f)) : DEFAULT_TARGETS.f,
-    kcal: Number.isFinite(targetsIn?.kcal) ? Math.max(0, Math.min(8000, targetsIn.kcal)) : DEFAULT_TARGETS.kcal,
-  };
+const emptyMacro = { p: 0, c: 0, f: 0, kcal: 0 };
+const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
+const round = (value, digits = 0) => Number((Number(value) || 0).toFixed(digits));
+const macroKcal = (m) => m.kcal ?? (m.p * 4 + m.c * 4 + m.f * 9);
+const withKcal = (m) => ({ ...m, kcal: macroKcal(m) });
+const addMacros = (...items) => withKcal(items.reduce((sum, item) => ({
+  p: sum.p + (item?.p || 0),
+  c: sum.c + (item?.c || 0),
+  f: sum.f + (item?.f || 0),
+  kcal: sum.kcal + macroKcal(item || emptyMacro),
+}), { ...emptyMacro }));
 
-  const lunch = lunchOverride
-    ? { ...lunchOverride }
-    : estimateLunchMacros(lunchKcal);
-  if (!lunch.kcal) {
-    lunch.kcal = lunch.p * 4 + lunch.c * 4 + lunch.f * 9;
-  }
-
-  const beefFatCooked = beefFatPer100g * 0.80 / 100; // 水煮保留 80%
-
-  // 每种蛋白的每单位宏量(牛肉/虾仁 per g;鸡胸/煎蛋 per 個)
-  const un = (k) => { const d = DINNER_PROTEINS[k]; return { p: d.p, fat: k === 'beef' ? beefFatCooked : (d.f || 0), c: d.c || 0, step: d.step, max: d.maxUnits || Infinity, label: d.label, sub: d.sub, logName: d.logName, logUnit: d.logUnit, unitEN: d.unitEN }; };
-
-  // Oikos 固定项宏量
-  const oikosP = oikosCount * 12;
-  const oikosC = oikosCount * 5;
-
-  // ===== 已吃掉(午餐 + 训练前/加餐/Oikos 已并入 preWorkout)=====
-  const eatenP = lunch.p + preWorkout.p;
-  const eatenF = lunch.f + preWorkout.f;
-  const eatenKcal = lunch.kcal + preWorkout.kcal;
-
-  const mainKeys = keys;  // 蛋白主源(牛肉/虾仁/鸡胸);脂肪由 fatSources 单独补
-
-  // ===== 1. 蛋白:晚餐注重蛋白,主源补到下限(默认135,接近全天目标),多选则均分 =====
-  const protFloor = Math.min(DINNER_PROTEIN_FLOOR, TARGETS.p);
-  const proteinNeed = Math.max(0, protFloor - eatenP);
-  const portions = {};
-  mainKeys.forEach((k) => {
-    const u = un(k);
-    let units = Math.round((proteinNeed / mainKeys.length) / u.p / u.step) * u.step;
-    portions[k] = Math.max(0, Math.min(units, u.max));
+function scaleMacro(item, qty) {
+  return withKcal({
+    p: item.p * qty,
+    c: item.c * qty,
+    f: item.f * qty,
   });
-  if (proteinNeed > 0 && mainKeys.length && mainKeys.every((k) => !portions[k])) portions[mainKeys[0]] = un(mainKeys[0]).step;
-  const mP = () => mainKeys.reduce((s2, k) => s2 + portions[k] * un(k).p, 0);
-  const mF = () => mainKeys.reduce((s2, k) => s2 + portions[k] * un(k).fat, 0);
-  const mC = () => mainKeys.reduce((s2, k) => s2 + portions[k] * un(k).c, 0);
-
-  // ===== 2. 脂肪:在所选脂肪来源之间均分脂肪缺口(各自取整 + 封顶)=====
-  const fatKeys = (Array.isArray(fatSourcesIn) ? fatSourcesIn : [fatSourcesIn]).filter((k) => FAT_SOURCES[k]);
-  const fatGapTotal = Math.max(0, TARGETS.f - (eatenF + mF()));
-  const fatPortions = {};
-  fatKeys.forEach((k) => {
-    const fsx = FAT_SOURCES[k];
-    const units = Math.round((fatGapTotal / fatKeys.length) / fsx.f / fsx.step) * fsx.step;
-    fatPortions[k] = Math.max(0, Math.min(units, fsx.max));
-  });
-  const fatMacro = () => fatKeys.reduce((a, k) => { const fsx = FAT_SOURCES[k]; const u = fatPortions[k] || 0; return { p: a.p + u * fsx.p, c: a.c + u * fsx.c, f: a.f + u * fsx.f }; }, { p: 0, c: 0, f: 0 });
-
-  // ===== 2.5 晚餐补充碳水(水果/酸奶):用户固定选量,先并入,主食据剩余预算配平 =====
-  const dcEntries = Object.entries(dinnerCarbsIn || {}).filter(([k, q]) => DINNER_CARBS[k] && q > 0);
-  const dcMacro = dcEntries.reduce((a, [k, q]) => { const d = DINNER_CARBS[k]; return { p: a.p + d.p * q, c: a.c + d.c * q, f: a.f + d.f * q }; }, { p: 0, c: 0, f: 0 });
-  const dcKcal = dcMacro.p * 4 + dcMacro.c * 4 + dcMacro.f * 9;
-
-  // ===== 3. 碳水:把剩余热量预算全部填进主食(碳水可略超,守目标 kcal 上限)=====
-  const protKcal = () => mP() * 4 + mC() * 4 + mF() * 9;
-  const fatKcal = () => { const m = fatMacro(); return m.p * 4 + m.c * 4 + m.f * 9; };
-  let pasta = 0, nissin = 0, pho = 0, bifun = 0, soba = 0, carbFoodP = 0, carbFoodC = 0, carbFoodF = 0;
-  const setCarb = (budget) => {
-    if (planKey === 'pasta') { pasta = Math.max(0, Math.round(budget / 3.55 / 10) * 10); carbFoodP = pasta * 0.12; carbFoodC = pasta * 0.71; carbFoodF = pasta * 0.015; }
-    else if (planKey === 'nissin') { nissin = Math.max(0, Math.round(budget / 291)); carbFoodP = nissin * 6.7; carbFoodC = nissin * 55; carbFoodF = nissin * 4.9; }
-    else if (planKey === 'pho') { pho = Math.max(0, Math.round(budget / 210)); carbFoodP = pho * 4; carbFoodC = pho * 43; carbFoodF = pho * 2; }
-    else if (planKey === 'bifun') { bifun = Math.max(0, Math.round(budget / 3.45 / 10) * 10); carbFoodP = bifun * 0.06; carbFoodC = bifun * 0.79; carbFoodF = bifun * 0.005; }
-    else if (planKey === 'soba') { soba = Math.max(0, Math.round(budget / 3.44 / 10) * 10); carbFoodP = soba * 0.14; carbFoodC = soba * 0.66; carbFoodF = soba * 0.023; }
-  };
-  setCarb(Math.max(0, TARGETS.kcal - eatenKcal - protKcal() - fatKcal() - dcKcal));
-
-  // 守上限:超了先缩碳水 → 再砍脂肪来源(kcal最大的一份)→ 最后兜底缩主蛋白
-  const dayKcal = () => eatenKcal + protKcal() + fatKcal() + dcKcal + (carbFoodP * 4 + carbFoodC * 4 + carbFoodF * 9);
-  let guard = 0;
-  while (dayKcal() > TARGETS.kcal + 5 && guard < 200) {
-    guard += 1;
-    if (planKey === 'pasta' && pasta > 0) { pasta = Math.max(0, pasta - 10); carbFoodP = pasta * 0.12; carbFoodC = pasta * 0.71; carbFoodF = pasta * 0.015; }
-    else if (planKey === 'nissin' && nissin > 0) { nissin -= 1; carbFoodP = nissin * 6.7; carbFoodC = nissin * 55; carbFoodF = nissin * 4.9; }
-    else if (planKey === 'pho' && pho > 0) { pho -= 1; carbFoodP = pho * 4; carbFoodC = pho * 43; carbFoodF = pho * 2; }
-    else if (planKey === 'bifun' && bifun > 0) { bifun = Math.max(0, bifun - 10); carbFoodP = bifun * 0.06; carbFoodC = bifun * 0.79; carbFoodF = bifun * 0.005; }
-    else if (planKey === 'soba' && soba > 0) { soba = Math.max(0, soba - 10); carbFoodP = soba * 0.14; carbFoodC = soba * 0.66; carbFoodF = soba * 0.023; }
-    else {
-      let bk = null, bv = -1;
-      fatKeys.forEach((k) => { if (fatPortions[k] > 0) { const fsx = FAT_SOURCES[k]; const kc = (fsx.p * 4 + fsx.c * 4 + fsx.f * 9) * fsx.step; if (kc > bv) { bv = kc; bk = k; } } });
-      if (bk) { fatPortions[bk] -= FAT_SOURCES[bk].step; continue; }
-      let mk = null, mv = -1;
-      mainKeys.forEach((k) => { if (portions[k] > 0) { const u = un(k); const kc = (u.p * 4 + u.c * 4 + u.fat * 9) * u.step; if (kc > mv) { mv = kc; mk = k; } } });
-      if (!mk) break; portions[mk] -= un(mk).step;
-    }
-  }
-
-  // ===== 4. 组装:主蛋白 + 脂肪来源 都进 proteinList(菜单/明细/JSON 自动渲染)=====
-  const proteinList = mainKeys.map((k) => { const u = un(k); return { key: k, units: portions[k] || 0, p: u.p, fat: u.fat, c: u.c, label: u.label, sub: u.sub, logName: u.logName, logUnit: u.logUnit, unitEN: u.unitEN }; }).filter((x) => x.units > 0);
-  fatKeys.forEach((k) => { const fsx = FAT_SOURCES[k]; const u = fatPortions[k] || 0; if (u > 0) proteinList.push({ key: 'fat_' + k, units: u, p: fsx.p, fat: fsx.f, c: fsx.c, label: fsx.label, sub: fsx.sub, logName: fsx.logName, logUnit: fsx.logUnit, unitEN: fsx.unitEN }); });
-  // 补充碳水(水果/酸奶)并入晚餐项 → 菜单/明细/JSON 自动渲染 + 计入晚餐宏量
-  dcEntries.forEach(([k, q]) => { const d = DINNER_CARBS[k]; proteinList.push({ key: 'carb_' + k, units: q, p: d.p, fat: d.f, c: d.c, label: d.label, sub: d.sub, logName: d.label, logUnit: d.unit, unitEN: d.unit }); });
-  const plan = { proteins: proteinList, pasta, nissin, pho, bifun, soba, banana: 0, oikos: oikosCount, dinnerCarbs: dcEntries.map(([k, q]) => ({ key: k, units: q })) };
-
-  // ===== 5. 实际晚餐宏量 =====
-  const fm = proteinList.reduce((a, x) => ({ p: a.p + x.units * x.p, c: a.c + x.units * x.c, f: a.f + x.units * x.fat }), { p: 0, c: 0, f: 0 });
-  const dinner = {
-    p: fm.p + carbFoodP + oikosP,
-    c: fm.c + carbFoodC + oikosC,
-    f: fm.f + carbFoodF,
-  };
-  dinner.kcal = dinner.p * 4 + dinner.c * 4 + dinner.f * 9;
-
-  const total = {
-    p: lunch.p + preWorkout.p + dinner.p,
-    c: lunch.c + preWorkout.c + dinner.c,
-    f: lunch.f + preWorkout.f + dinner.f,
-    kcal: lunch.kcal + preWorkout.kcal + dinner.kcal,
-  };
-  return { plan, lunch, dinner, total, beefFatPer100g, preWorkout, oikosKcal: oikosCount * 71, dinnerProteins: keys, fatSources: fatKeys, proteinList };
 }
 
+function roundTo(value, step) {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Math.max(0, Math.round(value / step) * step);
+}
 
-// ============ 素材引用 ============
-const asset = (n) => `${import.meta.env.BASE_URL}assets/${n}`;
-
-// ============ 通用小组件 ============
-const SectionHead = ({ no, zh, en, accent = 'terra' }) => (
-  <div className="flex items-center gap-3.5 mb-6">
-    <span
-      className={`grid place-items-center w-8 h-8 rounded-full text-[11px] font-mono font-medium shrink-0 ${
-        accent === 'sage' ? 'bg-sage/15 text-sagedeep' : 'bg-terra/15 text-terradeep'
-      }`}
-    >
-      {no}
-    </span>
-    <div className="leading-tight">
-      <h2 className="font-display text-xl text-ink" style={{ fontWeight: 500 }}>{zh}</h2>
-      {en && <div className="text-[10px] font-mono uppercase tracking-[0.22em] text-inkfaint mt-0.5">{en}</div>}
-    </div>
-  </div>
-);
-
-const Card = ({ className = '', children }) => (
-  <div className={`rounded-3xl bg-card border border-line shadow-warm ${className}`}>{children}</div>
-);
-
-// 加减步进器(训练前加餐 / Oikos 共用)
-const Stepper = ({ zh, en, value, set, max = 5, step = 1, unit, accent = 'terra' }) => {
-  const ring = accent === 'honey' ? 'hover:border-honey hover:text-honey' : 'hover:border-terra hover:text-terra';
-  return (
-    <div className="flex-1 min-w-[120px]">
-      <div className="text-[10px] font-mono tracking-[0.18em] uppercase text-inkfaint mb-2.5">{zh} / {en}</div>
-      <div className="flex items-center gap-2.5">
-        <button
-          onClick={() => set(Math.max(0, value - step))}
-          aria-label={`减少${zh}`}
-          className={`w-9 h-9 grid place-items-center rounded-full border border-line text-inksoft bg-card transition-all active:scale-90 ${ring}`}
-        >−</button>
-        <span className={`font-display text-center text-ink tnum ${step > 1 ? 'text-2xl w-14' : 'text-3xl w-9'}`} style={{ fontWeight: 400 }}>
-          {value}{unit && <span className="text-[10px] font-mono text-inkfaint ml-0.5">{unit}</span>}
-        </span>
-        <button
-          onClick={() => set(Math.min(max, value + step))}
-          aria-label={`增加${zh}`}
-          className={`w-9 h-9 grid place-items-center rounded-full border border-line text-inksoft bg-card transition-all active:scale-90 ${ring}`}
-        >+</button>
-      </div>
-    </div>
-  );
-};
-
-const STATUS = {
-  ok:    { bar: '#7E8C56', text: '#5F6B3E' },
-  under: { bar: '#E0A23D', text: '#B07B16' },
-  over:  { bar: '#D2683F', text: '#B14E2A' },
-};
-
-const MacroBar = ({ label, en, value, target, unit = 'g' }) => {
-  const pct = Math.min((value / target) * 100, 130);
-  const diff = value - target;
-  const status = Math.abs(diff) <= target * 0.05 ? 'ok' : diff < 0 ? 'under' : 'over';
-  const c = STATUS[status];
-  return (
-    <div className="mb-6 last:mb-0">
-      <div className="flex items-end justify-between mb-2">
-        <div className="flex items-baseline gap-2.5">
-          <span className="text-[11px] font-mono tracking-[0.16em] uppercase text-inksoft">{en}</span>
-          <span className="text-[11px] text-inkfaint">{label} · 目标 {target}{unit}</span>
-        </div>
-        <div className="flex items-baseline gap-2">
-          <span className="font-display text-3xl text-ink tnum" style={{ fontWeight: 400 }}>{Math.round(value)}</span>
-          <span className="text-[11px] text-inkfaint">{unit}</span>
-          <span className="text-[11px] font-mono tnum ml-1" style={{ color: c.text }}>
-            {diff >= 0 ? '+' : ''}{Math.round(diff)}
-          </span>
-        </div>
-      </div>
-      <div className="relative h-2.5 rounded-full bg-paper2 overflow-hidden">
-        <div
-          className="absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out"
-          style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: c.bar }}
-        />
-        {pct > 100 && (
-          <div
-            className="absolute inset-y-0 rounded-r-full"
-            style={{ left: '100%', width: `${Math.min(pct - 100, 30)}%`, backgroundColor: '#D2683F', opacity: 0.55 }}
-          />
-        )}
-      </div>
-    </div>
-  );
-};
-
-const FoodItem = ({ icon, name, sub, qty, unit }) => {
-  if (qty <= 0) return null;
-  return (
-    <div className="flex items-center justify-between gap-4 py-3.5 px-4 rounded-2xl hover:bg-paper/70 transition-colors">
-      <div className="flex items-center gap-3.5 min-w-0">
-        <span className="grid place-items-center w-7 h-7 rounded-full bg-terra/10 text-terradeep text-[10px] font-mono shrink-0">{icon}</span>
-        <div className="min-w-0">
-          <div className="text-[15px] text-ink font-cjk truncate" style={{ fontWeight: 500 }}>{name}</div>
-          {sub && <div className="text-[10px] text-inkfaint font-mono uppercase tracking-wider mt-0.5 truncate">{sub}</div>}
-        </div>
-      </div>
-      <div className="flex items-baseline gap-1.5 shrink-0">
-        <span className="font-display text-3xl text-ink tnum" style={{ fontWeight: 400 }}>{qty}</span>
-        <span className="text-[11px] text-inkfaint font-mono uppercase tracking-wider">{unit}</span>
-      </div>
-    </div>
-  );
-};
-
-const Pill = ({ active, onClick, children, small }) => (
-  <button
-    onClick={onClick}
-    className={`${small ? 'px-3 py-1.5 text-[11px]' : 'px-3.5 py-2 text-xs'} rounded-full font-mono tracking-wider transition-all border ${
-      active
-        ? 'border-terra bg-terra text-card shadow-warm'
-        : 'border-line bg-card text-inksoft hover:border-terra/50 hover:text-ink'
-    }`}
-  >
-    {children}
-  </button>
-);
-
-// ============ 主组件 ============
-export default function CuttingProtocol() {
-  const [lunchKcal, setLunchKcal] = useState(800);
-  const [planKey, setPlanKey] = useState('pasta');
-  const [lunchMode, setLunchMode] = useState('quick');
-  const [lunchProtein, setLunchProtein] = useState('beef');
-  const [lunchCarb, setLunchCarb] = useState('rice');
-  const [tally, setTally] = useState({}); // 「记一下」午餐:{itemKey: 数量}
-  const setTallyQty = (k, v) => setTally((t) => ({ ...t, [k]: Math.max(0, v) }));
-  const [beefFat, setBeefFat] = useState(13);
-  const [dinnerProteins, setDinnerProteins] = useState(['beef']);
-  const [fatSources, setFatSources] = useState(['sauce', 'egg_fried']); // 脂肪来源(多选)
-  const toggleFat = (k) => setFatSources((arr) => arr.includes(k) ? arr.filter((x) => x !== k) : [...arr, k]);
-  const [dinnerCarbs, setDinnerCarbs] = useState({}); // 晚餐补充碳水(水果/酸奶):{key: 数量}
-  const setDinnerCarbQty = (k, v) => setDinnerCarbs((m) => ({ ...m, [k]: Math.max(0, v) }));
-  const toggleProtein = (k) => setDinnerProteins((arr) => arr.includes(k) ? (arr.length > 1 ? arr.filter((x) => x !== k) : arr) : [...arr, k]);
-
-  // 可编辑目标:TDEE + 目标 P/C/F/kcal(存本机)
-  const [targets, setTargets] = useState(() => {
-    try { return { ...DEFAULT_TARGETS, ...JSON.parse(localStorage.getItem('targets') || '{}') }; }
-    catch { return { ...DEFAULT_TARGETS }; }
+function estimateLunch(kcal) {
+  return withKcal({
+    p: (kcal * 0.31) / 4,
+    c: (kcal * 0.49) / 4,
+    f: (kcal * 0.2) / 9,
+    kcal,
   });
-  const [tdee, setTdee] = useState(() => {
-    try { const v = Number(localStorage.getItem('tdee')); return Number.isFinite(v) && v > 0 ? v : DEFAULT_TDEE; }
-    catch { return DEFAULT_TDEE; }
+}
+
+function proteinUnit(key, beefFat) {
+  const protein = PROTEINS[key];
+  return {
+    ...protein,
+    f: key === 'beef' ? (beefFat * 0.8) / 100 : protein.f,
+  };
+}
+
+function useLocalNumber(key, fallback) {
+  const [value, setValue] = useState(() => {
+    const saved = Number(localStorage.getItem(key));
+    return Number.isFinite(saved) && saved > 0 ? saved : fallback;
   });
-  useEffect(() => { try { localStorage.setItem('targets', JSON.stringify(targets)); } catch {} }, [targets]);
-  useEffect(() => { try { localStorage.setItem('tdee', String(tdee)); } catch {} }, [tdee]);
-  const setTarget = (k, v, max) => setTargets((t) => ({ ...t, [k]: Math.max(0, Math.min(max, Number(v) || 0)) }));
-  const [preChicken, setPreChicken] = useState(0);
-  const [preEggs, setPreEggs] = useState(0);
-  const [preBanana, setPreBanana] = useState(0);
-  const [prePine, setPrePine] = useState(0); // 切块菠萝 g(自己称重)
-  const [dinnerOikos, setDinnerOikos] = useState(0);
-  const [drinkKey, setDrinkKey] = useState('tomato'); // 高钾蔬菜/番茄汁(对冲钠)
-  const [drinkMl, setDrinkMl] = useState(400);
-  const [saltG, setSaltG] = useState(6.5);    // 今日食盐(晚上)g
-  const [foodK, setFoodK] = useState(2000);   // 食物钾粗估 mg
-  const [shopDays, setShopDays] = useState(7); // 采购:按几天买
-  const drink = useMemo(() => {
-    const d = DRINKS[drinkKey];
-    if (!d) return { kcal: 0, p: 0, c: 0, k: 0, na: 0 };
-    const sc = (Number(drinkMl) || 0) / 200;
-    return { kcal: Math.round(d.kcal * sc), p: +(d.p * sc).toFixed(1), c: +(d.c * sc).toFixed(1), k: Math.round(d.k * sc), na: Math.round(d.na * sc) };
-  }, [drinkKey, drinkMl]);
-  const naFromSalt = Math.round((Number(saltG) || 0) * 393); // 食盐g → 钠mg
-  const totalNa = naFromSalt + drink.na;
-  const totalK = drink.k + (Number(foodK) || 0);
-  const kBalanced = totalK >= totalNa;
 
-  // 鸡胸/全蛋/香蕉/菠萝/Oikos 都属于"配午餐 · 加餐"已吃掉的部分(不进晚餐处方)
-  const preWorkout = useMemo(() => {
-    const p = preChicken * PRE_ITEMS.chicken.p + preEggs * PRE_ITEMS.egg.p + preBanana * PRE_ITEMS.banana.p + prePine * PRE_ITEMS.pineapple.p + dinnerOikos * 12 + drink.p;
-    const c = preChicken * PRE_ITEMS.chicken.c + preEggs * PRE_ITEMS.egg.c + preBanana * PRE_ITEMS.banana.c + prePine * PRE_ITEMS.pineapple.c + dinnerOikos * 5 + drink.c;
-    const f = preChicken * PRE_ITEMS.chicken.f + preEggs * PRE_ITEMS.egg.f + preBanana * PRE_ITEMS.banana.f + prePine * PRE_ITEMS.pineapple.f;
-    return { p, c, f, kcal: Math.round(p * 4 + c * 4 + f * 9) };
-  }, [preChicken, preEggs, preBanana, prePine, dinnerOikos, drink]);
-
-  const lunchDesign = useMemo(
-    () => designLunch(lunchKcal, lunchProtein, lunchCarb),
-    [lunchKcal, lunchProtein, lunchCarb]
-  );
-
-  // 「记一下」午餐:把所选数量直接合计成宏量(不做任何升级,你吃多少算多少)
-  const lunchTally = useMemo(() => {
-    let p = 0, c = 0, f = 0;
-    Object.entries(tally).forEach(([k, qty]) => {
-      const it = TALLY_ITEMS[k];
-      if (!it || !qty) return;
-      p += it.p * qty; c += it.c * qty; f += it.f * qty;
-    });
-    return { p, c, f, kcal: p * 4 + c * 4 + f * 9 };
-  }, [tally]);
-  // 记账模式下,把合计 kcal 同步给 lunchKcal(让明细/JSON/时间线显示真实总热量)
   useEffect(() => {
-    if (lunchMode === 'tally') setLunchKcal(Math.round(lunchTally.kcal));
-  }, [lunchMode, lunchTally]);
+    localStorage.setItem(key, String(value));
+  }, [key, value]);
 
-  // 零食(成分表识别结果);并入今日固定摄入,晚餐据此回算
-  const [snack, setSnack] = useState(null); // {name,serving,note,confidence,p,c,f,kcal}
-  const effectivePre = useMemo(() => {
-    if (!snack) return preWorkout;
-    return {
-      p: preWorkout.p + snack.p,
-      c: preWorkout.c + snack.c,
-      f: preWorkout.f + snack.f,
-      kcal: preWorkout.kcal + snack.kcal,
-    };
-  }, [preWorkout, snack]);
+  return [value, setValue];
+}
 
-  const result = useMemo(() => {
-    const override = lunchMode === 'designer'
-      ? { p: lunchDesign.total.p, c: lunchDesign.total.c, f: lunchDesign.total.f, kcal: lunchDesign.total.kcal }
-      : lunchMode === 'tally'
-      ? { p: lunchTally.p, c: lunchTally.c, f: lunchTally.f, kcal: lunchTally.kcal }
-      : null;
-    // Oikos 已并入 effectivePre(配午餐/加餐),晚餐里不再放 → 传 0
-    return calculate(lunchKcal, planKey, override, beefFat, effectivePre, 0, dinnerProteins, targets, fatSources, dinnerCarbs);
-  }, [lunchKcal, planKey, lunchMode, lunchDesign, lunchTally, beefFat, effectivePre, dinnerProteins, targets, fatSources, dinnerCarbs]);
+function MacroOrbit3D({ tone = 'warm' }) {
+  const mountRef = useRef(null);
 
-  // 采购:每天用量 × 天数 → 一周参考量(可买的取整)
-  const wkQty = (daily, unit) => {
-    if (!daily || daily <= 0) return null;
-    const total = daily * shopDays;
-    if (unit === 'g') { const g = Math.ceil(total / 50) * 50; return g >= 1000 ? `≈ ${(g / 1000).toFixed(1)}kg` : `≈ ${g}g`; }
-    if (unit === 'ml') { const ml = Math.ceil(total / 100) * 100; return ml >= 1000 ? `≈ ${(ml / 1000).toFixed(1)}L` : `≈ ${ml}ml`; }
-    return `≈ ${Math.ceil(total)}${unit}`;
-  };
-  const plUnits = (key) => { const x = result.proteinList.find((p) => p.key === key); return x ? x.units : 0; };
-  // 蛋白/主食:每个选项的"单日单独用量"(轮着吃也好按各自天数买够)
-  const dailyProtein = (k) => {
-    const d = DINNER_PROTEINS[k];
-    const eatenP = (result.lunch?.p || 0) + (result.preWorkout?.p || 0);
-    const need = Math.max(0, Math.min(DINNER_PROTEIN_FLOOR, targets.p) - eatenP);
-    return Math.max(0, Math.round(need / d.p / d.step) * d.step);
-  };
-  const carbKcalNow = (result.plan.pasta || 0) * 3.55 + (result.plan.nissin || 0) * 291 + (result.plan.pho || 0) * 210 + (result.plan.bifun || 0) * 3.45 + (result.plan.soba || 0) * 3.44;
-  const dailyCarb = (k) => {
-    const b = carbKcalNow > 0 ? carbKcalNow : 500;
-    if (k === 'pasta') return Math.round(b / 3.55 / 10) * 10;
-    if (k === 'bifun') return Math.round(b / 3.45 / 10) * 10;
-    if (k === 'soba') return Math.round(b / 3.44 / 10) * 10;
-    if (k === 'nissin') return Math.max(1, Math.round(b / 291));
-    if (k === 'pho') return Math.max(1, Math.round(b / 210));
-    return 0;
-  };
+  useEffect(() => {
+    const mount = mountRef.current;
+    if (!mount) return undefined;
 
-  const fasted = preChicken === 0 && preEggs === 0 && preBanana === 0 && prePine === 0;
+    const startFallback = () => {
+      const canvas = document.createElement('canvas');
+      canvas.dataset.engine = '2d-fallback';
+      const context = canvas.getContext('2d');
+      mount.appendChild(canvas);
 
-  // 两页翻页:配置(输入+零食) / 晚餐(处方+明细+采购)
-  const PAGES = [
-    { zh: '配餐', en: 'Plan' },
-    { zh: '明细', en: 'Detail' },
-    { zh: '采购', en: 'Shop' },
-    { zh: '放纵', en: 'Cheat' },
-  ];
-  const [page, setPage] = useState(0);
-  const go = (i) => setPage(Math.max(0, Math.min(PAGES.length - 1, i)));
-  useEffect(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, [page]);
-
-  // ===== 零食加餐:拍成分表 → Gemini 识别 → 计入今日并自动调整晚餐 =====
-  const [apiKey, setApiKey] = useState(() => {
-    try { return localStorage.getItem('gemini_key') || ''; } catch { return ''; }
-  });
-  const [keyEditing, setKeyEditing] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [snackErr, setSnackErr] = useState('');
-  const [snackOpen, setSnackOpen] = useState(false); // 加餐抽屉:默认收起,点小球才展开
-  const [cheat, setCheat] = useState({}); // 放纵餐:`${pid}:${i}` -> 份数
-  const addCheat = (k, d) => setCheat((c) => { const n = Math.max(0, (c[k] || 0) + d); const nc = { ...c }; if (n) nc[k] = n; else delete nc[k]; return nc; });
-
-  const saveKey = (k) => {
-    setApiKey(k);
-    try { k ? localStorage.setItem('gemini_key', k) : localStorage.removeItem('gemini_key'); } catch {}
-  };
-
-  const fileToBase64 = (file) => new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(String(r.result).split(',')[1]);
-    r.onerror = rej;
-    r.readAsDataURL(file);
-  });
-
-  const analyzeSnack = async (file) => {
-    if (!file) return;
-    const key = apiKey.trim();
-    if (!key) { setSnackErr('请先填入 Gemini API Key'); setKeyEditing(true); return; }
-    setSnackErr(''); setAnalyzing(true);
-    try {
-      const data = await fileToBase64(file);
-      const body = {
-        contents: [{ parts: [
-          { text: '你是营养师。这是一张零食包装背面的成分表照片(可能是日文 栄養成分表示 或中文)。请提取整个包装(1袋/1个/单份)的营养:热量kcal、蛋白质p、碳水c、脂肪f(单位克,数字)。若标注的是每100g而净重不同,请按净重换算成整袋/整份。name给出中文零食名称猜测,serving说明你按多少量计算,note用一句中文点评它对减脂期是否友好,confidence取 high/medium/low。' },
-          { inline_data: { mime_type: file.type || 'image/jpeg', data } },
-        ] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: 'object',
-            properties: {
-              name: { type: 'string' }, serving: { type: 'string' },
-              kcal: { type: 'number' }, p: { type: 'number' }, c: { type: 'number' }, f: { type: 'number' },
-              confidence: { type: 'string' }, note: { type: 'string' },
-            },
-            required: ['kcal', 'p', 'c', 'f', 'name', 'serving', 'note', 'confidence'],
-          },
-        },
+      const resizeFallback = () => {
+        const { width, height } = mount.getBoundingClientRect();
+        const ratio = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.max(1, Math.floor(width * ratio));
+        canvas.height = Math.max(1, Math.floor(height * ratio));
+        canvas.style.width = `${Math.max(1, width)}px`;
+        canvas.style.height = `${Math.max(1, height)}px`;
+        context.setTransform(ratio, 0, 0, ratio, 0, 0);
       };
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
-      );
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message || `请求失败 (HTTP ${res.status})`);
-      const txt = json?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!txt) throw new Error('未能识别成分表,请换一张更清晰的照片');
-      const o = JSON.parse(txt);
-      const num = (x) => Math.max(0, Math.round((Number(x) || 0) * 10) / 10);
-      setSnack({
-        name: o.name || '零食', serving: o.serving || '', note: o.note || '', confidence: o.confidence || '',
-        p: num(o.p), c: num(o.c), f: num(o.f), kcal: Math.max(0, Math.round(Number(o.kcal) || 0)),
-      });
-    } catch (e) {
-      setSnackErr(e?.message || '识别失败,请重试');
-    } finally {
-      setAnalyzing(false);
-    }
-  };
+      resizeFallback();
+      const observer = new ResizeObserver(resizeFallback);
+      observer.observe(mount);
 
-  const setSnackField = (k, v) => setSnack((s) => s ? { ...s, [k]: Math.max(0, Number(v) || 0) } : s);
-  const setSnackName = (v) => setSnack((s) => s ? { ...s, name: v } : s);
-  const startManualSnack = () => { setSnackErr(''); setSnack({ name: '手动加餐', serving: '手动输入', note: '', confidence: 'manual', p: 0, c: 0, f: 0, kcal: 0 }); };
+      let frameId = 0;
+      const dots = Array.from({ length: 46 }, (_, index) => ({
+        angle: index * 0.72,
+        radius: 70 + (index % 9) * 22,
+        color: ['#ff8068', '#ffcf69', '#a8d46f'][index % 3],
+        size: 2.5 + (index % 5),
+      }));
 
-  // 调整后晚餐一句话菜单
-  const dinnerSummary = useMemo(() => {
-    const p = result.plan;
-    const parts = [];
-    result.proteinList.forEach((pp) => parts.push(`${pp.logName} ${pp.units}${pp.logUnit}`));
-    if (p.pasta > 0) parts.push(`意面 ${p.pasta}g`);
-    if (p.nissin > 0) parts.push(`日清 ${p.nissin}包`);
-    if (p.pho > 0) parts.push(`米粉 ${p.pho}包`);
-    if (p.bifun > 0) parts.push(`纯干米粉 ${p.bifun}g`);
-    if (p.soba > 0) parts.push(`荞麦面 ${p.soba}g`);
-    if ((p.oikos || 0) > 0) parts.push(`Oikos ${p.oikos}个`);
-    const over = result.total.kcal > targets.kcal + 5;
-    return (parts.join(' · ') || '晚餐已砍到最低') + ` ｜ 全天 ${Math.round(result.total.kcal)} kcal` + (over ? `(已超 ${targets.kcal},见晚餐页提示)` : '');
-  }, [result, targets]);
+      const animateFallback = () => {
+        frameId = window.requestAnimationFrame(animateFallback);
+        const { width, height } = canvas.getBoundingClientRect();
+        context.clearRect(0, 0, width, height);
+        const gradient = context.createRadialGradient(width * 0.55, height * 0.28, 0, width * 0.55, height * 0.28, Math.max(width, height) * 0.75);
+        gradient.addColorStop(0, 'rgba(255,207,105,0.18)');
+        gradient.addColorStop(0.45, 'rgba(255,128,104,0.08)');
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, width, height);
+        context.globalCompositeOperation = 'screen';
+        dots.forEach((dot) => {
+          dot.angle += 0.006;
+          const x = width * 0.5 + Math.cos(dot.angle) * dot.radius * (width / 390);
+          const y = height * 0.46 + Math.sin(dot.angle) * dot.radius * 0.52 * (height / 844);
+          context.beginPath();
+          context.fillStyle = dot.color;
+          context.globalAlpha = 0.38;
+          context.arc(x, y, dot.size, 0, Math.PI * 2);
+          context.fill();
+        });
+        context.globalAlpha = 1;
+        context.globalCompositeOperation = 'source-over';
+      };
+      animateFallback();
 
-  // ===== 当天食物清单 → JSON(复制 / 下载)=====
-  const [copied, setCopied] = useState(false);
-  const buildDayJSON = () => {
-    const r0 = (n) => Math.round(n);
-    const items = [];
-    if (preChicken > 0) items.push({ slot: 'pre-workout', name: '速食鸡胸', qty: preChicken, unit: '块', p: preChicken * 22, c: preChicken * 1, f: preChicken * 2, kcal: preChicken * 110 });
-    if (preEggs > 0) items.push({ slot: 'pre-workout', name: '全蛋', qty: preEggs, unit: '个', p: preEggs * 6, c: r0(preEggs * 0.5), f: preEggs * 5, kcal: r0(preEggs * 72) });
-    if (preBanana > 0) items.push({ slot: 'pre-workout', name: '香蕉', qty: preBanana, unit: '根', p: preBanana, c: preBanana * 27, f: r0(preBanana * 0.25), kcal: r0(preBanana * 113) });
-    if (prePine > 0) items.push({ slot: 'snack', name: '切块菠萝(カットパイン)', qty: prePine, unit: 'g', p: r0(prePine * 0.006), c: r0(prePine * 0.13), f: 0, kcal: r0(prePine * 0.55) });
-    if (dinnerOikos > 0) items.push({ slot: 'snack', name: 'オイコス砂糖不使用', qty: dinnerOikos, unit: '个', p: dinnerOikos * 12, c: dinnerOikos * 5, f: 0, kcal: dinnerOikos * 68 });
-    if (drink.kcal > 0) items.push({ slot: 'drink', name: DRINKS[drinkKey].label, qty: drinkMl, unit: 'ml', p: r0(drink.p), c: r0(drink.c), f: 0, kcal: drink.kcal, k_mg: drink.k });
-    if (lunchMode === 'tally') {
-      Object.entries(tally).forEach(([k, qty]) => {
-        const it = TALLY_ITEMS[k];
-        if (!it || !qty) return;
-        items.push({ slot: 'lunch', name: `午餐 · ${it.label}`, qty, unit: it.unit, p: r0(it.p * qty), c: r0(it.c * qty), f: r0(it.f * qty), kcal: r0((it.p * 4 + it.c * 4 + it.f * 9) * qty) });
-      });
-    } else {
-      items.push({ slot: 'lunch', name: lunchMode === 'designer' ? '午餐(自制)' : '食堂午餐', qty: lunchKcal, unit: 'kcal估', p: r0(result.lunch.p), c: r0(result.lunch.c), f: r0(result.lunch.f), kcal: r0(result.lunch.kcal) });
-    }
-    if (snack) items.push({ slot: 'snack', name: snack.name, qty: 1, unit: snack.serving || '份', p: r0(snack.p), c: r0(snack.c), f: r0(snack.f), kcal: r0(snack.kcal) });
-    result.proteinList.forEach((pp) => items.push({ slot: 'dinner', name: pp.logName, qty: pp.units, unit: pp.logUnit, p: r0(pp.units * pp.p), c: r0(pp.units * pp.c), f: r0(pp.units * pp.fat), kcal: r0(pp.units * (pp.p * 4 + pp.c * 4 + pp.fat * 9)) }));
-    if (result.plan.pasta > 0) items.push({ slot: 'dinner', name: '干意面', qty: result.plan.pasta, unit: 'g', p: r0(result.plan.pasta * 0.12), c: r0(result.plan.pasta * 0.71), f: r0(result.plan.pasta * 0.015), kcal: r0(result.plan.pasta * 3.55) });
-    if (result.plan.nissin > 0) items.push({ slot: 'dinner', name: '日清非油炸面', qty: result.plan.nissin, unit: '包', p: r0(result.plan.nissin * 6.7), c: r0(result.plan.nissin * 55), f: r0(result.plan.nissin * 4.9), kcal: r0(result.plan.nissin * 291) });
-    if (result.plan.pho > 0) items.push({ slot: 'dinner', name: '越南米粉', qty: result.plan.pho, unit: '包', p: r0(result.plan.pho * 4), c: r0(result.plan.pho * 43), f: r0(result.plan.pho * 2), kcal: r0(result.plan.pho * 210) });
-    if (result.plan.bifun > 0) items.push({ slot: 'dinner', name: '纯干米粉', qty: result.plan.bifun, unit: 'g', p: r0(result.plan.bifun * 0.06), c: r0(result.plan.bifun * 0.79), f: r0(result.plan.bifun * 0.005), kcal: r0(result.plan.bifun * 3.45) });
-    if (result.plan.soba > 0) items.push({ slot: 'dinner', name: '荞麦面(干)', qty: result.plan.soba, unit: 'g', p: r0(result.plan.soba * 0.14), c: r0(result.plan.soba * 0.66), f: r0(result.plan.soba * 0.023), kcal: r0(result.plan.soba * 3.44) });
-    return {
-      date: new Date().toISOString().slice(0, 10),
-      targets: { ...targets, tdee },
-      config: { lunchKcal, lunchMode, dinnerPlan: planKey, dinnerProteins: result.dinnerProteins, fatSources: result.fatSources, beefFat },
-      electrolyte: { saltG, sodium_mg: totalNa, potassium_mg: totalK, balanced: kBalanced, drink: DRINKS[drinkKey] ? DRINKS[drinkKey].label : null, drinkMl: DRINKS[drinkKey] ? drinkMl : 0 },
-      items,
-      total: { p: r0(result.total.p), c: r0(result.total.c), f: r0(result.total.f), kcal: r0(result.total.kcal) },
+      return () => {
+        window.cancelAnimationFrame(frameId);
+        observer.disconnect();
+        mount.removeChild(canvas);
+      };
     };
+
+    const probe = document.createElement('canvas');
+    let hasWebgl = false;
+    try {
+      hasWebgl = Boolean(probe.getContext('webgl2') || probe.getContext('webgl'));
+    } catch {
+      hasWebgl = false;
+    }
+    if (!hasWebgl) return startFallback();
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    camera.position.set(0, 0, 9);
+
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    } catch {
+      return startFallback();
+    }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setClearColor(0x000000, 0);
+    mount.appendChild(renderer.domElement);
+
+    const group = new THREE.Group();
+    scene.add(group);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+    const keyLight = new THREE.PointLight(0xffbd73, 3.4, 22);
+    keyLight.position.set(4, 2, 6);
+    scene.add(keyLight);
+    const sageLight = new THREE.PointLight(0x94d18a, 2.1, 18);
+    sageLight.position.set(-5, -2, 4);
+    scene.add(sageLight);
+
+    const palette = tone === 'cool'
+      ? [0x83d6ff, 0xa8d46f, 0xffcf69]
+      : [0xff8b71, 0xffcf69, 0xa8d46f];
+
+    const sphereGeo = new THREE.SphereGeometry(0.16, 32, 32);
+    const spheres = palette.flatMap((color, band) => {
+      const material = new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.22,
+        roughness: 0.22,
+        metalness: 0.24,
+      });
+      return Array.from({ length: 9 }, (_, index) => {
+        const mesh = new THREE.Mesh(sphereGeo, material);
+        const angle = (index / 9) * Math.PI * 2 + band * 0.55;
+        const radius = 2.05 + band * 0.68;
+        mesh.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius * 0.48, band * -0.4);
+        mesh.userData = { angle, radius, band, speed: 0.004 + band * 0.0015 };
+        group.add(mesh);
+        return mesh;
+      });
+    });
+
+    [2.05, 2.75, 3.45].forEach((radius, band) => {
+      const curve = new THREE.EllipseCurve(0, 0, radius, radius * 0.48, 0, Math.PI * 2);
+      const points = curve.getPoints(120).map((p) => new THREE.Vector3(p.x, p.y, -0.5 + band * -0.2));
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const material = new THREE.LineBasicMaterial({
+        color: palette[band],
+        transparent: true,
+        opacity: 0.22,
+      });
+      const line = new THREE.LineLoop(geometry, material);
+      line.rotation.z = band * 0.34;
+      group.add(line);
+    });
+
+    const particleCount = 120;
+    const particleGeo = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    for (let i = 0; i < particleCount; i += 1) {
+      const a = i * 1.618;
+      const r = 1.5 + ((i * 37) % 100) / 22;
+      positions[i * 3] = Math.cos(a) * r;
+      positions[i * 3 + 1] = Math.sin(a * 0.9) * r * 0.42;
+      positions[i * 3 + 2] = -2.2 - ((i * 17) % 80) / 32;
+    }
+    particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const particles = new THREE.Points(
+      particleGeo,
+      new THREE.PointsMaterial({
+        color: 0xffe1a3,
+        size: 0.035,
+        transparent: true,
+        opacity: 0.46,
+      }),
+    );
+    scene.add(particles);
+
+    const resize = () => {
+      const { width, height } = mount.getBoundingClientRect();
+      renderer.setSize(Math.max(1, width), Math.max(1, height), false);
+      camera.aspect = Math.max(1, width) / Math.max(1, height);
+      camera.updateProjectionMatrix();
+    };
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(mount);
+
+    let frameId = 0;
+    const animate = () => {
+      frameId = window.requestAnimationFrame(animate);
+      group.rotation.z += 0.0018;
+      group.rotation.y = Math.sin(Date.now() * 0.00035) * 0.18;
+      particles.rotation.z -= 0.0009;
+      spheres.forEach((mesh) => {
+        mesh.userData.angle += mesh.userData.speed;
+        const { angle, radius, band } = mesh.userData;
+        mesh.position.x = Math.cos(angle) * radius;
+        mesh.position.y = Math.sin(angle) * radius * 0.48;
+        mesh.position.z = -0.25 - band * 0.42 + Math.sin(angle * 2) * 0.12;
+      });
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      observer.disconnect();
+      renderer.dispose();
+      sphereGeo.dispose();
+      particleGeo.dispose();
+      mount.removeChild(renderer.domElement);
+    };
+  }, [tone]);
+
+  return <div ref={mountRef} className="pointer-events-none fixed inset-0 -z-10 opacity-70" data-three-orbit />;
+}
+
+export default function CuttingProtocol() {
+  const [tab, setTab] = useState('plan');
+  const [targets, setTargets] = useState(DEFAULT_TARGETS);
+  const [tdee, setTdee] = useLocalNumber('cutting:tdee', DEFAULT_TDEE);
+  const [lunchMode, setLunchMode] = useState('quick');
+  const [lunchKcal, setLunchKcal] = useState(800);
+  const [tally, setTally] = useState({});
+  const [carbPlan, setCarbPlan] = useState('pasta');
+  const [proteinKeys, setProteinKeys] = useState(['beef']);
+  const [fatKeys, setFatKeys] = useState(['sauce', 'egg_fried']);
+  const [extraCarbs, setExtraCarbs] = useState({});
+  const [beefFat, setBeefFat] = useState(13);
+  const [pre, setPre] = useState({});
+  const [drinkKey, setDrinkKey] = useState('tomato');
+  const [drinkMl, setDrinkMl] = useState(400);
+  const [saltG, setSaltG] = useState(6.5);
+  const [foodK, setFoodK] = useState(2000);
+  const [shopDays, setShopDays] = useState(7);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [snackOpen, setSnackOpen] = useState(false);
+  const [snack, setSnack] = useState({ name: '手动加餐', p: 0, c: 0, f: 0, kcal: 0 });
+  const [cheat, setCheat] = useState({});
+
+  const setMapQty = (setter, key, value, max = Infinity) => {
+    setter((current) => {
+      const nextValue = clamp(value, 0, max);
+      const next = { ...current };
+      if (nextValue > 0) next[key] = nextValue;
+      else delete next[key];
+      return next;
+    });
   };
-  const downloadDayJSON = () => {
-    const day = buildDayJSON();
-    const blob = new Blob([JSON.stringify(day, null, 2)], { type: 'application/json' });
+
+  const toggleProtein = (key) => {
+    setProteinKeys((current) => {
+      if (current.includes(key)) return current.length > 1 ? current.filter((x) => x !== key) : current;
+      return [...current, key];
+    });
+  };
+
+  const toggleFat = (key) => {
+    setFatKeys((current) => (current.includes(key) ? current.filter((x) => x !== key) : [...current, key]));
+  };
+
+  const model = useMemo(() => {
+    const tallyMacro = Object.entries(tally).reduce((sum, [key, qty]) => addMacros(sum, scaleMacro(TALLY_ITEMS[key], qty)), emptyMacro);
+    const lunch = lunchMode === 'tally' && tallyMacro.kcal > 0 ? tallyMacro : estimateLunch(lunchKcal);
+
+    const preMacro = Object.entries(pre).reduce((sum, [key, qty]) => addMacros(sum, scaleMacro(PRE_ITEMS[key], qty)), emptyMacro);
+    const drink = DRINKS[drinkKey] || DRINKS.none;
+    const drinkMacro = withKcal(scaleMacro(drink, drinkMl / 200));
+    drinkMacro.kcal = drink.kcal * (drinkMl / 200);
+    const snackMacro = withKcal(snack);
+    const beforeDinner = addMacros(lunch, preMacro, drinkMacro, snackMacro);
+
+    const extraEntries = Object.entries(extraCarbs).filter(([key, qty]) => DINNER_EXTRAS[key] && qty > 0);
+    const extraMacro = extraEntries.reduce((sum, [key, qty]) => addMacros(sum, scaleMacro(DINNER_EXTRAS[key], qty)), emptyMacro);
+    const extraItems = extraEntries.map(([key, qty]) => ({
+      key: `extra-${key}`,
+      name: DINNER_EXTRAS[key].label,
+      qty,
+      unit: DINNER_EXTRAS[key].unit,
+      macro: scaleMacro(DINNER_EXTRAS[key], qty),
+      tone: 'gold',
+    }));
+
+    const proteinNeed = Math.max(0, Math.min(PROTEIN_FLOOR, targets.p) - beforeDinner.p);
+    const proteinItems = proteinKeys.map((key) => {
+      const unit = proteinUnit(key, beefFat);
+      const rawQty = proteinNeed / Math.max(1, proteinKeys.length) / unit.p;
+      const qty = clamp(roundTo(rawQty, unit.step), 0, unit.max);
+      return {
+        key,
+        name: unit.label,
+        short: unit.short,
+        qty,
+        unit: unit.unit,
+        macro: scaleMacro(unit, qty),
+        tone: 'red',
+      };
+    }).filter((item) => item.qty > 0);
+    const proteinMacro = proteinItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
+
+    const fatNeed = Math.max(0, targets.f - beforeDinner.f - extraMacro.f - proteinMacro.f);
+    const activeFatKeys = fatKeys.length ? fatKeys : [];
+    const fatItems = activeFatKeys.map((key) => {
+      const src = FAT_SOURCES[key];
+      const rawQty = fatNeed / Math.max(1, activeFatKeys.length) / src.f;
+      const qty = clamp(roundTo(rawQty, src.step), 0, src.max);
+      return {
+        key: `fat-${key}`,
+        name: src.label,
+        short: src.short,
+        qty,
+        unit: src.unit,
+        macro: scaleMacro(src, qty),
+        tone: 'amber',
+      };
+    }).filter((item) => item.qty > 0);
+    const fatMacro = fatItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
+
+    const usedBeforeCarb = addMacros(beforeDinner, extraMacro, proteinMacro, fatMacro);
+    const remainingKcal = Math.max(0, targets.kcal - usedBeforeCarb.kcal);
+    const carb = CARB_PLANS[carbPlan];
+    const carbQty = clamp(roundTo(remainingKcal / carb.kcalUnit, carb.step), 0, carb.unit === '包' ? 8 : 420);
+    const carbMacro = scaleMacro(carb.perUnit, carbQty);
+    const carbItem = carbQty > 0 ? [{
+      key: `carb-${carbPlan}`,
+      name: carb.name,
+      short: carb.short,
+      qty: carbQty,
+      unit: carb.unit,
+      macro: carbMacro,
+      tone: 'green',
+    }] : [];
+
+    const dinnerItems = [...proteinItems, ...fatItems, ...extraItems, ...carbItem];
+    const dinner = dinnerItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
+    const total = addMacros(beforeDinner, dinner);
+    const deficit = Math.round(tdee - total.kcal);
+    const drinkK = (DRINKS[drinkKey]?.k || 0) * (drinkMl / 200);
+    const drinkNa = (DRINKS[drinkKey]?.na || 0) * (drinkMl / 200);
+    const sodium = saltG * 393 + drinkNa;
+    const potassium = foodK + drinkK;
+
+    const shopping = dinnerItems.map((item) => ({
+      ...item,
+      weeklyQty: round(item.qty * shopDays, item.unit === 'g' ? 0 : 1),
+    }));
+
+    return {
+      lunch,
+      pre: preMacro,
+      drink: drinkMacro,
+      snack: snackMacro,
+      beforeDinner,
+      dinner,
+      dinnerItems,
+      total,
+      deficit,
+      potassium,
+      sodium,
+      shopping,
+      carb,
+    };
+  }, [beefFat, carbPlan, drinkKey, drinkMl, extraCarbs, fatKeys, foodK, lunchKcal, lunchMode, pre, saltG, shopDays, snack, tally, targets, tdee, proteinKeys]);
+
+  const cheatTotal = CHEAT_ITEMS.reduce((sum, item) => sum + (cheat[item.id] || 0) * item.kcal, 0);
+  const cheatSurplus = Math.round(model.total.kcal + cheatTotal - tdee);
+  const snackActive = snack.kcal > 0 || snack.p > 0 || snack.c > 0 || snack.f > 0;
+
+  const resetDefaults = () => {
+    setTargets(DEFAULT_TARGETS);
+    setLunchKcal(800);
+    setTally({});
+    setCarbPlan('pasta');
+    setProteinKeys(['beef']);
+    setFatKeys(['sauce', 'egg_fried']);
+    setExtraCarbs({});
+    setBeefFat(13);
+    setPre({});
+    setDrinkKey('tomato');
+    setDrinkMl(400);
+    setSnack({ name: '手动加餐', p: 0, c: 0, f: 0, kcal: 0 });
+  };
+
+  const downloadJSON = () => {
+    const payload = {
+      date: new Date().toISOString().slice(0, 10),
+      targets,
+      lunch: model.lunch,
+      pre: model.pre,
+      drink: { key: drinkKey, ml: drinkMl, macro: model.drink },
+      snack,
+      dinner: { items: model.dinnerItems, macro: model.dinner },
+      total: model.total,
+      deficit: model.deficit,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `cutting-${day.date}.json`;
-    a.click();
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `cutting-protocol-${payload.date}.json`;
+    link.click();
     URL.revokeObjectURL(url);
   };
-  const copyDayJSON = async () => {
-    const text = JSON.stringify(buildDayJSON(), null, 2);
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      downloadDayJSON();
-    }
-  };
-
-  // 放纵餐派生
-  const cheatItems = [];
-  let cheatTotal = 0;
-  CHEAT_PLACES.forEach((pl) => pl.items.forEach((it, i) => {
-    const n = cheat[`${pl.id}:${i}`] || 0;
-    if (n > 0) { cheatItems.push({ place: pl.name, emoji: pl.emoji, name: it.name, kcal: it.kcal, n }); cheatTotal += it.kcal * n; }
-  }));
-  const cheatBaseKcal = Math.round(result.lunch.kcal + result.preWorkout.kcal); // 午餐 + 加餐(不含晚餐处方)
-  const cheatDayTotal = cheatTotal + cheatBaseKcal;
-  const cheatSurplus = cheatDayTotal - tdee;
-  const cheatFatG = Math.max(0, Math.round(cheatSurplus / 7.7));      // 盈余 kcal / 7700 * 1000 g
-  const cheatWaistCm = Math.max(0, +(cheatFatG / 1000 * 1.5).toFixed(1)); // 娱乐换算
-  const cheatRunMin = Math.round(cheatTotal / 10);                   // MET7 慢跑 ≈10kcal/min@83kg
-  const cheatVerdict = cheatTotal === 0 ? '' : cheatTotal < 1000 ? '小放纵 😋' : cheatTotal < 2000 ? '正经造一顿 🍔' : cheatTotal < 3500 ? '急头白脸 😤' : '明天腰带松一格 🤡';
 
   return (
-    <div className="grain relative min-h-screen text-ink font-sans">
-      <div className="relative z-10 max-w-2xl mx-auto px-5 sm:px-7 py-8 sm:py-12">
+    <div className="min-h-screen overflow-hidden text-zinc-50">
+      <MacroOrbit3D tone={tab === 'cheat' ? 'cool' : 'warm'} />
+      <div className="fixed inset-0 -z-20 bg-[radial-gradient(circle_at_50%_-10%,rgba(255,181,92,0.24),transparent_38%),radial-gradient(circle_at_0%_20%,rgba(122,214,208,0.16),transparent_32%),linear-gradient(135deg,#0d0f10_0%,#17120f_45%,#101615_100%)]" />
+      <div className="fixed inset-0 -z-10 bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.028)_1px,transparent_1px)] bg-[size:48px_48px] opacity-35" />
 
-        {/* ============ 紧凑头部 ============ */}
-        <header className="rise mb-5" style={{ animationDelay: '0ms' }}>
-          <div className="relative overflow-hidden rounded-3xl shadow-warm border border-line">
-            <img
-              src={asset('hero.jpg')}
-              alt="温暖的减脂餐食材平铺"
-              className="w-full h-28 sm:h-32 object-cover object-center"
-              loading="eager"
-            />
-            <div
-              className="absolute inset-0"
-              style={{ background: 'linear-gradient(180deg, rgba(251,243,231,0.05) 0%, rgba(251,243,231,0.5) 55%, rgba(251,243,231,0.95) 100%)' }}
-            />
-            <div className="absolute inset-x-0 bottom-0 px-5 sm:px-6 py-3 flex items-end justify-between">
-              <h1 className="font-display text-4xl sm:text-5xl text-ink leading-none" style={{ fontWeight: 400 }}>
-                晚餐<span className="text-terra">·</span><span style={{ fontStyle: 'italic' }}>处方</span>
-              </h1>
-              <span className="text-[10px] tracking-[0.2em] font-mono text-inksoft mb-1">v2.0 / 16:8 IF</span>
-            </div>
-          </div>
-          <p className="mt-3 text-[10px] sm:text-[11px] font-mono tracking-wider text-inksoft text-center">
-83 kg · 25% BF · TDEE ≈ {tdee} · <span className="text-terradeep">目标 {targets.kcal} kcal</span>{tdee > targets.kcal ? ` · 赤字 ${Math.round(tdee - targets.kcal)}` : ''}
-          </p>
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 pb-28 pt-4 sm:px-6 lg:px-8">
+        <header className="sticky top-3 z-40 flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/35 px-2 py-2 backdrop-blur-2xl sm:gap-3 sm:px-3">
+          <button onClick={() => setTab('plan')} className="flex min-w-0 items-center gap-2 text-left">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-zinc-950">
+              <Sparkles className="h-4 w-4" />
+            </span>
+            <span className="hidden min-w-0 sm:block">
+              <span className="block truncate font-display text-base leading-none">Cutting Lab</span>
+              <span className="mt-1 block truncate text-[10px] uppercase tracking-[0.24em] text-zinc-400">dinner pilot</span>
+            </span>
+          </button>
+          <nav className="ml-auto hidden shrink-0 grid-cols-4 rounded-lg bg-white/7 p-1 lg:grid">
+            <NavButtons tab={tab} setTab={setTab} mode="top" />
+          </nav>
         </header>
 
-        {/* ============ 翻页标签(吸顶)============ */}
-        <nav className="rise sticky top-3 z-20 mb-7" style={{ animationDelay: '60ms' }}>
-          <div className="flex gap-1 p-1 rounded-full bg-card/90 backdrop-blur border border-line shadow-warm">
-            {PAGES.map((pg, i) => (
-              <button
-                key={i}
-                onClick={() => go(i)}
-                className={`flex-1 px-2 py-2 rounded-full transition-all ${
-                  page === i ? 'bg-terra text-card shadow-warm' : 'text-inksoft hover:text-ink'
-                }`}
-              >
-                <span className="font-cjk font-medium text-[13px]">{pg.zh}</span>
-                <span className="hidden sm:inline ml-1.5 text-[10px] font-mono uppercase tracking-wider opacity-70">{pg.en}</span>
-              </button>
-            ))}
-          </div>
-        </nav>
+        <Hero model={model} targets={targets} onSnack={() => setSnackOpen(true)} onDownload={downloadJSON} />
 
-        {/* ============ 页面内容(按 page 切换)============ */}
-        <main key={page} className="min-h-[44vh]">
-
-        {page === 0 && (<>
-        {/* ============ 01 · LUNCH ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '160ms' }}>
-          <SectionHead no="01" zh="中午摄入" en="Lunch Intake" />
-          <Card className="p-5 sm:p-6">
-            {/* Mode Toggle */}
-            <div className="flex p-1 rounded-full bg-paper2 mb-6">
-              {[['quick', '输入 kcal'], ['tally', '记一下'], ['designer', '设计午餐']].map(([k, t]) => (
-                <button
-                  key={k}
-                  onClick={() => setLunchMode(k)}
-                  className={`flex-1 px-2 py-2 rounded-full text-[12px] font-cjk transition-all ${
-                    lunchMode === k ? 'bg-card text-terradeep shadow-warm font-medium' : 'text-inksoft hover:text-ink'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-
-            {lunchMode === 'quick' && (
-              <>
-                <div className="flex items-baseline gap-3 mb-5">
-                  <input
-                    type="number"
-                    value={lunchKcal}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (v === '') { setLunchKcal(0); return; }
-                      const n = Number(v);
-                      setLunchKcal(Number.isFinite(n) ? Math.min(5000, Math.max(0, n)) : 0);
-                    }}
-                    className="bg-transparent border-b-2 border-line focus:border-terra outline-none font-display text-6xl sm:text-7xl text-ink w-44 pb-1 transition-colors tnum"
-                    style={{ fontWeight: 400 }}
-                    step={1}
-                  />
-                  <span className="text-sm font-mono text-inksoft tracking-widest">KCAL</span>
-                </div>
-                <div className="flex gap-2 flex-wrap items-center">
-                  <span className="text-[10px] font-mono text-inkfaint tracking-widest uppercase mr-1">Quick</span>
-                  {[600, 700, 800, 900, 1000].map((v) => (
-                    <Pill key={v} small active={lunchKcal === v} onClick={() => setLunchKcal(v)}>{v}</Pill>
-                  ))}
-                </div>
-                {(lunchKcal < 500 || lunchKcal > 1100) && lunchKcal > 0 && (
-                  <div className="mt-4 text-[11px] font-mono text-honey tracking-wide flex items-start gap-1.5">
-                    <span>⚠</span>
-                    <span>{lunchKcal < 500 ? '中午吃得偏少,晚上配方按外推计算' : '中午吃得偏多,赤字会被压缩,晚上配方按外推计算'}</span>
-                  </div>
-                )}
-              </>
-            )}
-
-            {lunchMode === 'tally' && (
-              <div className="space-y-5">
-                <div className="text-[11px] text-inksoft font-cjk leading-relaxed">
-                  点一点中午<span className="text-terradeep">实际吃了多少</span> —— 块 / 个 / 包直接数,米饭牛肉这些按 50g 一档。下面自动合计,<span className="text-terradeep">不会帮你升级</span>,晚餐据此规划。
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {Object.entries(TALLY_ITEMS).map(([k, it]) => {
-                    const qty = tally[k] || 0;
-                    const active = qty > 0;
-                    const stepKcal = Math.round((it.p * 4 + it.c * 4 + it.f * 9) * it.step);
-                    return (
-                      <div
-                        key={k}
-                        className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
-                          active ? 'border-terra bg-terra/[0.05] shadow-warm' : 'border-line bg-card'
-                        }`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[13px] font-cjk text-ink truncate" style={{ fontWeight: 500 }}>{it.label}</div>
-                          <div className="text-[10px] font-mono text-inkfaint mt-0.5">
-                            {active
-                              ? `${Math.round((it.p * 4 + it.c * 4 + it.f * 9) * qty)}kcal · P${Math.round(it.p * qty)} C${Math.round(it.c * qty)} F${Math.round(it.f * qty)}`
-                              : `每${it.kind === 'gram' ? `${it.step}g` : it.unit} ≈ ${stepKcal}kcal`}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            onClick={() => setTallyQty(k, qty - it.step)}
-                            aria-label={`减少${it.label}`}
-                            className="w-8 h-8 grid place-items-center rounded-full border border-line text-inksoft bg-card transition-all active:scale-90 hover:border-terra hover:text-terra"
-                          >−</button>
-                          <span className="font-display text-xl w-12 text-center text-ink tnum" style={{ fontWeight: 400 }}>
-                            {qty}{it.kind === 'gram' && qty > 0 && <span className="text-[9px] font-mono text-inkfaint ml-0.5">g</span>}
-                          </span>
-                          <button
-                            onClick={() => setTallyQty(k, Math.min(it.max, qty + it.step))}
-                            aria-label={`增加${it.label}`}
-                            className="w-8 h-8 grid place-items-center rounded-full border border-line text-inksoft bg-card transition-all active:scale-90 hover:border-terra hover:text-terra"
-                          >+</button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="rounded-2xl bg-paper border border-line p-5">
-                  <div className="flex items-baseline justify-between mb-3">
-                    <div className="text-[10px] font-mono text-honey tracking-[0.28em]">LUNCH · 记账合计</div>
-                    <div className="text-right">
-                      <span className="font-display text-2xl text-ink tnum" style={{ fontWeight: 400 }}>{Math.round(lunchTally.kcal)}</span>
-                      <span className="text-[10px] text-inkfaint ml-1 font-mono">KCAL</span>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 pt-3 border-t border-linesoft">
-                    {[['蛋白', lunchTally.p], ['碳水', lunchTally.c], ['脂肪', lunchTally.f]].map(([kk, v]) => (
-                      <div key={kk} className="text-center">
-                        <div className="text-[9px] font-mono text-inkfaint tracking-widest">{kk}</div>
-                        <div className="font-mono text-base text-ink mt-0.5 tnum">{Math.round(v)}<span className="text-[10px] text-inkfaint ml-0.5">g</span></div>
-                      </div>
-                    ))}
-                  </div>
-                  {lunchTally.kcal === 0 && (
-                    <div className="mt-3 text-[10px] font-mono text-inkfaint tracking-wide text-center">还没记 · 上面点一点中午吃的</div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {lunchMode === 'designer' && (
-              <div className="space-y-6">
-                <div>
-                  <div className="flex items-baseline gap-3 mb-3">
-                    <span className="text-[10px] font-mono text-inkfaint tracking-[0.22em] uppercase">Target</span>
-                    <input
-                      type="number"
-                      value={lunchKcal}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (v === '') { setLunchKcal(0); return; }
-                        const n = Number(v);
-                        setLunchKcal(Number.isFinite(n) ? Math.min(5000, Math.max(0, n)) : 0);
-                      }}
-                      className="bg-transparent border-b-2 border-line focus:border-terra outline-none font-display text-5xl text-ink w-32 pb-1 transition-colors tnum"
-                      style={{ fontWeight: 400 }}
-                      step={1}
-                    />
-                    <span className="text-xs font-mono text-inksoft tracking-widest">KCAL</span>
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    {[600, 700, 800, 900, 1000].map((v) => (
-                      <Pill key={v} small active={lunchKcal === v} onClick={() => setLunchKcal(v)}>{v}</Pill>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-[10px] font-mono text-inkfaint tracking-[0.22em] uppercase mb-3">Protein Source · 蛋白源</div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    {Object.entries(LUNCH_PROTEINS).map(([key, prot]) => (
-                      <button
-                        key={key}
-                        onClick={() => setLunchProtein(key)}
-                        className={`text-left p-3.5 rounded-2xl border transition-all ${
-                          lunchProtein === key ? 'border-terra bg-terra/[0.06] shadow-warm' : 'border-line bg-card hover:border-terra/40'
-                        }`}
-                      >
-                        <div className="text-[8px] font-mono tracking-[0.22em] text-terradeep mb-1">{prot.tag}</div>
-                        <div className="text-sm text-ink font-cjk mb-1" style={{ fontWeight: 500 }}>{prot.label}</div>
-                        <div className="text-[10px] text-inkfaint">{prot.note}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-[10px] font-mono text-inkfaint tracking-[0.22em] uppercase mb-3">Carb Source · 碳水源</div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    {Object.entries(LUNCH_CARBS).map(([key, carb]) => (
-                      <button
-                        key={key}
-                        onClick={() => setLunchCarb(key)}
-                        className={`text-left p-3 rounded-2xl border transition-all ${
-                          lunchCarb === key ? 'border-terra bg-terra/[0.06] shadow-warm' : 'border-line bg-card hover:border-terra/40'
-                        }`}
-                      >
-                        <div className="text-[11px] text-ink font-cjk" style={{ fontWeight: 500 }}>{carb.label}</div>
-                        <div className="text-[8px] text-inkfaint mt-1 font-mono uppercase">{carb.sub}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl bg-paper border border-line p-5">
-                  <div className="flex items-baseline justify-between mb-4">
-                    <div className="text-[10px] font-mono text-honey tracking-[0.28em]">LUNCH · COMPOSITION</div>
-                    <div className="text-right">
-                      <span className="font-display text-2xl text-ink tnum" style={{ fontWeight: 400 }}>{Math.round(lunchDesign.total.kcal)}</span>
-                      <span className="text-[10px] text-inkfaint ml-1 font-mono">KCAL</span>
-                    </div>
-                  </div>
-                  <div className="flex items-baseline justify-between py-3 border-b border-linesoft">
-                    <div>
-                      <div className="text-[9px] font-mono text-inkfaint tracking-widest mb-0.5">01 · PROTEIN</div>
-                      <div className="text-sm text-ink font-cjk" style={{ fontWeight: 500 }}>{lunchDesign.protein.label}</div>
-                    </div>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="font-display text-3xl text-ink tnum" style={{ fontWeight: 400 }}>
-                        {lunchDesign.protein.perPiece
-                          ? Math.round(lunchDesign.protein.grams / lunchDesign.protein.perPiece)
-                          : lunchDesign.protein.grams}
-                      </span>
-                      <span className="text-[10px] text-inkfaint font-mono uppercase">{lunchDesign.protein.pieceUnitEn}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-baseline justify-between py-3">
-                    <div>
-                      <div className="text-[9px] font-mono text-inkfaint tracking-widest mb-0.5">02 · CARB</div>
-                      <div className="text-sm text-ink font-cjk" style={{ fontWeight: 500 }}>{lunchDesign.carb.label}</div>
-                    </div>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="font-display text-3xl text-ink tnum" style={{ fontWeight: 400 }}>
-                        {lunchDesign.carb.isDiscrete ? lunchDesign.carb.packs : lunchDesign.carb.grams}
-                      </span>
-                      <span className="text-[10px] text-inkfaint font-mono uppercase">{lunchDesign.carb.isDiscrete ? 'PACK' : 'GRAM'}</span>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-linesoft">
-                    {[['蛋白', lunchDesign.total.p], ['碳水', lunchDesign.total.c], ['脂肪', lunchDesign.total.f]].map(([k, v]) => (
-                      <div key={k} className="text-center">
-                        <div className="text-[9px] font-mono text-inkfaint tracking-widest">{k}</div>
-                        <div className="font-mono text-base text-ink mt-0.5 tnum">{Math.round(v)}<span className="text-[10px] text-inkfaint ml-0.5">g</span></div>
-                      </div>
-                    ))}
-                  </div>
-                  {lunchProtein === 'salmon' && (
-                    <div className="mt-3 text-[10px] font-mono text-honey tracking-wide leading-relaxed">
-                      ⓘ 三文鱼天然高脂(13g/100g),晚上脂肪空间会被挤压,推荐选 <span className="text-terradeep">日清</span> 或 <span className="text-terradeep">米粉</span> 方案。
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </Card>
-        </section>
-
-        {/* ============ 02 · PLAN SELECTOR ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '240ms' }}>
-          <SectionHead no="02" zh="选择方案" en="Choose Plan" />
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {Object.entries(PLANS).map(([key, plan]) => (
-              <button
-                key={key}
-                onClick={() => setPlanKey(key)}
-                className={`text-left p-4 rounded-2xl border transition-all ${
-                  planKey === key ? 'border-terra bg-terra/[0.06] shadow-warm -translate-y-0.5' : 'border-line bg-card hover:border-terra/40 hover:-translate-y-0.5'
-                }`}
-              >
-                <div className="text-[9px] font-mono tracking-[0.22em] text-terradeep mb-1.5">{plan.tagline}</div>
-                <div className="font-display text-lg text-ink mb-1.5" style={{ fontWeight: 500 }}>{plan.name}</div>
-                <div className="text-[11px] text-inksoft leading-relaxed">{plan.desc}</div>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* ============ 03 · DINNER PROTEIN ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '300ms' }}>
-          <SectionHead no="03" zh="晚餐蛋白源" en="Dinner Protein" />
-          <div className="text-[11px] text-inksoft mb-3 font-cjk">可多选,蛋白缺口会均分到所选的几种(再点一下取消)。</div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {Object.entries(DINNER_PROTEINS).map(([key, prot]) => (
-              <button
-                key={key}
-                onClick={() => toggleProtein(key)}
-                className={`text-left p-4 rounded-2xl border transition-all ${
-                  dinnerProteins.includes(key) ? 'border-terra bg-terra/[0.06] shadow-warm -translate-y-0.5' : 'border-line bg-card hover:border-terra/40 hover:-translate-y-0.5'
-                }`}
-              >
-                <div className="text-[9px] font-mono tracking-[0.22em] text-terradeep mb-1.5">{prot.tag}</div>
-                <div className="font-display text-lg text-ink mb-1.5" style={{ fontWeight: 500 }}>{prot.label}</div>
-                <div className="text-[11px] text-inksoft leading-relaxed">{prot.note}</div>
-              </button>
-            ))}
-          </div>
-          {dinnerProteins.includes('chicken') && (
-            <div className="mt-3 text-[11px] font-mono text-honey tracking-wide leading-relaxed flex items-start gap-1.5">
-              <span>ⓘ</span>
-              <span>按<span className="text-terradeep">整块</span>算(每块速食鸡胸≈100g/22g蛋白),不是按克。鸡胸低脂,脂肪靠下方<span className="text-terradeep">「脂肪来源」</span>补。</span>
-            </div>
-          )}
-          {(dinnerProteins.includes('duck') || dinnerProteins.includes('duckskin')) && (
-            <div className="mt-3 text-[11px] font-mono text-honey tracking-wide leading-relaxed flex items-start gap-1.5">
-              <span>ⓘ</span>
-              <span>合鴨<span className="text-terradeep">去皮 / 带皮</span>两版,按<span className="text-terradeep">份</span>算(1份≈100g,一包多≈200g=2份),可单选也可一起叠(各一份)。<span className="text-terradeep">去皮</span>P21/F6/140kcal(瘦,脂肪靠下方「脂肪来源」补);<span className="text-terradeep">带皮</span>P14/F29/304kcal(肥,自带脂肪多)。买到看包装校准。</span>
-            </div>
-          )}
-          {dinnerProteins.includes('kfc') && (
-            <div className="mt-3 text-[11px] font-mono text-honey tracking-wide leading-relaxed flex items-start gap-1.5">
-              <span>ⓘ</span>
-              <span>KFC 原味鸡<span className="text-terradeep">按块(ピース)</span>算,1块≈237kcal(P18/F14/C8,部位182~290kcal有浮动)。自带脂肪+炸衣碳水,<span className="text-terradeep">每块含盐 1.7g</span>——记得在上面「电解质」把今日食盐加上去、多补钾。</span>
-            </div>
-          )}
-        </section>
-
-        {/* ============ 03.5 · FAT SOURCE ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '330ms' }}>
-          <SectionHead no="🥑" zh="脂肪来源" en="Fat Source" accent="honey" />
-          <div className="text-[11px] text-inksoft mb-3 font-cjk">蛋白补够、碳水堆满后,剩下的<span className="text-terradeep">脂肪缺口</span>由这里选的来源补齐(可多选,均分;再点取消)。</div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {Object.entries(FAT_SOURCES).map(([key, fs]) => (
-              <button
-                key={key}
-                onClick={() => toggleFat(key)}
-                className={`text-left p-3 rounded-2xl border transition-all ${
-                  fatSources.includes(key) ? 'border-honey bg-honey/[0.08] shadow-warm -translate-y-0.5' : 'border-line bg-card hover:border-honey/50 hover:-translate-y-0.5'
-                }`}
-              >
-                <div className="text-[8px] font-mono tracking-[0.2em] text-honey mb-1">{fs.tag}</div>
-                <div className="text-[13px] font-cjk text-ink" style={{ fontWeight: 600 }}>{fs.label}</div>
-                <div className="text-[10px] font-mono text-inkfaint mt-0.5">{fs.f}g脂/{fs.unitEN}</div>
-              </button>
-            ))}
-          </div>
-          {fatSources.length === 0 && (
-            <div className="mt-3 text-[11px] font-mono text-terradeep tracking-wide">⚠ 没选脂肪来源,脂肪可能偏低(只剩主蛋白自带的)。</div>
-          )}
-        </section>
-
-        {/* ============ 03.6 · DINNER FRUIT / YOGURT ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '345ms' }}>
-          <SectionHead no="🍓" zh="补充碳水 · 水果/酸奶" en="Fruit / Yogurt" accent="honey" />
-          <div className="text-[11px] text-inksoft mb-3 font-cjk leading-relaxed">
-            想吃<span className="text-terradeep">水果或酸奶</span>当晚餐碳水?在这选量(块/个按数,葡萄蓝莓酸奶按克),它们<span className="text-terradeep">直接并入晚餐</span>,上面选的<span className="text-terradeep">主食会自动缩量</span>来配平热量。日本超市都好买。
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {Object.entries(DINNER_CARBS).map(([k, it]) => {
-              const qty = dinnerCarbs[k] || 0;
-              const active = qty > 0;
-              const stepKcal = Math.round((it.p * 4 + it.c * 4 + it.f * 9) * it.step);
-              return (
-                <div
-                  key={k}
-                  className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
-                    active ? 'border-honey bg-honey/[0.07] shadow-warm' : 'border-line bg-card'
-                  }`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-cjk text-ink truncate" style={{ fontWeight: 500 }}>{it.label}</div>
-                    <div className="text-[10px] font-mono text-inkfaint mt-0.5">
-                      {active
-                        ? `${Math.round((it.p * 4 + it.c * 4 + it.f * 9) * qty)}kcal · P${Math.round(it.p * qty)} C${Math.round(it.c * qty)} F${Math.round(it.f * qty)}`
-                        : `每${it.kind === 'gram' ? `${it.step}g` : it.unit} ≈ ${stepKcal}kcal · C${Math.round(it.c * it.step)}`}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      onClick={() => setDinnerCarbQty(k, qty - it.step)}
-                      aria-label={`减少${it.label}`}
-                      className="w-8 h-8 grid place-items-center rounded-full border border-line text-inksoft bg-card transition-all active:scale-90 hover:border-honey hover:text-honey"
-                    >−</button>
-                    <span className="font-display text-xl w-12 text-center text-ink tnum" style={{ fontWeight: 400 }}>
-                      {qty}{it.kind === 'gram' && qty > 0 && <span className="text-[9px] font-mono text-inkfaint ml-0.5">g</span>}
-                    </span>
-                    <button
-                      onClick={() => setDinnerCarbQty(k, Math.min(it.max, qty + it.step))}
-                      aria-label={`增加${it.label}`}
-                      className="w-8 h-8 grid place-items-center rounded-full border border-line text-inksoft bg-card transition-all active:scale-90 hover:border-honey hover:text-honey"
-                    >+</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* ============ 04 · BEEF FAT ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '360ms' }}>
-          <SectionHead no="04" zh="牛肉脂肪校准" en="Beef Fat" />
-          <Card className={`p-5 sm:p-6 transition-opacity ${!dinnerProteins.includes('beef') ? 'opacity-50' : ''}`}>
-            <div className="text-[11px] text-inksoft mb-4 leading-relaxed">
-              查看包装背面「脂質」一行,输入或选择档位。<span className="text-terradeep">酱固定 ≤1 包,脂肪缺口由牛肉补。</span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
-              {[
-                { v: 5, label: '5g 极瘦', sub: 'もも赤身' },
-                { v: 9, label: '9g 标准', sub: 'もも / 混合' },
-                { v: 13, label: '13g 偏肥', sub: '肩 / 肩ロース' },
-                { v: 18, label: '18g 较肥', sub: 'バラ混合' },
-              ].map((opt) => (
-                <button
-                  key={opt.v}
-                  onClick={() => setBeefFat(opt.v)}
-                  className={`text-left p-3 rounded-2xl border transition-all ${
-                    beefFat === opt.v ? 'border-terra bg-terra/[0.06] shadow-warm' : 'border-line bg-card hover:border-terra/40'
-                  }`}
-                >
-                  <div className="text-sm text-ink font-mono">{opt.label}</div>
-                  <div className="text-[8px] text-inkfaint mt-0.5 font-mono uppercase">{opt.sub}</div>
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-[10px] font-mono text-inkfaint tracking-wider">自定义</span>
-              <input
-                type="number"
-                value={beefFat}
-                onChange={(e) => setBeefFat(Math.max(0, Math.min(40, Number(e.target.value) || 0)))}
-                className="bg-paper border border-line rounded-xl focus:border-terra outline-none text-xl text-ink w-16 py-1 transition-colors font-mono text-center tnum"
-                step={1}
-              />
-              <span className="text-[10px] font-mono text-inkfaint tracking-wider">g / 100g (raw)</span>
-              <span className="text-[10px] font-mono text-honey tracking-wider">→ 水煮后 {(beefFat * 0.8).toFixed(1)}g</span>
-            </div>
-            <div className="mt-3 text-[11px] font-mono text-inkfaint leading-relaxed">
-              水煮脂肪保留率 ≈ 80% · 只在选「牛肉」时影响其脂肪估算
-            </div>
-          </Card>
-        </section>
-
-
-        {/* ============ 06 · DINNER(配置页底部直接出菜单,免翻页)============ */}
-        <section id="dinner" className="rise mb-4 scroll-mt-4" style={{ animationDelay: '480ms' }}>
-          <SectionHead no="06" zh="今晚的晚餐" en="Tonight's Dinner" />
-          <Card className="overflow-hidden">
-            <div className="relative">
-              <img src={asset('dinner.jpg')} alt="今晚的晚餐" className="w-full h-40 object-cover" loading="lazy" />
-              <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(255,252,246,0) 30%, rgba(255,252,246,0.7) 75%, rgba(255,252,246,1) 100%)' }} />
-              <div className="absolute inset-x-0 bottom-0 px-5 sm:px-7 pb-4 flex items-end justify-between">
-                <div>
-                  <div className="text-[9px] font-mono tracking-[0.28em] text-terradeep mb-1">TONIGHT · 训练后晚餐</div>
-                  <h2 className="font-display text-3xl text-ink" style={{ fontWeight: 400, fontStyle: 'italic' }}>Dinner</h2>
-                </div>
-                <div className="text-right">
-                  <div className="text-[9px] font-mono tracking-widest text-inksoft mb-0.5">DINNER KCAL</div>
-                  <div className="font-display text-3xl text-ink tnum" style={{ fontWeight: 400 }}>{Math.round(result.dinner.kcal)}</div>
-                </div>
-              </div>
-            </div>
-            <div className="p-3 sm:p-4">
-              {result.proteinList.map((pp) => (
-                <FoodItem key={pp.key} icon="01" name={pp.label} sub={pp.sub} qty={pp.units} unit={pp.unitEN} />
-              ))}
-              <FoodItem icon="02" name="干意面" sub="Dry Pasta · 100g portion" qty={result.plan.pasta} unit="GRAM" />
-              <FoodItem icon="03" name="日清非油炸泡面" sub="Non-fried Ramen" qty={result.plan.nissin} unit="PACK" />
-              <FoodItem icon="04" name="越南米粉" sub="Vietnamese Pho · 60g" qty={result.plan.pho} unit="PACK" />
-              <FoodItem icon="04" name="纯干米粉" sub="Plain rice vermicelli · dry" qty={result.plan.bifun} unit="GRAM" />
-              <FoodItem icon="05" name="荞麦面" sub="Soba · Buckwheat · dry" qty={result.plan.soba} unit="GRAM" />
-              <FoodItem icon="06" name="香蕉(中)" sub="Banana · Medium" qty={result.plan.banana} unit="PCS" />
-              <FoodItem icon="07" name="オイコス 砂糖不使用" sub="OIKOS Plain · Dessert" qty={result.plan.oikos || 0} unit="PCS" />
-            </div>
-          </Card>
-          {/* 紧凑全天小结,免翻页也能看是否达标 */}
-          <div className="mt-3 grid grid-cols-4 gap-2">
-            {[
-              { k: '蛋白', v: result.total.p, t: targets.p, u: 'g' },
-              { k: '碳水', v: result.total.c, t: targets.c, u: 'g' },
-              { k: '脂肪', v: result.total.f, t: targets.f, u: 'g' },
-              { k: '热量', v: result.total.kcal, t: targets.kcal, u: '' },
-            ].map((m) => {
-              const diff = m.v - m.t;
-              const ok = Math.abs(diff) <= (m.u === '' ? Math.max(80, m.t * 0.05) : Math.max(8, m.t * 0.08));
-              return (
-                <div key={m.k} className="rounded-2xl bg-card border border-line p-2.5 text-center shadow-warm">
-                  <div className="text-[9px] font-mono text-inkfaint tracking-wider mb-0.5">{m.k}</div>
-                  <div className="font-display text-xl text-ink tnum" style={{ fontWeight: 400 }}>{Math.round(m.v)}</div>
-                  <div className="text-[9px] font-mono tnum" style={{ color: ok ? '#5F6B3E' : '#B07B16' }}>
-                    {diff >= 0 ? '+' : ''}{Math.round(diff)}{m.u}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <button onClick={() => go(1)} className="mt-3 w-full px-4 py-2.5 rounded-full border border-line bg-card text-inksoft text-xs font-mono tracking-wider hover:border-terra hover:text-terra transition-all">
-            验算 / 明细 / 采购清单 →
-          </button>
-        </section>
-
-        {/* ============ 🧂 · ELECTROLYTE ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '110ms' }}>
-          <SectionHead no="🧂" zh="电解质 · 钾钠平衡" en="K / Na Balance" accent="sage" />
-          <Card className="p-5 sm:p-6">
-            <div className="text-[11px] text-inksoft mb-3 font-cjk">晚上高盐 → 用高钾蔬菜/番茄汁对冲(嫌麻烦可选「不补钾」)。一款常见好买的,默认 400ml:</div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {Object.entries(DRINKS).map(([key, d]) => (
-                <button
-                  key={key}
-                  onClick={() => setDrinkKey(key)}
-                  className={`text-left p-3 rounded-2xl border transition-all ${drinkKey === key ? 'border-sage bg-sage/[0.08] shadow-warm -translate-y-0.5' : 'border-line bg-card hover:border-sage/50'}`}
-                >
-                  <div className="text-[12px] font-cjk text-ink leading-tight" style={{ fontWeight: 600 }}>{d.label}</div>
-                  <div className="text-[10px] font-mono text-inkfaint mt-1">K {d.k} · {d.kcal}kcal /200ml</div>
-                  <div className="text-[10px] text-inksoft mt-0.5">{d.note}</div>
-                </button>
-              ))}
-              <button
-                onClick={() => setDrinkKey('none')}
-                className={`text-left p-3 rounded-2xl border transition-all ${!DRINKS[drinkKey] ? 'border-sage bg-sage/[0.08] shadow-warm' : 'border-line bg-card hover:border-sage/50'}`}
-              >
-                <div className="text-[12px] font-cjk text-ink" style={{ fontWeight: 600 }}>不补钾</div>
-                <div className="text-[10px] text-inkfaint mt-1 font-mono">不喝 · 省了</div>
-              </button>
-            </div>
-
-            <div className="mt-4 grid grid-cols-3 gap-2.5">
-              <TargetInput label="喝多少" en="ml" value={drinkMl} unit="ml" onChange={(v) => setDrinkMl(Math.max(0, Math.min(1500, Number(v) || 0)))} />
-              <TargetInput label="今日食盐" en="salt" value={saltG} unit="g" onChange={(v) => setSaltG(Math.max(0, Math.min(20, Number(v) || 0)))} />
-              <TargetInput label="食物钾估" en="food K" value={foodK} unit="mg" onChange={(v) => setFoodK(Math.max(0, Math.min(8000, Number(v) || 0)))} />
-            </div>
-
-            {DRINKS[drinkKey] && (
-              <div className="mt-3 text-[11px] font-mono text-inksoft tracking-wide">
-                → 这杯 {drinkMl}ml:<span className="text-ink"> {drink.kcal}kcal · 糖{drink.c}g · 钾{drink.k}mg</span>(已计入今日热量)
-              </div>
-            )}
-
-            {/* 钾钠平衡 */}
-            <div className={`mt-4 rounded-2xl border p-4 ${kBalanced ? 'border-sage/40 bg-sage/[0.06]' : 'border-honey/50 bg-honey/[0.06]'}`}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-[10px] font-mono tracking-wider" style={{ color: kBalanced ? '#5F6B3E' : '#B07B16' }}>钾 vs 钠</div>
-                <div className="text-[11px] font-cjk" style={{ fontWeight: 600, color: kBalanced ? '#5F6B3E' : '#B07B16' }}>
-                  {kBalanced ? '✓ 平衡(钾≥钠)' : '⚠ 钾不够'}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 font-mono text-xs">
-                <div className="rounded-xl bg-card border border-line p-2.5 text-center">
-                  <div className="text-[9px] text-inkfaint mb-1">合计钾(果汁+食物)</div>
-                  <div className="font-display text-xl text-sagedeep tnum" style={{ fontWeight: 400 }}>{totalK}<span className="text-[10px] ml-0.5">mg</span></div>
-                </div>
-                <div className="rounded-xl bg-card border border-line p-2.5 text-center">
-                  <div className="text-[9px] text-inkfaint mb-1">合计钠(食盐{saltG}g)</div>
-                  <div className="font-display text-xl text-terradeep tnum" style={{ fontWeight: 400 }}>{totalNa}<span className="text-[10px] ml-0.5">mg</span></div>
-                </div>
-              </div>
-              {!kBalanced && (
-                <div className="mt-2.5 text-[10px] font-mono text-honey leading-relaxed">
-                  还差 {totalNa - totalK} mg 钾。{DRINKS[drinkKey] ? `多喝 ~${Math.ceil((totalNa - totalK) / (DRINKS[drinkKey].k / 200) / 50) * 50} ml 这款` : '选一款番茄汁'},或多吃高钾食物(红薯/香蕉/豆)。
-                </div>
-              )}
-              <div className="mt-2 text-[9px] font-mono text-inkfaint leading-relaxed">ⓘ 食物钾默认粗估 2000mg(你菜单的牛肉/鸡胸/红薯/豆/Oikos),按实际改;只补钾不够,水也要喝够。</div>
-            </div>
-          </Card>
-        </section>
-
-        {/* ============ 训练前加餐(可选 · 默认空腹,要加自己点)============ */}
-        <section className="rise mb-9" style={{ animationDelay: '520ms' }}>
-          <SectionHead no="🍳" zh="训练前加餐" en="Pre-Workout" accent="honey" />
-          <div className="text-[11px] text-inksoft mb-3 font-cjk leading-relaxed">
-            默认<span className="text-terradeep">空腹</span>(全为 0)。如果训练前想垫一口,在这点；会计入今日摄入、晚餐据此回算。
-          </div>
-          <Card className="p-5 sm:p-6">
-            <div className="flex gap-x-6 gap-y-5 flex-wrap">
-              <Stepper zh="鸡胸" en="Chicken" value={preChicken} set={setPreChicken} />
-              <Stepper zh="全蛋" en="Eggs" value={preEggs} set={setPreEggs} />
-              <Stepper zh="香蕉" en="Banana" value={preBanana} set={setPreBanana} />
-              <Stepper zh="菠萝" en="Pineapple" value={prePine} set={setPrePine} step={50} max={500} unit="g" accent="honey" />
-              <Stepper zh="Oikos" en="加餐" value={dinnerOikos} set={setDinnerOikos} accent="honey" />
-            </div>
-            <div className="mt-5 pt-4 border-t border-linesoft flex items-center gap-4 flex-wrap">
-              <span className="text-xs font-mono text-inksoft tracking-wide">
-                → P{preWorkout.p} · C{Math.round(preWorkout.c)} · F{preWorkout.f} =
-                <span className="text-ink font-medium"> {preWorkout.kcal} kcal</span>
-              </span>
-              {fasted && (
-                <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-honey/15 text-honey tracking-wider">空腹训练</span>
-              )}
-            </div>
-          </Card>
-        </section>
-
-        </>)}
-
-        {page === 1 && (<>
-        {/* ============ ✱ · TARGETS ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '0ms' }}>
-          <SectionHead no="✱" zh="目标设定" en="Targets" accent="sage" />
-          <Card className="p-5 sm:p-6">
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
-              <TargetInput label="总消耗" en="TDEE" value={tdee} unit="kcal" onChange={(v) => setTdee(Math.max(0, Math.min(8000, Number(v) || 0)))} />
-              <TargetInput label="目标" en="kcal" value={targets.kcal} unit="kcal" accent onChange={(v) => setTarget('kcal', v, 8000)} />
-              <TargetInput label="蛋白" en="P" value={targets.p} unit="g" onChange={(v) => setTarget('p', v, 500)} />
-              <TargetInput label="碳水" en="C" value={targets.c} unit="g" onChange={(v) => setTarget('c', v, 800)} />
-              <TargetInput label="脂肪" en="F" value={targets.f} unit="g" onChange={(v) => setTarget('f', v, 300)} />
-            </div>
-            <div className="mt-4 pt-3 border-t border-linesoft flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] font-mono text-inksoft">
-              {tdee > targets.kcal && <span>赤字 ≈ <span className="text-terradeep">{Math.round(tdee - targets.kcal)} kcal/天</span></span>}
-              <span>宏量热量合计 <span className={Math.abs(targets.p * 4 + targets.c * 4 + targets.f * 9 - targets.kcal) <= 60 ? 'text-sagedeep' : 'text-honey'}>{Math.round(targets.p * 4 + targets.c * 4 + targets.f * 9)}</span> kcal</span>
-              <button
-                onClick={() => { setTargets({ ...DEFAULT_TARGETS }); setTdee(DEFAULT_TDEE); }}
-                className="text-terradeep hover:underline ml-auto"
-              >↺ 恢复默认</button>
-            </div>
-          </Card>
-        </section>
-
-        {/* ============ 04 · MACRO VERIFICATION ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '90ms' }}>
-          <SectionHead no="04" zh="全天营养验算" en="Macro Check" accent="sage" />
-          <Card className="p-5 sm:p-7">
-            <MacroBar label="蛋白" en="Protein" value={result.total.p} target={targets.p} unit="g" />
-            <MacroBar label="碳水" en="Carbs" value={result.total.c} target={targets.c} unit="g" />
-            <MacroBar label="脂肪" en="Fat" value={result.total.f} target={targets.f} unit="g" />
-            <MacroBar label="热量" en="Calories" value={result.total.kcal} target={targets.kcal} unit="kcal" />
-
-            <div className="mt-7 grid grid-cols-3 gap-2.5 text-[11px] font-mono">
-              {[
-                { t: 'LUNCH', k: Math.round(result.lunch.kcal), m: `P${Math.round(result.lunch.p)} · C${Math.round(result.lunch.c)} · F${Math.round(result.lunch.f)}`, hl: false },
-                { t: snack ? 'PRE+零食' : 'PRE-W/O', k: Math.round(result.preWorkout.kcal), m: `P${Math.round(result.preWorkout.p)} · C${Math.round(result.preWorkout.c)} · F${Math.round(result.preWorkout.f)}`, hl: false },
-                { t: 'DINNER', k: Math.round(result.dinner.kcal), m: `P${Math.round(result.dinner.p)} · C${Math.round(result.dinner.c)} · F${Math.round(result.dinner.f)}`, hl: true },
-              ].map((x) => (
-                <div key={x.t} className={`rounded-2xl p-3 border ${x.hl ? 'border-terra bg-terra/[0.06]' : 'border-line bg-paper'}`}>
-                  <div className={`mb-1 tracking-wider ${x.hl ? 'text-terradeep' : 'text-inksoft'}`}>{x.t}</div>
-                  <div className="text-ink text-base tnum">{x.k} kcal</div>
-                  <div className="text-inkfaint mt-1 text-[9px]">{x.m}</div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </section>
-
-        {/* ============ 05 · FOOD LOG ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '0ms' }}>
-          <SectionHead no="05" zh="今日食物明细" en="Food Log" />
-          <div className="flex gap-2 mb-3">
-            <button
-              onClick={copyDayJSON}
-              className={`flex-1 px-4 py-2.5 rounded-full text-xs font-mono tracking-wider transition-all shadow-warm active:scale-95 ${copied ? 'bg-sage text-card' : 'bg-terra text-card'}`}
-            >{copied ? '✓ 已复制 JSON' : '⧉ 复制为 JSON'}</button>
-            <button
-              onClick={downloadDayJSON}
-              className="px-4 py-2.5 rounded-full border border-line bg-card text-inksoft text-xs font-mono tracking-wider hover:border-terra hover:text-terra transition-all active:scale-95"
-            >↓ 下载 .json</button>
-          </div>
-          <Card className="overflow-hidden">
-            <div className="grid grid-cols-12 gap-0 bg-paper2 px-4 py-2.5 text-[9px] font-mono tracking-widest text-inksoft uppercase">
-              <div className="col-span-5">Item</div>
-              <div className="col-span-2 text-right">P</div>
-              <div className="col-span-2 text-right">C</div>
-              <div className="col-span-1 text-right">F</div>
-              <div className="col-span-2 text-right">kcal</div>
-            </div>
-
-            <LogGroup label="PRE-WORKOUT · 加餐" />
-            {preChicken > 0 && <LogRow name={`鸡胸 × ${preChicken}`} p={preChicken * 22} c={preChicken * 1} f={preChicken * 2} k={preChicken * 110} />}
-            {preEggs > 0 && <LogRow name={`全蛋 × ${preEggs}`} p={preEggs * 6} c={Math.round(preEggs * 0.5)} f={preEggs * 5} k={Math.round(preEggs * 72)} />}
-            {preBanana > 0 && <LogRow name={`香蕉 × ${preBanana}`} p={preBanana} c={preBanana * 27} f={Math.round(preBanana * 0.25)} k={Math.round(preBanana * 113)} />}
-            {prePine > 0 && <LogRow name={`切块菠萝 ${prePine}g`} p={Math.round(prePine * 0.006)} c={Math.round(prePine * 0.13)} f={0} k={Math.round(prePine * 0.55)} />}
-            {dinnerOikos > 0 && <LogRow name={`オイコス × ${dinnerOikos}`} p={dinnerOikos * 12} c={dinnerOikos * 5} f={0} k={dinnerOikos * 68} />}
-            {drink.kcal > 0 && <LogRow name={`${DRINKS[drinkKey].label} ${drinkMl}ml`} p={Math.round(drink.p)} c={Math.round(drink.c)} f={0} k={drink.kcal} />}
-            {fasted && <div className="px-4 py-2 text-xs text-inkfaint border-t border-linesoft">空腹训练</div>}
-
-            <LogGroup label={`LUNCH · ${lunchMode === 'designer' ? '自制' : lunchMode === 'tally' ? '记账' : '食堂'}`} />
-            <LogRow name={`${lunchMode === 'designer' ? '午餐设计' : lunchMode === 'tally' ? '午餐记账' : '食堂'} ~${Math.round(result.lunch.kcal)}kcal`} p={Math.round(result.lunch.p)} c={Math.round(result.lunch.c)} f={Math.round(result.lunch.f)} k={Math.round(result.lunch.kcal)} />
-
-            {snack && <LogGroup label="SNACK · 加餐" />}
-            {snack && <LogRow name={snack.name} p={Math.round(snack.p)} c={Math.round(snack.c)} f={Math.round(snack.f)} k={Math.round(snack.kcal)} />}
-
-            <LogGroup label="DINNER" />
-            {result.proteinList.map((pp) => <LogRow key={pp.key} name={`${pp.logName} ${pp.units}${pp.logUnit}`} p={Math.round(pp.units * pp.p)} c={Math.round(pp.units * pp.c)} f={Math.round(pp.units * pp.fat)} k={Math.round(pp.units * (pp.p * 4 + pp.c * 4 + pp.fat * 9))} />)}
-            {result.plan.pasta > 0 && <LogRow name={`干意面 ${result.plan.pasta}g`} p={Math.round(result.plan.pasta * 0.12)} c={Math.round(result.plan.pasta * 0.71)} f={Math.round(result.plan.pasta * 0.015)} k={Math.round(result.plan.pasta * 3.55)} />}
-            {result.plan.nissin > 0 && <LogRow name={`日清 × ${result.plan.nissin}`} p={Math.round(result.plan.nissin * 6.7)} c={Math.round(result.plan.nissin * 55)} f={Math.round(result.plan.nissin * 4.9)} k={Math.round(result.plan.nissin * 291)} />}
-            {result.plan.pho > 0 && <LogRow name={`越南米粉 × ${result.plan.pho}`} p={Math.round(result.plan.pho * 4)} c={Math.round(result.plan.pho * 43)} f={Math.round(result.plan.pho * 2)} k={Math.round(result.plan.pho * 210)} />}
-            {result.plan.bifun > 0 && <LogRow name={`纯干米粉 ${result.plan.bifun}g`} p={Math.round(result.plan.bifun * 0.06)} c={Math.round(result.plan.bifun * 0.79)} f={Math.round(result.plan.bifun * 0.005)} k={Math.round(result.plan.bifun * 3.45)} />}
-            {result.plan.soba > 0 && <LogRow name={`荞麦面 ${result.plan.soba}g`} p={Math.round(result.plan.soba * 0.14)} c={Math.round(result.plan.soba * 0.66)} f={Math.round(result.plan.soba * 0.023)} k={Math.round(result.plan.soba * 3.44)} />}
-            {result.plan.banana > 0 && <LogRow name={`香蕉 × ${result.plan.banana}`} p={result.plan.banana} c={result.plan.banana * 27} f={Math.round(result.plan.banana * 0.25)} k={Math.round(result.plan.banana * 113)} />}
-            {(result.plan.oikos || 0) > 0 && <LogRow name={`オイコス × ${result.plan.oikos}`} p={result.plan.oikos * 12} c={result.plan.oikos * 5} f={0} k={result.plan.oikos * 71} />}
-
-            <div className="grid grid-cols-12 gap-0 px-4 py-3 bg-terra/[0.07] border-t-2 border-terra/40 text-xs font-mono tnum">
-              <div className="col-span-5 text-terradeep tracking-widest uppercase text-[9px] self-center">Total</div>
-              <div className="col-span-2 text-right text-ink">{Math.round(result.total.p)}</div>
-              <div className="col-span-2 text-right text-ink">{Math.round(result.total.c)}</div>
-              <div className="col-span-1 text-right text-ink">{Math.round(result.total.f)}</div>
-              <div className="col-span-2 text-right text-ink">{Math.round(result.total.kcal)}</div>
-            </div>
-            <div className="grid grid-cols-12 gap-0 px-4 py-2.5 border-t border-linesoft text-xs font-mono text-inkfaint tnum">
-              <div className="col-span-5 tracking-widest uppercase text-[9px] self-center">Target</div>
-              <div className="col-span-2 text-right">{targets.p}</div>
-              <div className="col-span-2 text-right">{targets.c}</div>
-              <div className="col-span-1 text-right">{targets.f}</div>
-              <div className="col-span-2 text-right">{targets.kcal}</div>
-            </div>
-            <div className="grid grid-cols-12 gap-0 px-4 py-2.5 border-t border-linesoft text-xs font-mono tnum">
-              <div className="col-span-5 text-inkfaint tracking-widest uppercase text-[9px] self-center">Diff</div>
-              {[
-                { val: result.total.p - targets.p, tol: 15 },
-                { val: result.total.c - targets.c, tol: 15 },
-                { val: result.total.f - targets.f, tol: 15, narrow: true },
-                { val: result.total.kcal - targets.kcal, tol: 100 },
-              ].map((d, i) => (
-                <div key={i} className={`${d.narrow ? 'col-span-1' : 'col-span-2'} text-right`} style={{ color: Math.abs(d.val) <= d.tol ? '#5F6B3E' : '#B07B16' }}>
-                  {d.val >= 0 ? '+' : ''}{Math.round(d.val)}
-                </div>
-              ))}
-            </div>
-
-            {result.total.kcal > targets.kcal + 5 && (
-              <div className="px-5 py-4 border-t-2 border-terra/40 bg-terra/[0.06]">
-                <div className="text-[11px] font-mono text-terradeep tracking-wider mb-1.5">⚠ 已超 {targets.kcal} kcal 铁线</div>
-                <div className="text-[12px] text-inksoft leading-relaxed font-cjk">
-                  训练前 + 午餐 + 零食 + Oikos 这些<span className="text-ink font-medium">已经吃掉的部分</span>合计 {Math.round(result.lunch.kcal + result.preWorkout.kcal + result.oikosKcal)} kcal,晚餐已压到最低(蛋白与主食都砍到底)仍超标。<span className="text-terradeep">减少训练前加餐 / 零食 / Oikos,或上调目标热量。</span>
-                </div>
-              </div>
-            )}
-          </Card>
-        </section>
-
-        {/* ============ DAILY SCHEDULE ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '90ms' }}>
-          <Card className="p-5 sm:p-6">
-            <div className="text-[10px] font-mono tracking-[0.25em] text-honey mb-4">DAILY SCHEDULE · 16:8 IF</div>
-            <div className="space-y-3 font-mono text-xs">
-              {[
-                { t: '12:00', d: '食堂午餐 / 替代 — Lunch (open feeding window)', hl: true },
-                { t: '15:00', d: `训练前 — ${fasted ? '空腹' : [preChicken > 0 && `${preChicken}块鸡胸`, preEggs > 0 && `${preEggs}个全蛋`, preBanana > 0 && `${preBanana}根香蕉`, prePine > 0 && `${prePine}g菠萝`].filter(Boolean).join(' + ')}`, hl: false },
-                { t: '17:00', d: '训练时段 — MET7 1h + 力量(周3次)', hl: false },
-                { t: '19:00', d: '★ 训练后晚餐 — 按上方处方', hl: true },
-                { t: '20:00', d: '关窗 — Close feeding window', hl: false },
-              ].map((r) => (
-                <div key={r.t} className="flex gap-3">
-                  <span className="text-terradeep w-14 shrink-0">{r.t}</span>
-                  <span className={r.hl ? 'text-ink font-cjk' : 'text-inksoft font-cjk'}>{r.d}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </section>
-
-        {/* ============ MEMO ============ */}
-        <section className="rise mb-9" style={{ animationDelay: '90ms' }}>
-          <Card className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <img src={asset('pre.jpg')} alt="" className="w-12 h-12 rounded-2xl object-cover border border-line" loading="lazy" />
-              <div className="text-[10px] font-mono text-terradeep tracking-[0.3em]">MEMO · 速记规则</div>
-            </div>
-            <div className="space-y-2.5 text-[13px] leading-relaxed text-inksoft font-cjk">
-              {[
-                ['训练前可调:鸡胸 0-5 块 + 全蛋 0-5 个,午晚方案自动重算。'],
-                ['碳水全靠主食(意面/日清/米粉),不用香蕉。'],
-                ['意面/米粉比旧方案多(130-170g)——碳水全压在午餐和晚餐。'],
-                ['监测优先级:', '腰围 > 力量 > 体重 7 日均值', '。'],
-                ['体重单日波动 ±2 kg 是正常的(糖原+水分),不要据此调整饮食。'],
-                ['连续 8 周后做 1 周 diet break(回到 ~2700 kcal),再切回赤字。'],
-              ].map((parts, i) => (
-                <p key={i} className="flex gap-2">
-                  <span className="text-terra shrink-0">·</span>
-                  <span>{parts[0]}{parts[1] && <span className="text-terradeep font-medium">{parts[1]}</span>}{parts[2]}</span>
-                </p>
-              ))}
-            </div>
-          </Card>
-        </section>
-
-        </>)}
-
-        {page === 2 && (<>
-        {/* ============ SHOPPING ============ */}
-        <section className="rise mb-5" style={{ animationDelay: '0ms' }}>
-          <SectionHead no="🛒" zh="采购清单" en="Shopping" accent="honey" />
-          <Card className="p-4 sm:p-5">
-            <div className="text-[11px] text-inksoft font-cjk leading-relaxed mb-3">
-              <span className="text-sagedeep font-medium">✓ 在用</span> 按当前配餐的每日用量 × 天数估「一周该买多少」;其余「备选」换着买。新食材会自动出现。
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-[11px] font-mono text-inksoft tracking-wider shrink-0">按几天买</span>
-              <div className="flex gap-1.5">
-                {[3, 5, 7, 14].map((d) => (
-                  <button key={d} onClick={() => setShopDays(d)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-mono border transition-all ${shopDays === d ? 'border-honey bg-honey/[0.1] text-honey' : 'border-line bg-card text-inksoft hover:border-honey/50'}`}>
-                    {d}天
-                  </button>
-                ))}
-              </div>
-            </div>
-          </Card>
-        </section>
-
-        <div className="text-[10px] font-mono text-sagedeep tracking-wide px-1 mb-2">⭐ 蛋白 / 主食:每样都给量,轮着吃也按各自天数备够</div>
-        <ShopCat title="晚餐蛋白源" en="Dinner Protein" items={Object.entries(DINNER_PROTEINS).map(([k, d]) => { const per = dailyProtein(k); return { name: d.label, note: `每天约 ${per}${d.logUnit} · ${d.note}`, sel: dinnerProteins.includes(k), weekly: wkQty(per, d.logUnit) }; })} />
-        <ShopCat title="晚餐碳水主食" en="Carb Staple" items={Object.entries(PLANS).map(([k, d]) => { const u = (k === 'pasta' || k === 'bifun' || k === 'soba') ? 'g' : '包'; const per = dailyCarb(k); return { name: d.name, note: `每天约 ${per}${u} · ${d.desc}`, sel: planKey === k, weekly: wkQty(per, u) }; })} />
-        <ShopCat title="脂肪来源" en="Fat Source" items={Object.entries(FAT_SOURCES).map(([k, d]) => ({ name: d.label, note: `${d.f}g脂 / ${d.unitEN}${d.p ? ` · P${d.p}` : ''}`, sel: fatSources.includes(k), weekly: wkQty(plUnits('fat_' + k), d.logUnit) }))} />
-        <ShopCat title="晚餐水果 / 酸奶" en="Fruit / Yogurt" items={Object.entries(DINNER_CARBS).map(([k, d]) => { const q = dinnerCarbs[k] || 0; return { name: d.label, note: `${d.kind === 'gram' ? `每${d.step}g` : `每${d.unit}`} ≈ C${Math.round(d.c * d.step)}`, sel: q > 0, weekly: q > 0 ? wkQty(q, d.unit) : null }; })} />
-        <ShopCat title="训练前 · 加餐" en="Pre / Snack" items={[
-          { name: '速食小鸡胸(块)', note: '每块~100g / 22g蛋白', sel: preChicken > 0, weekly: wkQty(preChicken, '块') },
-          { name: '卵(全蛋)', note: '训练前 / 补脂用', sel: preEggs > 0, weekly: wkQty(preEggs, '個') },
-          { name: '香蕉', note: '训练前快碳水', sel: preBanana > 0, weekly: wkQty(preBanana, '根') },
-          { name: 'カットパイン(切块菠萝)', note: '加餐快碳水 · 54kcal/100g · 高钾150mg', sel: prePine > 0, weekly: wkQty(prePine, 'g') },
-          { name: 'ダノン オイコス 砂糖不使用', note: '加餐 · P12/個', sel: dinnerOikos > 0, weekly: wkQty(dinnerOikos, '個') },
-        ]} />
-        <ShopCat title="电解质饮料(高钾对冲钠)" en="Drinks" items={Object.entries(DRINKS).map(([k, d]) => ({ name: d.label, note: `K${d.k} · ${d.kcal}kcal / 200ml`, sel: drinkKey === k, weekly: drinkKey === k ? wkQty(drinkMl, 'ml') : null }))} />
-        {lunchMode === 'designer' && (
-          <>
-            <ShopCat title="午餐 · 蛋白源" en="Lunch Protein" items={Object.entries(LUNCH_PROTEINS).map(([k, d]) => ({ name: d.label, note: d.note, sel: lunchProtein === k }))} />
-            <ShopCat title="午餐 · 碳水源" en="Lunch Carb" items={Object.entries(LUNCH_CARBS).map(([k, d]) => ({ name: d.label, note: d.sub, sel: lunchCarb === k }))} />
-          </>
+        {tab === 'plan' && (
+          <PlanView
+            model={model}
+            lunchMode={lunchMode}
+            setLunchMode={setLunchMode}
+            lunchKcal={lunchKcal}
+            setLunchKcal={setLunchKcal}
+            tally={tally}
+            setTally={setTally}
+            setMapQty={setMapQty}
+            carbPlan={carbPlan}
+            setCarbPlan={setCarbPlan}
+            proteinKeys={proteinKeys}
+            toggleProtein={toggleProtein}
+            fatKeys={fatKeys}
+            toggleFat={toggleFat}
+            extraCarbs={extraCarbs}
+            setExtraCarbs={setExtraCarbs}
+            beefFat={beefFat}
+            setBeefFat={setBeefFat}
+            advancedOpen={advancedOpen}
+            setAdvancedOpen={setAdvancedOpen}
+            targets={targets}
+            setTargets={setTargets}
+            resetDefaults={resetDefaults}
+          />
         )}
-        <ShopCat title="常备调味" en="Staples" items={[
-          { name: '酱油 + 辣酱', note: '蘸料 · 常备', sel: true },
-          { name: '盐 / 高汤', note: `你晚上吃盐 ${saltG}g,记得配上面的高钾饮料`, sel: true },
-        ]} />
 
-        <section className="rise mb-6" style={{ animationDelay: '120ms' }}>
-          <div className="rounded-3xl border border-honey/40 bg-honey/[0.07] p-4 text-[11px] font-mono text-inksoft leading-relaxed">
-            ⓘ 量 = 当前每日用量 × {shopDays}天(取整到可买单位),只是参考;天天换花样的话各买几天的份。价格因店而异,蔬菜汁买大瓶(720ml/1L)更便宜。
-          </div>
-        </section>
-        </>)}
+        {tab === 'detail' && (
+          <DetailView
+            model={model}
+            targets={targets}
+            setTargets={setTargets}
+            tdee={tdee}
+            setTdee={setTdee}
+            pre={pre}
+            setPre={setPre}
+            setMapQty={setMapQty}
+            drinkKey={drinkKey}
+            setDrinkKey={setDrinkKey}
+            drinkMl={drinkMl}
+            setDrinkMl={setDrinkMl}
+            saltG={saltG}
+            setSaltG={setSaltG}
+            foodK={foodK}
+            setFoodK={setFoodK}
+          />
+        )}
 
-        {page === 3 && (<>
-        {/* ============ CHEAT DAY ============ */}
-        <section className="rise mb-6" style={{ animationDelay: '0ms' }}>
-          <div className="relative overflow-hidden rounded-3xl shadow-warmlg border border-line">
-            <img src={asset('cheat.jpg')} alt="放纵餐" className="w-full h-44 sm:h-52 object-cover" loading="lazy" />
-            <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(251,243,231,0) 35%, rgba(251,243,231,0.6) 72%, rgba(251,243,231,0.97) 100%)' }} />
-            <div className="absolute inset-x-0 bottom-0 p-5">
-              <div className="text-[10px] font-mono tracking-[0.28em] text-terradeep mb-1">CHEAT DAY · 今天不算赤字</div>
-              <h2 className="font-display text-4xl sm:text-5xl text-ink leading-none" style={{ fontWeight: 400, fontStyle: 'italic' }}>放纵餐</h2>
-            </div>
-          </div>
-          <p className="mt-3 text-[11px] font-mono text-inksoft text-center">只算后果,不算热量差 😈 点店里的东西,堆成急头白脸的一顿</p>
-        </section>
+        {tab === 'shop' && (
+          <ShopView model={model} shopDays={shopDays} setShopDays={setShopDays} />
+        )}
 
-        {/* 选店暴食 */}
-        <section className="rise mb-6" style={{ animationDelay: '80ms' }}>
-          <SectionHead no="🍔" zh="选店暴食" en="Pick & Pile" accent="honey" />
-          <div className="space-y-3">
-            {CHEAT_PLACES.map((pl) => (
-              <Card key={pl.id} className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xl">{pl.emoji}</span>
-                  <span className="font-cjk text-ink" style={{ fontWeight: 600 }}>{pl.name}</span>
-                  <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-inkfaint">{pl.en}</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {pl.items.map((it, i) => {
-                    const k = `${pl.id}:${i}`; const n = cheat[k] || 0;
-                    return (
-                      <button
-                        key={k}
-                        onClick={() => addCheat(k, 1)}
-                        className={`px-3 py-2 rounded-2xl border text-left transition-all active:scale-95 ${n > 0 ? 'border-terra bg-terra/[0.08] shadow-warm' : 'border-line bg-card hover:border-terra/40'}`}
-                      >
-                        <div className="text-[12px] font-cjk text-ink">{it.name}{n > 0 && <span className="text-terradeep font-mono"> ×{n}</span>}</div>
-                        <div className="text-[10px] font-mono text-inkfaint flex items-center gap-2">
-                          <span>{it.kcal} kcal</span>
-                          {n > 0 && <span role="button" onClick={(e) => { e.stopPropagation(); addCheat(k, -1); }} className="text-terra px-1.5 rounded hover:bg-terra/10">−</span>}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </Card>
-            ))}
-          </div>
-        </section>
-
-        {/* 后果 */}
-        <section className="rise mb-6" style={{ animationDelay: '160ms' }}>
-          <SectionHead no="💥" zh="后果" en="Damage" accent="honey" />
-          {cheatTotal === 0 ? (
-            <Card className="p-6 text-center text-inksoft font-cjk text-sm">还没点呢…上面点几样,堆成一顿放纵餐 👆</Card>
-          ) : (
-            <Card className="p-5">
-              <div className="flex items-center gap-4 mb-5">
-                <img src={asset('belly.jpg')} alt="" className="w-16 h-16 rounded-2xl object-cover border border-line shrink-0" loading="lazy" />
-                <div>
-                  <div className="text-[10px] font-mono text-inkfaint tracking-wider">这一顿</div>
-                  <div className="font-display text-4xl text-terradeep tnum leading-none" style={{ fontWeight: 400 }}>{cheatTotal}<span className="text-base text-inksoft ml-1">kcal</span></div>
-                  <div className="text-[12px] font-cjk text-honey mt-1" style={{ fontWeight: 600 }}>{cheatVerdict}</div>
-                </div>
-              </div>
-              <div className="space-y-2.5 font-mono text-xs">
-                <div className="flex justify-between"><span className="text-inksoft">今日总摄入(含午餐+加餐 {cheatBaseKcal})</span><span className="text-ink tnum">{cheatDayTotal} kcal</span></div>
-                <div className="flex justify-between"><span className="text-inksoft">你的总消耗 TDEE</span><span className="text-ink tnum">{tdee} kcal</span></div>
-                <div className="flex justify-between border-t border-linesoft pt-2.5"><span className="text-inksoft">今日{cheatSurplus >= 0 ? '盈余' : '仍赤字'}</span><span className="tnum" style={{ color: cheatSurplus >= 0 ? '#B14E2A' : '#5F6B3E' }}>{cheatSurplus >= 0 ? '+' : ''}{cheatSurplus} kcal</span></div>
-              </div>
-              <div className="mt-4 grid grid-cols-3 gap-2.5">
-                <div className="rounded-2xl bg-paper border border-line p-3 text-center">
-                  <div className="text-[9px] font-mono text-inkfaint tracking-wider mb-1">理论涨脂肪</div>
-                  <div className="font-display text-2xl text-terradeep tnum" style={{ fontWeight: 400 }}>{cheatFatG}<span className="text-[11px] text-inksoft ml-0.5">g</span></div>
-                </div>
-                <div className="rounded-2xl bg-paper border border-line p-3 text-center">
-                  <div className="text-[9px] font-mono text-inkfaint tracking-wider mb-1">腰围(娱乐)</div>
-                  <div className="font-display text-2xl text-terradeep tnum" style={{ fontWeight: 400 }}>+{cheatWaistCm}<span className="text-[11px] text-inksoft ml-0.5">cm</span></div>
-                </div>
-                <div className="rounded-2xl bg-paper border border-line p-3 text-center">
-                  <div className="text-[9px] font-mono text-inkfaint tracking-wider mb-1">慢跑抵消</div>
-                  <div className="font-display text-2xl text-sagedeep tnum" style={{ fontWeight: 400 }}>{cheatRunMin}<span className="text-[11px] text-inksoft ml-0.5">分</span></div>
-                </div>
-              </div>
-              <div className="mt-4 flex gap-2">
-                <button onClick={() => setCheat({})} className="flex-1 px-4 py-2.5 rounded-full border border-line bg-card text-inksoft text-xs font-mono tracking-wider hover:border-terra hover:text-terra transition-all">清空重来</button>
-              </div>
-              <p className="mt-3 text-[10px] font-mono text-inkfaint leading-relaxed">
-                ⓘ 纯娱乐。单顿暴食第二天秤上涨的多是水分+食物本身+糖原储水,不是真脂肪;脂肪真要长 {cheatFatG}g 得这些盈余反复累积。腰围数字更是图一乐。
-              </p>
-            </Card>
-          )}
-        </section>
-        </>)}
-
-        {/* ============ 翻页器 ============ */}
-        <div className="rise flex items-center justify-between gap-3 mt-8" style={{ animationDelay: '160ms' }}>
-          <button
-            disabled={page === 0}
-            onClick={() => go(page - 1)}
-            className="px-4 py-2.5 rounded-full border border-line bg-card text-inksoft text-xs font-mono tracking-wider transition-all disabled:opacity-30 enabled:hover:border-terra enabled:hover:text-terra enabled:active:scale-95"
-          >← 上一页</button>
-          <div className="flex items-center gap-1.5">
-            {PAGES.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => go(i)}
-                aria-label={`第 ${i + 1} 页`}
-                className={`h-2 rounded-full transition-all ${page === i ? 'w-6 bg-terra' : 'w-2 bg-line hover:bg-terra/50'}`}
-              />
-            ))}
-          </div>
-          <button
-            disabled={page === PAGES.length - 1}
-            onClick={() => go(page + 1)}
-            className="px-4 py-2.5 rounded-full border border-line bg-card text-inksoft text-xs font-mono tracking-wider transition-all disabled:opacity-30 enabled:hover:border-terra enabled:hover:text-terra enabled:active:scale-95"
-          >下一页 →</button>
-        </div>
-
-        </main>
-
-        {/* ============ FOOTER ============ */}
-        <footer className="pt-8 mt-4 border-t border-line text-center">
-          <div className="text-[9px] font-mono tracking-[0.28em] text-inkfaint uppercase">
-            Based on Helms 2014 · Jäger 2017 ISSN · Mettler 2010 · Moro 2016
-          </div>
-          <div className="text-[9px] font-mono tracking-[0.2em] text-inkfaint/70 mt-2">For Personal Use · 不构成医疗建议</div>
-        </footer>
-
+        {tab === 'cheat' && (
+          <CheatView cheat={cheat} setCheat={setCheat} cheatTotal={cheatTotal} cheatSurplus={cheatSurplus} tdee={tdee} dayKcal={model.total.kcal} />
+        )}
       </div>
 
-      {/* ============ 加餐小球(FAB)============ */}
+      <SnackDrawer
+        open={snackOpen}
+        setOpen={setSnackOpen}
+        snack={snack}
+        setSnack={setSnack}
+        active={snackActive}
+        dinnerSummary={model.dinnerItems.slice(0, 4).map((item) => `${item.short || item.name} ${round(item.qty)}${item.unit}`).join(' · ')}
+      />
+
       <button
         onClick={() => setSnackOpen(true)}
+        className="fixed bottom-24 right-5 z-50 grid h-14 w-14 place-items-center rounded-lg border border-white/15 bg-[#ff8068] text-white shadow-[0_16px_40px_-18px_#ff8068] transition hover:-translate-y-0.5 lg:bottom-5"
         aria-label="零食加餐"
-        className="snack-fab fixed z-40 bottom-6 right-5 w-14 h-14 rounded-full bg-terra text-card shadow-warmlg grid place-items-center text-2xl active:scale-90"
       >
-        🍪
-        {snack && <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-sage border-2 border-paper" />}
+        <Camera className="h-6 w-6" />
+        {snackActive && <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[#a8d46f]" />}
       </button>
 
-      {/* ============ 加餐抽屉(侧滑)============ */}
-      {snackOpen && (
-        <div className="fixed inset-0 z-50">
-          <div className="snack-backdrop absolute inset-0 bg-ink/30 backdrop-blur-[2px]" onClick={() => setSnackOpen(false)} />
-          <div className="snack-panel absolute inset-y-0 right-0 w-[min(420px,92vw)] bg-paper shadow-warmlg flex flex-col">
-            {/* 抓手 + 标题 */}
-            <div className="relative flex items-center justify-between px-5 pt-5 pb-3 border-b border-line">
-              <span className="absolute left-1/2 -translate-x-1/2 top-1.5 w-10 h-1 rounded-full bg-line" />
-              <div className="flex items-center gap-2.5">
-                <span className="grid place-items-center w-9 h-9 rounded-full bg-honey/15 text-honey text-base">🍪</span>
-                <div>
-                  <div className="font-display text-lg text-ink leading-none" style={{ fontWeight: 500 }}>零食加餐</div>
-                  <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-inkfaint mt-1">Snack · AI 识别</div>
-                </div>
+      <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-4 rounded-lg border border-white/10 bg-black/65 p-1 backdrop-blur-2xl lg:hidden">
+        <NavButtons tab={tab} setTab={setTab} mode="bottom" />
+      </nav>
+    </div>
+  );
+}
+
+function NavButtons({ tab, setTab, mode }) {
+  return NAV.map((item) => {
+    const Icon = item.icon;
+    return (
+      <button
+        key={item.id}
+        onClick={() => setTab(item.id)}
+        className={`grid h-11 place-items-center rounded-md px-2 text-[11px] transition ${
+          mode === 'top' ? 'min-w-20 grid-cols-[16px_auto] gap-1.5' : 'grid-rows-[18px_auto] gap-0.5'
+        } ${
+          tab === item.id ? 'bg-white text-zinc-950 shadow-[0_10px_30px_-18px_rgba(255,255,255,0.9)]' : 'text-zinc-400 hover:bg-white/10 hover:text-white'
+        }`}
+        aria-label={item.label}
+      >
+        <Icon className="h-4 w-4" />
+        <span>{item.label}</span>
+      </button>
+    );
+  });
+}
+
+function Hero({ model, targets, onSnack, onDownload }) {
+  const deficitTone = model.deficit >= 650 ? 'text-[#a8d46f]' : model.deficit >= 300 ? 'text-[#ffcf69]' : 'text-[#ff8068]';
+
+  return (
+    <section className="relative grid min-h-[78vh] items-end gap-6 py-4 lg:grid-cols-[minmax(0,1.03fr)_minmax(360px,0.97fr)] lg:items-center">
+      <div className="relative order-2 lg:order-1">
+        <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/8 px-3 py-2 text-xs text-zinc-300 backdrop-blur-xl">
+          <Activity className="h-4 w-4 text-[#a8d46f]" />
+          <span>83 kg · 25% BF · 16:8 IF · 今日 {targets.kcal} kcal</span>
+        </div>
+        <h1 className="max-w-3xl font-display text-5xl leading-[0.92] tracking-normal text-white sm:text-7xl lg:text-8xl">
+          今晚吃得
+          <span className="block text-[#ffcf69]">刚刚好</span>
+        </h1>
+        <p className="mt-5 max-w-xl text-sm leading-7 text-zinc-300 sm:text-base">
+          中午吃了多少，训练前垫了什么，晚餐自己收口。肉、主食、脂肪和水果都算好，打开手机先看答案。
+        </p>
+        <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <HeroAction icon={Zap} label="零食" onClick={onSnack} />
+          <HeroAction icon={Download} label="导出" onClick={onDownload} />
+          <HeroAction icon={Goal} label={`${model.deficit > 0 ? '-' : '+'}${Math.abs(model.deficit)}`} sub="今日赤字" />
+        </div>
+      </div>
+
+      <div className="relative order-1 lg:order-2">
+        <div className="absolute -inset-8 rounded-[2rem] bg-[#ff8068]/10 blur-3xl" />
+        <div className="relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.06] shadow-[0_30px_90px_-50px_rgba(0,0,0,0.95)] backdrop-blur-xl">
+          <img src={generated('protocol-hero.jpg')} alt="Cutting Lab dinner visual" className="h-[280px] w-full object-cover sm:h-[420px]" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.28em] text-[#ffcf69]">今晚</div>
+                <div className="font-display text-4xl leading-none text-white sm:text-5xl">{Math.round(model.dinner.kcal)}</div>
+                <div className="mt-1 text-xs text-zinc-400">晚餐热量</div>
               </div>
-              <button onClick={() => setSnackOpen(false)} aria-label="关闭" className="w-9 h-9 grid place-items-center rounded-full border border-line text-inksoft hover:border-terra hover:text-terra transition-all">✕</button>
+              <div className={`rounded-lg bg-black/45 px-3 py-2 text-right backdrop-blur ${deficitTone}`}>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">今日赤字</div>
+                <div className="font-mono text-xl">{model.deficit > 0 ? '-' : '+'}{Math.abs(model.deficit)}</div>
+              </div>
             </div>
-
-            {/* 内容(可滚动)*/}
-            <div className="flex-1 overflow-y-auto p-5">
-              {!snack && (
-                <>
-                  <p className="text-[12px] text-inksoft leading-relaxed mb-4 font-cjk">
-                    想吃点别的?拍一张零食包装<span className="text-terradeep">背面的成分表</span>,Gemini 自动识别营养、计入今天,并帮你重算晚餐。
-                  </p>
-                  <label className={`flex flex-col items-center justify-center gap-2 px-5 py-8 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${analyzing ? 'border-honey/50 bg-honey/[0.05]' : 'border-line hover:border-terra hover:bg-terra/[0.04]'}`}>
-                    <input
-                      type="file" accept="image/*" capture="environment" className="hidden" disabled={analyzing}
-                      onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; analyzeSnack(f); }}
-                    />
-                    <span className="text-4xl">{analyzing ? '🍳' : '📷'}</span>
-                    <span className="text-sm font-cjk text-ink" style={{ fontWeight: 500 }}>{analyzing ? 'Gemini 识别中…' : '拍 / 选 成分表照片'}</span>
-                  </label>
-                  {analyzing && (
-                    <div className="mt-3 h-1.5 rounded-full bg-paper2 overflow-hidden">
-                      <div className="h-full w-2/3 bg-honey animate-pulse rounded-full" />
-                    </div>
-                  )}
-                  <div className="flex items-center gap-3 my-4">
-                    <div className="flex-1 h-px bg-line" /><span className="text-[10px] font-mono text-inkfaint">或</span><div className="flex-1 h-px bg-line" />
-                  </div>
-                  <button onClick={startManualSnack} disabled={analyzing} className="w-full px-4 py-3 rounded-2xl border border-line bg-card text-ink text-sm font-cjk hover:border-terra hover:text-terra transition-all disabled:opacity-50" style={{ fontWeight: 500 }}>✏️ 自己输入营养素</button>
-                </>
-              )}
-
-              {snack && (
-                <div>
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="min-w-0 flex-1">
-                      <input value={snack.name} onChange={(e) => setSnackName(e.target.value)} className="w-full bg-transparent outline-none text-base font-cjk text-ink border-b border-transparent focus:border-terra" style={{ fontWeight: 600 }} />
-                      {snack.serving && <div className="text-[11px] text-inkfaint font-mono mt-0.5">按 {snack.serving} 计</div>}
-                    </div>
-                    <span className={`text-[9px] font-mono px-2 py-1 rounded-full tracking-wider shrink-0 ${snack.confidence === 'high' ? 'bg-sage/15 text-sagedeep' : snack.confidence === 'manual' ? 'bg-sage/15 text-sagedeep' : snack.confidence === 'low' ? 'bg-terra/15 text-terradeep' : 'bg-honey/15 text-honey'}`}>
-                      {snack.confidence === 'high' ? '识别可信' : snack.confidence === 'manual' ? '手动输入' : snack.confidence === 'low' ? '仅供参考' : '大致估算'}
-                    </span>
-                  </div>
-                  {snack.note && <p className="text-[12px] text-inksoft leading-relaxed mb-4 font-cjk">💬 {snack.note}</p>}
-                  <div className="grid grid-cols-4 gap-2 mb-4">
-                    {[['kcal', '热量', 'kcal'], ['p', '蛋白', 'g'], ['c', '碳水', 'g'], ['f', '脂肪', 'g']].map(([k, zh, u]) => (
-                      <div key={k} className="rounded-2xl bg-card border border-line p-2.5 text-center">
-                        <div className="text-[9px] font-mono text-inkfaint tracking-wider mb-1">{zh}</div>
-                        <input
-                          type="number" value={snack[k]} onChange={(e) => setSnackField(k, e.target.value)}
-                          className="w-full bg-transparent outline-none text-center font-display text-2xl text-ink tnum" style={{ fontWeight: 400 }}
-                        />
-                        <div className="text-[8px] font-mono text-inkfaint">{u}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="rounded-2xl bg-terra/[0.06] border border-terra/30 p-3.5 mb-3">
-                    <div className="text-[10px] font-mono text-terradeep tracking-wider mb-1.5">→ 晚餐已自动调整</div>
-                    <div className="text-[12px] text-inksoft font-cjk leading-relaxed">{dinnerSummary}</div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => { setSnackOpen(false); go(0); setTimeout(() => document.getElementById('dinner')?.scrollIntoView({ behavior: 'smooth' }), 380); }}
-                      className="flex-1 px-4 py-2.5 rounded-full bg-terra text-card text-xs font-mono tracking-wider shadow-warm active:scale-95 transition-all"
-                    >看调整后的晚餐 →</button>
-                    <button onClick={() => { setSnack(null); setSnackErr(''); }} className="px-4 py-2.5 rounded-full border border-line bg-card text-inksoft text-xs font-mono tracking-wider hover:border-terra hover:text-terra transition-all">清除</button>
-                  </div>
-                </div>
-              )}
-
-              {snackErr && <div className="mt-3 text-[11px] font-mono text-terradeep leading-relaxed">⚠ {snackErr}</div>}
-
-              {/* Gemini API Key(仅存本机浏览器)*/}
-              <div className="mt-5 pt-4 border-t border-linesoft">
-                {!keyEditing && apiKey && (
-                  <div className="flex items-center justify-between text-[10px] font-mono text-inkfaint">
-                    <span>🔑 Gemini Key 已保存 · 仅存本机</span>
-                    <button onClick={() => setKeyEditing(true)} className="text-terradeep hover:underline">更换</button>
-                  </div>
-                )}
-                {(keyEditing || !apiKey) && (
-                  <div>
-                    <div className="text-[10px] font-mono text-inkfaint mb-2 leading-relaxed">
-                      填入你的 Gemini API Key（<a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-terradeep underline">aistudio.google.com/apikey</a>）。只保存在本机浏览器,不上传、不进仓库。
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="password" defaultValue={apiKey} placeholder="AIza..." id="gk"
-                        className="flex-1 bg-card border border-line rounded-xl px-3 py-2 text-xs font-mono text-ink outline-none focus:border-terra"
-                      />
-                      <button
-                        onClick={() => { const v = document.getElementById('gk').value.trim(); saveKey(v); setKeyEditing(false); }}
-                        className="px-4 py-2 rounded-xl bg-terra text-card text-xs font-mono shrink-0"
-                      >保存</button>
-                    </div>
-                  </div>
-                )}
-              </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <MetricTile label="P" value={model.total.p} target={targets.p} unit="g" />
+              <MetricTile label="C" value={model.total.c} target={targets.c} unit="g" />
+              <MetricTile label="F" value={model.total.f} target={targets.f} unit="g" />
+              <MetricTile label="Kcal" value={model.total.kcal} target={targets.kcal} unit="" />
             </div>
           </div>
         </div>
-      )}
-
-    </div>
-  );
-}
-
-// ============ Food Log 小组件 ============
-function TargetInput({ label, en, value, unit, onChange, accent }) {
-  return (
-    <div className={`rounded-2xl border p-2.5 text-center ${accent ? 'border-terra/40 bg-terra/[0.05]' : 'border-line bg-paper'}`}>
-      <div className="text-[9px] font-mono text-inkfaint tracking-wider mb-1">{label} · {en}</div>
-      <input
-        type="number"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={`w-full bg-transparent outline-none text-center font-display text-2xl tnum ${accent ? 'text-terradeep' : 'text-ink'}`}
-        style={{ fontWeight: 400 }}
-      />
-      <div className="text-[8px] font-mono text-inkfaint">{unit}</div>
-    </div>
-  );
-}
-function LogGroup({ label }) {
-  return <div className="px-4 py-2 bg-paper text-[9px] font-mono text-terradeep tracking-widest uppercase border-t border-linesoft">{label}</div>;
-}
-function LogRow({ name, p, c, f, k }) {
-  return (
-    <div className="grid grid-cols-12 gap-0 px-4 py-2 border-t border-linesoft text-xs font-mono tnum">
-      <div className="col-span-5 text-ink font-cjk">{name}</div>
-      <div className="col-span-2 text-right text-inksoft">{p}</div>
-      <div className="col-span-2 text-right text-inksoft">{c}</div>
-      <div className="col-span-1 text-right text-inksoft">{f}</div>
-      <div className="col-span-2 text-right text-ink">{k}</div>
-    </div>
-  );
-}
-function ShopCat({ title, en, items }) {
-  return (
-    <section className="rise mb-4" style={{ animationDelay: '60ms' }}>
-      <div className="flex items-baseline gap-2 mb-2.5 px-1">
-        <span className="font-cjk text-ink text-[15px]" style={{ fontWeight: 600 }}>{title}</span>
-        <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-inkfaint">{en}</span>
-      </div>
-      <div className="rounded-3xl bg-card border border-line shadow-warm overflow-hidden">
-        {items.map((it, i) => (
-          <div key={i} className={`flex items-center justify-between gap-3 px-4 py-2.5 ${i > 0 ? 'border-t border-linesoft' : ''}`}>
-            <div className="min-w-0">
-              <div className="text-[13px] font-cjk text-ink truncate" style={{ fontWeight: 500 }}>{it.name}</div>
-              {it.note && <div className="text-[10px] font-mono text-inkfaint mt-0.5 truncate">{it.note}</div>}
-            </div>
-            {it.weekly
-              ? <span className={`text-[11px] font-mono px-2.5 py-1 rounded-full shrink-0 tnum ${it.sel ? 'bg-sage/15 text-sagedeep' : 'bg-paper2 text-inksoft'}`}>{it.sel ? '✓ ' : ''}{it.weekly}</span>
-              : (it.sel
-                  ? <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-sage/15 text-sagedeep shrink-0">✓ 在用</span>
-                  : <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-paper2 text-inkfaint shrink-0">备选</span>)}
-          </div>
-        ))}
       </div>
     </section>
   );
 }
-function ShopGroup({ title, items, img }) {
+
+function PlanView(props) {
+  const {
+    model,
+    lunchMode,
+    setLunchMode,
+    lunchKcal,
+    setLunchKcal,
+    tally,
+    setTally,
+    setMapQty,
+    carbPlan,
+    setCarbPlan,
+    proteinKeys,
+    toggleProtein,
+    fatKeys,
+    toggleFat,
+    extraCarbs,
+    setExtraCarbs,
+    beefFat,
+    setBeefFat,
+    advancedOpen,
+    setAdvancedOpen,
+    targets,
+    setTargets,
+    resetDefaults,
+  } = props;
+
   return (
-    <div className="rounded-3xl border border-line bg-card shadow-warm p-5">
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-[10px] font-mono text-terradeep tracking-widest">{title}</div>
-        {img && <img src={asset(img)} alt="" className="w-10 h-10 rounded-xl object-cover border border-line" loading="lazy" />}
-      </div>
-      <ul className="space-y-3 text-sm">
-        {items.map(([name, note, qty]) => (
-          <li key={name} className="flex justify-between items-baseline gap-3">
-            <div className="min-w-0">
-              <div className="text-ink font-cjk" style={{ fontWeight: 500 }}>{name}</div>
-              <div className="text-[10px] text-inkfaint mt-0.5 font-mono">{note}</div>
+    <main className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+      <section className="space-y-6">
+        <Panel eyebrow="01 · 先记今天" title="今天吃到哪了" icon={ClipboardList}>
+          <Segmented
+            value={lunchMode}
+            onChange={setLunchMode}
+            options={[
+              { value: 'quick', label: '直接 kcal' },
+              { value: 'tally', label: '点选记账' },
+            ]}
+          />
+          {lunchMode === 'quick' ? (
+            <div className="mt-5">
+              <label className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Lunch kcal</label>
+              <div className="mt-2 flex items-end gap-3">
+                <input
+                  type="number"
+                  value={lunchKcal}
+                  onChange={(event) => setLunchKcal(clamp(event.target.value, 0, 5000))}
+                  className="w-36 border-b border-white/20 bg-transparent font-display text-6xl leading-none text-white outline-none focus:border-[#ffcf69]"
+                />
+                <span className="pb-2 text-xs uppercase tracking-[0.2em] text-zinc-500">kcal</span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {[600, 700, 800, 900, 1000].map((value) => (
+                  <Chip key={value} active={lunchKcal === value} onClick={() => setLunchKcal(value)}>{value}</Chip>
+                ))}
+              </div>
             </div>
-            <span className="text-honey font-mono text-xs shrink-0">{qty}</span>
-          </li>
-        ))}
-      </ul>
+          ) : (
+            <div className="mt-5 grid gap-2 sm:grid-cols-2">
+              {Object.entries(TALLY_ITEMS).map(([key, item]) => (
+                <StepperRow
+                  key={key}
+                  label={item.label}
+                  meta={`每${item.step}${item.unit} · ${Math.round(macroKcal(scaleMacro(item, item.step)))} kcal`}
+                  value={tally[key] || 0}
+                  unit={item.unit}
+                  step={item.step}
+                  max={item.max}
+                  onChange={(value) => setMapQty(setTally, key, value, item.max)}
+                />
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        <Panel eyebrow="02 · 选个口味" title="今晚想吃什么" icon={Utensils}>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {Object.entries(CARB_PLANS).map(([key, plan]) => (
+              <button
+                key={key}
+                onClick={() => setCarbPlan(key)}
+                className={`rounded-lg border p-3 text-left transition ${
+                  carbPlan === key ? 'border-[#ffcf69] bg-[#ffcf69]/12 text-white' : 'border-white/10 bg-white/[0.04] text-zinc-400 hover:border-white/25 hover:text-white'
+                }`}
+              >
+                <div className="font-cjk text-sm font-semibold">{plan.short}</div>
+                <div className="mt-1 text-[10px] text-zinc-500">{plan.sub}</div>
+              </button>
+            ))}
+          </div>
+        </Panel>
+
+        <Disclosure
+          open={advancedOpen}
+          onToggle={() => setAdvancedOpen(!advancedOpen)}
+          title="高级配置"
+          subtitle="肉、油脂、水果、牛肉脂肪、目标值"
+        >
+          <div className="grid gap-5">
+            <OptionBlock title="晚餐蛋白">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {Object.entries(PROTEINS).map(([key, item]) => (
+                  <OptionCard key={key} active={proteinKeys.includes(key)} onClick={() => toggleProtein(key)} title={item.short} meta={item.note} />
+                ))}
+              </div>
+            </OptionBlock>
+
+            <OptionBlock title="脂肪来源">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {Object.entries(FAT_SOURCES).map(([key, item]) => (
+                  <OptionCard key={key} active={fatKeys.includes(key)} onClick={() => toggleFat(key)} title={item.short} meta={`${item.f}g 脂 / ${item.unit}`} tone="amber" />
+                ))}
+              </div>
+            </OptionBlock>
+
+            <OptionBlock title="水果 / 酸奶">
+              <div className="grid gap-2 sm:grid-cols-2">
+                {Object.entries(DINNER_EXTRAS).map(([key, item]) => (
+                  <StepperRow
+                    key={key}
+                    label={item.label}
+                    meta={`每${item.step}${item.unit} · C${Math.round(item.c * item.step)}`}
+                    value={extraCarbs[key] || 0}
+                    unit={item.unit}
+                    step={item.step}
+                    max={item.max}
+                    onChange={(value) => setMapQty(setExtraCarbs, key, value, item.max)}
+                  />
+                ))}
+              </div>
+            </OptionBlock>
+
+            <OptionBlock title="牛肉脂肪">
+              <div className="grid grid-cols-4 gap-2">
+                {[5, 9, 13, 18].map((value) => (
+                  <Chip key={value} active={beefFat === value} onClick={() => setBeefFat(value)}>{value}g</Chip>
+                ))}
+              </div>
+              <div className="mt-3 flex items-center gap-3">
+                <input
+                  type="number"
+                  value={beefFat}
+                  onChange={(event) => setBeefFat(clamp(event.target.value, 0, 40))}
+                  className="h-11 w-20 rounded-lg border border-white/10 bg-white/5 text-center font-mono text-lg outline-none focus:border-[#ffcf69]"
+                />
+                <span className="text-xs text-zinc-500">脂質 g / 100g raw · 水煮按 80%</span>
+              </div>
+            </OptionBlock>
+
+            <OptionBlock title="目标值">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  ['p', '蛋白', 'g', 500],
+                  ['c', '碳水', 'g', 800],
+                  ['f', '脂肪', 'g', 300],
+                  ['kcal', '热量', '', 8000],
+                ].map(([key, label, unit, max]) => (
+                  <TargetInput
+                    key={key}
+                    label={label}
+                    unit={unit}
+                    value={targets[key]}
+                    onChange={(value) => setTargets((current) => ({ ...current, [key]: clamp(value, 0, max) }))}
+                  />
+                ))}
+              </div>
+              <button onClick={resetDefaults} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-400 transition hover:border-[#ff8068]/60 hover:text-[#ff8068]">
+                <RotateCcw className="h-4 w-4" />
+                重置默认
+              </button>
+            </OptionBlock>
+          </div>
+        </Disclosure>
+      </section>
+
+      <section className="space-y-6">
+        <Panel eyebrow="03 · 今晚答案" title="今晚就这样吃" icon={Sparkles}>
+          <div className="grid gap-2">
+            {model.dinnerItems.map((item, index) => (
+              <FoodRow key={item.key} item={item} index={index} />
+            ))}
+          </div>
+        </Panel>
+
+        <Panel eyebrow="04 · 今日节奏" title="看一眼就够" icon={Gauge}>
+          <div className="space-y-3">
+            <MacroBar label="蛋白" value={model.total.p} target={targets.p} unit="g" color="#ff8068" />
+            <MacroBar label="碳水" value={model.total.c} target={targets.c} unit="g" color="#ffcf69" />
+            <MacroBar label="脂肪" value={model.total.f} target={targets.f} unit="g" color="#a8d46f" />
+            <MacroBar label="热量" value={model.total.kcal} target={targets.kcal} unit="kcal" color="#7bd6d0" />
+          </div>
+        </Panel>
+      </section>
+    </main>
+  );
+}
+
+function DetailView(props) {
+  const {
+    model,
+    targets,
+    setTargets,
+    tdee,
+    setTdee,
+    pre,
+    setPre,
+    setMapQty,
+    drinkKey,
+    setDrinkKey,
+    drinkMl,
+    setDrinkMl,
+    saltG,
+    setSaltG,
+    foodK,
+    setFoodK,
+  } = props;
+  const balanceOk = model.potassium >= model.sodium;
+
+  return (
+    <main className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+      <Panel eyebrow="今日账本" title="吃进去的东西" icon={ClipboardList}>
+        <LedgerRow label="午餐" macro={model.lunch} />
+        <LedgerRow label="训练前" macro={model.pre} />
+        <LedgerRow label="饮料/电解质" macro={model.drink} />
+        <LedgerRow label="零食加餐" macro={model.snack} />
+        <LedgerRow label="晚餐" macro={model.dinner} strong />
+      </Panel>
+
+      <Panel eyebrow="目标设置" title="目标和消耗" icon={Goal}>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          {[
+            ['p', '蛋白', 'g', 500],
+            ['c', '碳水', 'g', 800],
+            ['f', '脂肪', 'g', 300],
+            ['kcal', '热量', '', 8000],
+          ].map(([key, label, unit, max]) => (
+            <TargetInput key={key} label={label} unit={unit} value={targets[key]} onChange={(value) => setTargets((current) => ({ ...current, [key]: clamp(value, 0, max) }))} />
+          ))}
+          <TargetInput label="TDEE" unit="" value={tdee} onChange={(value) => setTdee(clamp(value, 0, 9000))} />
+        </div>
+      </Panel>
+
+      <Panel eyebrow="训练前" title="垫一口也算进去" icon={Dumbbell}>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {Object.entries(PRE_ITEMS).map(([key, item]) => (
+            <StepperRow key={key} label={item.label} meta={`每${item.step}${item.unit} · ${Math.round(macroKcal(scaleMacro(item, item.step)))} kcal`} value={pre[key] || 0} unit={item.unit} step={item.step} max={item.max} onChange={(value) => setMapQty(setPre, key, value, item.max)} />
+          ))}
+        </div>
+      </Panel>
+
+      <Panel eyebrow="电解质" title="钾钠别太偏" icon={Leaf}>
+        <div className="grid grid-cols-3 gap-2">
+          {Object.entries(DRINKS).map(([key, item]) => (
+            <OptionCard key={key} active={drinkKey === key} onClick={() => setDrinkKey(key)} title={item.label} meta={item.sub} tone="green" />
+          ))}
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <TargetInput label="饮料" unit="ml" value={drinkMl} onChange={(value) => setDrinkMl(clamp(value, 0, 2000))} />
+          <TargetInput label="盐" unit="g" value={saltG} onChange={(value) => setSaltG(clamp(value, 0, 20))} />
+          <TargetInput label="食物钾" unit="mg" value={foodK} onChange={(value) => setFoodK(clamp(value, 0, 8000))} />
+        </div>
+        <div className={`mt-4 rounded-lg border p-4 ${balanceOk ? 'border-[#a8d46f]/30 bg-[#a8d46f]/10' : 'border-[#ff8068]/30 bg-[#ff8068]/10'}`}>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-zinc-300">K / Na</span>
+            <span className={balanceOk ? 'text-[#a8d46f]' : 'text-[#ff8068]'}>{balanceOk ? '平衡' : '钾偏低'}</span>
+          </div>
+          <div className="mt-2 text-xs text-zinc-500">钾 {Math.round(model.potassium)} mg · 钠 {Math.round(model.sodium)} mg</div>
+        </div>
+      </Panel>
+    </main>
+  );
+}
+
+function ShopView({ model, shopDays, setShopDays }) {
+  return (
+    <main className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
+      <section className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.06]">
+        <img src={generated('shop-basket.jpg')} alt="weekly grocery basket" className="h-[360px] w-full object-cover" />
+        <div className="p-4">
+          <div className="text-[10px] uppercase tracking-[0.28em] text-[#ffcf69]">备货模式</div>
+          <h2 className="mt-1 font-display text-4xl">按 {shopDays} 天备货</h2>
+          <div className="mt-4 flex gap-2">
+            {[3, 5, 7, 10].map((days) => (
+              <Chip key={days} active={shopDays === days} onClick={() => setShopDays(days)}>{days} 天</Chip>
+            ))}
+          </div>
+        </div>
+      </section>
+      <Panel eyebrow="买这些就行" title="采购清单" icon={CalendarDays}>
+        <div className="grid gap-2">
+          {model.shopping.map((item) => (
+            <div key={item.key} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-lg border border-white/10 bg-black/25 px-3 py-3">
+              <div>
+                <div className="font-cjk text-sm text-white">{item.name}</div>
+                <div className="mt-1 text-xs text-zinc-500">每天 {round(item.qty)}{item.unit}</div>
+              </div>
+              <div className="rounded-md bg-white px-2.5 py-1 font-mono text-sm text-zinc-950">{item.weeklyQty}{item.unit}</div>
+            </div>
+          ))}
+        </div>
+      </Panel>
+    </main>
+  );
+}
+
+function CheatView({ cheat, setCheat, cheatTotal, cheatSurplus, tdee, dayKcal }) {
+  const setQty = (id, value) => {
+    setCheat((current) => {
+      const next = { ...current };
+      const qty = clamp(value, 0, 9);
+      if (qty > 0) next[id] = qty;
+      else delete next[id];
+      return next;
+    });
+  };
+
+  return (
+    <main className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
+      <Panel eyebrow="放松一下" title="想吃也能算" icon={Flame}>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {CHEAT_ITEMS.map((item) => (
+            <div key={item.id} className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-cjk text-sm text-white">{item.label}</div>
+                  <div className="mt-1 text-xs text-zinc-500">{item.kcal} kcal</div>
+                </div>
+                <MiniStepper value={cheat[item.id] || 0} onChange={(value) => setQty(item.id, value)} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Panel>
+      <section className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.06]">
+        <img src={asset('cheat.jpg')} alt="cheat meal" className="h-56 w-full object-cover" />
+        <div className="p-5">
+          <div className="text-[10px] uppercase tracking-[0.28em] text-[#ff8068]">吃完大概这样</div>
+          <div className="mt-2 font-display text-6xl text-white">{cheatTotal}</div>
+          <div className="text-sm text-zinc-500">放松热量</div>
+          <div className="mt-5 grid grid-cols-3 gap-2">
+            <ResultPill label="今日总摄入" value={Math.round(dayKcal + cheatTotal)} />
+            <ResultPill label="TDEE" value={tdee} />
+            <ResultPill label="盈余" value={(cheatSurplus >= 0 ? '+' : '') + cheatSurplus} hot={cheatSurplus > 0} />
+          </div>
+          <button onClick={() => setCheat({})} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-400 transition hover:border-[#ff8068]/60 hover:text-[#ff8068]">
+            <RotateCcw className="h-4 w-4" />
+            清空
+          </button>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function SnackDrawer({ open, setOpen, snack, setSnack, active, dinnerSummary }) {
+  if (!open) return null;
+
+  const setField = (key, value) => {
+    setSnack((current) => ({ ...current, [key]: key === 'name' ? value : clamp(value, 0, key === 'kcal' ? 5000 : 500) }));
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70]">
+      <button className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} aria-label="关闭零食加餐" />
+      <aside className="absolute inset-y-0 right-0 flex w-[min(430px,94vw)] flex-col border-l border-white/10 bg-[#111311] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-white/10 p-4">
+          <div className="flex items-center gap-3">
+            <img src={generated('snack-scanner.jpg')} alt="" className="h-12 w-12 rounded-lg object-cover" />
+            <div>
+              <div className="font-display text-xl text-white">零食加餐</div>
+              <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">自己填一下也行</div>
+            </div>
+          </div>
+          <button onClick={() => setOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 text-zinc-400 hover:text-white" aria-label="关闭">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          <label className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">名称</label>
+          <input
+            value={snack.name}
+            onChange={(event) => setField('name', event.target.value)}
+            className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-[#ffcf69]"
+          />
+          <div className="mt-4 grid grid-cols-4 gap-2">
+            {[
+              ['kcal', '热量'],
+              ['p', '蛋白'],
+              ['c', '碳水'],
+              ['f', '脂肪'],
+            ].map(([key, label]) => (
+              <TargetInput key={key} label={label} unit={key === 'kcal' ? '' : 'g'} value={snack[key]} onChange={(value) => setField(key, value)} />
+            ))}
+          </div>
+          <div className="mt-5 rounded-lg border border-[#ffcf69]/20 bg-[#ffcf69]/10 p-4">
+            <div className="text-[10px] uppercase tracking-[0.22em] text-[#ffcf69]">晚餐会跟着收口</div>
+            <div className="mt-2 text-sm leading-6 text-zinc-300">{dinnerSummary || '晚餐已砍到很低'} · 全天 {Math.round(snack.kcal)} kcal snack</div>
+          </div>
+          {active && (
+            <button onClick={() => setSnack({ name: '手动加餐', p: 0, c: 0, f: 0, kcal: 0 })} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-400 hover:text-[#ff8068]">
+              <RotateCcw className="h-4 w-4" />
+              清除加餐
+            </button>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function Panel({ eyebrow, title, icon: Icon, children }) {
+  return (
+    <section className="rounded-lg border border-white/10 bg-white/[0.055] p-4 shadow-[0_24px_80px_-60px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:p-5">
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.28em] text-[#ffcf69]">{eyebrow}</div>
+          <h2 className="mt-1 font-display text-2xl text-white">{title}</h2>
+        </div>
+        {Icon && (
+          <span className="grid h-9 w-9 place-items-center rounded-lg bg-white text-zinc-950">
+            <Icon className="h-4 w-4" />
+          </span>
+        )}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function HeroAction({ icon: Icon, label, sub, onClick }) {
+  const Comp = onClick ? 'button' : 'div';
+  return (
+    <Comp onClick={onClick} className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-3 text-left backdrop-blur-xl transition hover:border-white/25">
+      <Icon className="mb-2 h-4 w-4 text-[#ffcf69]" />
+      <div className="text-sm text-white">{label}</div>
+      {sub && <div className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{sub}</div>}
+    </Comp>
+  );
+}
+
+function MetricTile({ label, value, target, unit }) {
+  const diff = value - target;
+  const ok = Math.abs(diff) <= (unit ? Math.max(8, target * 0.08) : Math.max(80, target * 0.05));
+  return (
+    <div className="rounded-lg bg-white/10 p-2 backdrop-blur">
+      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-400">{label}</div>
+      <div className="mt-1 font-mono text-lg text-white">{Math.round(value)}</div>
+      <div className={`text-[10px] ${ok ? 'text-[#a8d46f]' : 'text-[#ffcf69]'}`}>{diff >= 0 ? '+' : ''}{Math.round(diff)}{unit}</div>
+    </div>
+  );
+}
+
+function Segmented({ value, onChange, options }) {
+  return (
+    <div className="grid grid-cols-2 rounded-lg bg-black/25 p-1">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          onClick={() => onChange(option.value)}
+          className={`rounded-md px-3 py-2 text-sm transition ${value === option.value ? 'bg-white text-zinc-950' : 'text-zinc-400 hover:text-white'}`}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Chip({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-lg border px-3 py-2 text-xs transition ${
+        active ? 'border-[#ffcf69] bg-[#ffcf69]/15 text-[#ffcf69]' : 'border-white/10 bg-white/[0.04] text-zinc-400 hover:border-white/25 hover:text-white'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function OptionBlock({ title, children }) {
+  return (
+    <div>
+      <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-zinc-500">{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function OptionCard({ active, onClick, title, meta, tone = 'gold' }) {
+  const color = tone === 'green' ? '#a8d46f' : tone === 'amber' ? '#ffb55c' : '#ffcf69';
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-lg border p-3 text-left transition hover:-translate-y-0.5"
+      style={{
+        borderColor: active ? color : 'rgba(255,255,255,0.10)',
+        background: active ? `${color}1f` : 'rgba(255,255,255,0.045)',
+      }}
+    >
+      <div className="font-cjk text-sm font-semibold text-white">{title}</div>
+      <div className="mt-1 text-[10px] text-zinc-500">{meta}</div>
+    </button>
+  );
+}
+
+function Disclosure({ open, onToggle, title, subtitle, children }) {
+  return (
+    <section className="rounded-lg border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <button onClick={onToggle} className="flex w-full items-center justify-between gap-3 p-4 text-left">
+        <span>
+          <span className="flex items-center gap-2 font-display text-2xl text-white">
+            <Settings2 className="h-4 w-4 text-[#ffcf69]" />
+            {title}
+          </span>
+          <span className="mt-1 block text-xs text-zinc-500">{subtitle}</span>
+        </span>
+        <ChevronDown className={`h-5 w-5 text-zinc-500 transition ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && <div className="border-t border-white/10 p-4">{children}</div>}
+    </section>
+  );
+}
+
+function StepperRow({ label, meta, value, unit, step, max, onChange }) {
+  return (
+    <div className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-lg border border-white/10 bg-black/20 p-3">
+      <div className="min-w-0">
+        <div className="truncate font-cjk text-sm font-semibold text-white">{label}</div>
+        <div className="mt-1 truncate text-[10px] text-zinc-500">{meta}</div>
+      </div>
+      <div className="flex items-center gap-1">
+        <IconSquare label={`减少${label}`} onClick={() => onChange(value - step)} icon={Minus} />
+        <span className="w-14 text-center font-mono text-sm text-white">{round(value)}{value > 0 && unit === 'g' ? 'g' : ''}</span>
+        <IconSquare label={`增加${label}`} onClick={() => onChange(Math.min(max, value + step))} icon={Plus} />
+      </div>
+    </div>
+  );
+}
+
+function MiniStepper({ value, onChange }) {
+  return (
+    <div className="flex items-center gap-1">
+      <IconSquare label="减少" onClick={() => onChange(value - 1)} icon={Minus} />
+      <span className="w-7 text-center font-mono text-sm text-white">{value}</span>
+      <IconSquare label="增加" onClick={() => onChange(value + 1)} icon={Plus} />
+    </div>
+  );
+}
+
+function IconSquare({ label, onClick, icon: Icon }) {
+  return (
+    <button onClick={onClick} aria-label={label} className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:border-[#ffcf69]/60 hover:text-[#ffcf69]">
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+}
+
+function TargetInput({ label, unit, value, onChange }) {
+  return (
+    <label className="block rounded-lg border border-white/10 bg-black/20 p-3">
+      <span className="block text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</span>
+      <span className="mt-1 flex items-baseline gap-1">
+        <input
+          type="number"
+          value={round(value, 1)}
+          onChange={(event) => onChange(event.target.value)}
+          className="min-w-0 flex-1 bg-transparent font-mono text-lg text-white outline-none"
+        />
+        <span className="text-[10px] text-zinc-500">{unit}</span>
+      </span>
+    </label>
+  );
+}
+
+function FoodRow({ item, index }) {
+  const colorMap = {
+    red: '#ff8068',
+    amber: '#ffb55c',
+    gold: '#ffcf69',
+    green: '#a8d46f',
+  };
+  const color = colorMap[item.tone] || '#ffffff';
+  return (
+    <div className="grid grid-cols-[38px_1fr_auto] items-center gap-3 rounded-lg border border-white/10 bg-black/25 p-3">
+      <span className="grid h-9 w-9 place-items-center rounded-lg font-mono text-xs text-zinc-950" style={{ backgroundColor: color }}>
+        {String(index + 1).padStart(2, '0')}
+      </span>
+      <div className="min-w-0">
+        <div className="truncate font-cjk text-sm font-semibold text-white">{item.name}</div>
+        <div className="mt-1 text-[10px] text-zinc-500">P{round(item.macro.p)} · C{round(item.macro.c)} · F{round(item.macro.f)}</div>
+      </div>
+      <div className="text-right">
+        <div className="font-display text-2xl leading-none text-white">{round(item.qty)}</div>
+        <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-zinc-500">{item.unit}</div>
+      </div>
+    </div>
+  );
+}
+
+function MacroBar({ label, value, target, unit, color }) {
+  const pct = Math.min(135, (value / Math.max(1, target)) * 100);
+  const diff = Math.round(value - target);
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="text-sm text-zinc-300">{label}</span>
+        <span className="font-mono text-xs text-zinc-500">{Math.round(value)} / {target} {unit}</span>
+      </div>
+      <div className="relative h-2 overflow-hidden rounded-full bg-white/10">
+        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: color }} />
+      </div>
+      <div className="mt-1 text-right text-[10px] text-zinc-500">{diff >= 0 ? '+' : ''}{diff}{unit}</div>
+    </div>
+  );
+}
+
+function LedgerRow({ label, macro, strong }) {
+  return (
+    <div className={`grid grid-cols-[1fr_auto] items-center gap-3 border-t border-white/10 py-3 first:border-t-0 ${strong ? 'text-white' : 'text-zinc-300'}`}>
+      <div className="font-cjk text-sm">{label}</div>
+      <div className="font-mono text-xs text-zinc-500">P{round(macro.p)} C{round(macro.c)} F{round(macro.f)} · {Math.round(macroKcal(macro))} kcal</div>
+    </div>
+  );
+}
+
+function ResultPill({ label, value, hot }) {
+  return (
+    <div className={`rounded-lg border p-3 ${hot ? 'border-[#ff8068]/30 bg-[#ff8068]/10' : 'border-white/10 bg-black/20'}`}>
+      <div className="text-[10px] text-zinc-500">{label}</div>
+      <div className={`mt-1 font-mono text-lg ${hot ? 'text-[#ff8068]' : 'text-white'}`}>{value}</div>
     </div>
   );
 }

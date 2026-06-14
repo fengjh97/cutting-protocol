@@ -8,28 +8,22 @@ html, body, #root {
 }
 
 body {
-  background-color: #FBF3E7;
-  /* 温暖的光晕:顶部蜂蜜暖光 + 角落赤陶晕染,告别一片灰黑 */
-  background-image:
-    radial-gradient(120% 80% at 50% -10%, rgba(224, 162, 61, 0.18) 0%, rgba(224, 162, 61, 0) 55%),
-    radial-gradient(90% 60% at 100% 0%, rgba(210, 104, 63, 0.12) 0%, rgba(210, 104, 63, 0) 50%),
-    radial-gradient(80% 70% at 0% 100%, rgba(126, 140, 86, 0.10) 0%, rgba(126, 140, 86, 0) 55%);
-  background-attachment: fixed;
+  background: #0d0f10;
+  color: #f7f1e7;
+  overflow-x: hidden;
 }
 
-/* 细腻纸纹噪点,增加手作质感 */
-.grain::before {
+body::before {
   content: '';
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 0;
-  opacity: 0.5;
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+  z-index: -5;
+  opacity: 0.23;
+  mix-blend-mode: screen;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.18'/%3E%3C/svg%3E");
 }
 
-/* 入场:柔和上浮 + 淡入 */
 @keyframes rise {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -41,7 +35,6 @@ body {
 
 .tnum { font-variant-numeric: tabular-nums; }
 
-/* 加餐小球:轻轻上下跳,吸引注意;hover 暂停 */
 @keyframes fab-bob {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-7px); }
@@ -57,11 +50,23 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .snack-fab { animation: none; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
 }
 
-::selection { background: rgba(210, 104, 63, 0.22); }
+::selection { background: rgba(255, 128, 104, 0.32); }
 
-/* number input:去掉默认上下箭头 */
+button, input {
+  -webkit-tap-highlight-color: transparent;
+}
+
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input[type=number] { -moz-appearance: textfield; }
+
+canvas {
+  display: block;
+}
