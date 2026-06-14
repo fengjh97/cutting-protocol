@@ -249,6 +249,23 @@ function describeFuel(pre, drinkKey, drinkMl) {
   return `${describePre(pre)} · ${describeDrink(drinkKey, drinkMl)}`;
 }
 
+function applyDinnerAdjustments(items, adjustments) {
+  return items.map((item) => {
+    const baseQty = item.qty;
+    const adjustment = adjustments[item.key] || 0;
+    const max = item.max ?? Infinity;
+    const qty = clamp(baseQty + adjustment, 0, max);
+    const actualAdjustment = round(qty - baseQty, item.step < 1 ? 1 : 2);
+    return {
+      ...item,
+      baseQty,
+      qty,
+      adjustment: actualAdjustment,
+      macro: scaleMacro(item.unitMacro, qty),
+    };
+  });
+}
+
 function roundTo(value, step) {
   if (!Number.isFinite(value) || value <= 0) return 0;
   return Math.max(0, Math.round(value / step) * step);
@@ -506,6 +523,7 @@ export default function CuttingProtocol() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [fuelOpen, setFuelOpen] = useState(false);
   const [snackOpen, setSnackOpen] = useState(false);
+  const [dinnerAdjustments, setDinnerAdjustments] = useState({});
   const [snack, setSnack] = useState({ name: '手动加餐', p: 0, c: 0, f: 0, kcal: 0 });
   const [cheat, setCheat] = useState({});
 
@@ -548,6 +566,9 @@ export default function CuttingProtocol() {
       name: DINNER_EXTRAS[key].label,
       qty,
       unit: DINNER_EXTRAS[key].unit,
+      step: DINNER_EXTRAS[key].step,
+      max: DINNER_EXTRAS[key].max,
+      unitMacro: DINNER_EXTRAS[key],
       macro: scaleMacro(DINNER_EXTRAS[key], qty),
       tone: 'gold',
     }));
@@ -563,6 +584,9 @@ export default function CuttingProtocol() {
         short: unit.short,
         qty,
         unit: unit.unit,
+        step: unit.step,
+        max: unit.max,
+        unitMacro: unit,
         macro: scaleMacro(unit, qty),
         tone: 'red',
       };
@@ -581,6 +605,9 @@ export default function CuttingProtocol() {
         short: src.short,
         qty,
         unit: src.unit,
+        step: src.step,
+        max: src.max,
+        unitMacro: src,
         macro: scaleMacro(src, qty),
         tone: 'amber',
       };
@@ -590,7 +617,8 @@ export default function CuttingProtocol() {
     const usedBeforeCarb = addMacros(beforeDinner, extraMacro, proteinMacro, fatMacro);
     const remainingKcal = Math.max(0, targets.kcal - usedBeforeCarb.kcal);
     const carb = CARB_PLANS[carbPlan];
-    const carbQty = clamp(roundTo(remainingKcal / carb.kcalUnit, carb.step), 0, carb.unit === '包' ? 8 : 420);
+    const carbMax = carb.unit === '包' ? 8 : 420;
+    const carbQty = clamp(roundTo(remainingKcal / carb.kcalUnit, carb.step), 0, carbMax);
     const carbMacro = scaleMacro(carb.perUnit, carbQty);
     const carbItem = carbQty > 0 ? [{
       key: `carb-${carbPlan}`,
@@ -598,11 +626,14 @@ export default function CuttingProtocol() {
       short: carb.short,
       qty: carbQty,
       unit: carb.unit,
+      step: carb.step,
+      max: carbMax,
+      unitMacro: carb.perUnit,
       macro: carbMacro,
       tone: 'green',
     }] : [];
 
-    const dinnerItems = [...proteinItems, ...fatItems, ...extraItems, ...carbItem];
+    const dinnerItems = applyDinnerAdjustments([...proteinItems, ...fatItems, ...extraItems, ...carbItem], dinnerAdjustments);
     const dinner = dinnerItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
     const total = addMacros(beforeDinner, dinner);
     const deficit = Math.round(tdee - total.kcal);
@@ -611,7 +642,7 @@ export default function CuttingProtocol() {
     const sodium = saltG * 393 + drinkNa;
     const potassium = foodK + drinkK;
 
-    const shopping = dinnerItems.map((item) => ({
+    const shopping = dinnerItems.filter((item) => item.qty > 0).map((item) => ({
       ...item,
       weeklyQty: round(item.qty * shopDays, item.unit === 'g' ? 0 : 1),
     }));
@@ -631,13 +662,25 @@ export default function CuttingProtocol() {
       shopping,
       carb,
     };
-  }, [beefFat, carbPlan, drinkKey, drinkMl, extraCarbs, fatKeys, foodK, lunchKcal, lunchMode, pre, saltG, shopDays, snack, tally, targets, tdee, proteinKeys]);
+  }, [beefFat, carbPlan, dinnerAdjustments, drinkKey, drinkMl, extraCarbs, fatKeys, foodK, lunchKcal, lunchMode, pre, saltG, shopDays, snack, tally, targets, tdee, proteinKeys]);
 
   const cheatTotal = CHEAT_ITEMS.reduce((sum, item) => sum + (cheat[item.id] || 0) * item.kcal, 0);
   const cheatSurplus = Math.round(model.total.kcal + cheatTotal - tdee);
   const fuelActive = isFuelActive(pre, drinkKey, drinkMl);
   const fuelSummary = describeFuel(pre, drinkKey, drinkMl);
   const snackActive = snack.kcal > 0 || snack.p > 0 || snack.c > 0 || snack.f > 0;
+
+  const tuneDinnerItem = (item, delta) => {
+    setDinnerAdjustments((current) => {
+      const baseQty = item.baseQty ?? item.qty;
+      const nextQty = clamp(item.qty + delta, 0, item.max ?? Infinity);
+      const nextAdjustment = round(nextQty - baseQty, item.step < 1 ? 1 : 2);
+      const next = { ...current };
+      if (nextAdjustment !== 0) next[item.key] = nextAdjustment;
+      else delete next[item.key];
+      return next;
+    });
+  };
 
   const resetDefaults = () => {
     setTargets(DEFAULT_TARGETS);
@@ -651,6 +694,7 @@ export default function CuttingProtocol() {
     setPre({});
     setDrinkKey('tomato');
     setDrinkMl(400);
+    setDinnerAdjustments({});
     setSnack({ name: '手动加餐', p: 0, c: 0, f: 0, kcal: 0 });
   };
 
@@ -662,6 +706,7 @@ export default function CuttingProtocol() {
       pre: model.pre,
       drink: { key: drinkKey, ml: drinkMl, macro: model.drink },
       snack,
+      dinnerAdjustments,
       dinner: { items: model.dinnerItems, macro: model.dinner },
       total: model.total,
       deficit: model.deficit,
@@ -732,6 +777,8 @@ export default function CuttingProtocol() {
             targets={targets}
             setTargets={setTargets}
             resetDefaults={resetDefaults}
+            onTuneDinner={tuneDinnerItem}
+            resetDinnerAdjustments={() => setDinnerAdjustments({})}
           />
         )}
 
@@ -920,7 +967,10 @@ function PlanView(props) {
     targets,
     setTargets,
     resetDefaults,
+    onTuneDinner,
+    resetDinnerAdjustments,
   } = props;
+  const hasDinnerAdjustments = model.dinnerItems.some((item) => item.adjustment !== 0);
 
   return (
     <main className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
@@ -1074,9 +1124,15 @@ function PlanView(props) {
         <Panel eyebrow="03 · 今晚答案" title="今晚就这样吃" icon={Sparkles}>
           <div className="grid gap-2">
             {model.dinnerItems.map((item, index) => (
-              <FoodRow key={item.key} item={item} index={index} />
+              <FoodRow key={item.key} item={item} index={index} onTune={onTuneDinner} />
             ))}
           </div>
+          {hasDinnerAdjustments && (
+            <button onClick={resetDinnerAdjustments} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-400 transition hover:border-[#ff8068]/60 hover:text-[#ff8068]">
+              <RotateCcw className="h-4 w-4" />
+              重置微调
+            </button>
+          )}
         </Panel>
 
         <Panel eyebrow="04 · 今日节奏" title="看一眼就够" icon={Gauge}>
@@ -1584,7 +1640,7 @@ function TargetInput({ label, unit, value, onChange }) {
   );
 }
 
-function FoodRow({ item, index }) {
+function FoodRow({ item, index, onTune }) {
   const colorMap = {
     red: '#ff8068',
     amber: '#ffb55c',
@@ -1592,18 +1648,28 @@ function FoodRow({ item, index }) {
     green: '#a8d46f',
   };
   const color = colorMap[item.tone] || '#ffffff';
+  const adjustmentLabel = item.adjustment > 0 ? `+${round(item.adjustment)}` : round(item.adjustment);
   return (
-    <div className="grid grid-cols-[38px_1fr_auto] items-center gap-3 rounded-lg border border-white/10 bg-black/25 p-3">
+    <div data-dinner-tune-row className="grid grid-cols-[38px_1fr_auto] items-center gap-3 rounded-lg border border-white/10 bg-black/25 p-3">
       <span className="grid h-9 w-9 place-items-center rounded-lg font-mono text-xs text-zinc-950" style={{ backgroundColor: color }}>
         {String(index + 1).padStart(2, '0')}
       </span>
       <div className="min-w-0">
         <div className="truncate font-cjk text-sm font-semibold text-white">{item.name}</div>
-        <div className="mt-1 text-[10px] text-zinc-500">P{round(item.macro.p)} · C{round(item.macro.c)} · F{round(item.macro.f)}</div>
+        <div className="mt-1 truncate text-[10px] text-zinc-500">
+          P{round(item.macro.p)} · C{round(item.macro.c)} · F{round(item.macro.f)}
+          {item.adjustment !== 0 && <span className="text-[#ffcf69]"> · 调整 {adjustmentLabel}{item.unit}</span>}
+        </div>
       </div>
       <div className="text-right">
         <div className="font-display text-2xl leading-none text-white">{round(item.qty)}</div>
         <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-zinc-500">{item.unit}</div>
+        {onTune && (
+          <div className="mt-2 flex items-center justify-end gap-1">
+            <IconSquare label={`减少${item.name}`} onClick={() => onTune(item, -item.step)} icon={Minus} />
+            <IconSquare label={`增加${item.name}`} onClick={() => onTune(item, item.step)} icon={Plus} />
+          </div>
+        )}
       </div>
     </div>
   );
