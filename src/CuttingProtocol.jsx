@@ -159,7 +159,7 @@ const DINNER_EXTRAS = {
   banana: { label: '香蕉', unit: '根', step: 1, max: 4, p: 1, c: 27, f: 0.3 },
   apple: { label: '苹果', unit: '个', step: 1, max: 3, p: 0.4, c: 35, f: 0.3 },
   kiwi: { label: '奇异果', unit: '个', step: 1, max: 4, p: 1, c: 14, f: 0.2 },
-  pineapple: { label: '切块菠萝', unit: 'g', step: 50, max: 400, p: 0.006, c: 0.13, f: 0.001 },
+  pineapple: { label: '切块菠萝 240g', unit: '盒', step: 1, max: 2, p: 1.44, c: 31.2, f: 0.24 },
   yogurt: { label: '无糖酸奶', unit: 'g', step: 50, max: 400, p: 0.036, c: 0.049, f: 0.03 },
 };
 
@@ -179,7 +179,7 @@ const PRE_ITEMS = {
   chicken: { label: '鸡胸', unit: '块', step: 1, max: 5, p: 22, c: 1, f: 2 },
   eggs: { label: '全蛋', unit: '个', step: 1, max: 6, p: 6, c: 0.5, f: 5 },
   banana: { label: '香蕉', unit: '根', step: 1, max: 4, p: 1, c: 27, f: 0.25 },
-  pineapple: { label: '菠萝', unit: 'g', step: 50, max: 500, p: 0.006, c: 0.13, f: 0.001 },
+  pineapple: { label: '菠萝 240g', unit: '盒', step: 1, max: 2, p: 1.44, c: 31.2, f: 0.24 },
   oikos: { label: 'Oikos', unit: '個', step: 1, max: 5, p: 12, c: 5, f: 0 },
 };
 
