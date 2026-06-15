@@ -48,6 +48,15 @@ body::before {
   );
 }
 
+.shop-hero-overlay {
+  background: linear-gradient(
+    90deg,
+    rgba(8, 9, 8, 0.96) 0%,
+    rgba(8, 9, 8, 0.82) 48%,
+    rgba(8, 9, 8, 0.34) 100%
+  );
+}
+
 .premium-header-shadow {
   box-shadow: 0 18px 70px -55px rgba(0, 0, 0, 1);
 }

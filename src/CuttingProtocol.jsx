@@ -12,12 +12,16 @@ import Flame from 'lucide-react/dist/esm/icons/flame.mjs';
 import Gauge from 'lucide-react/dist/esm/icons/gauge.mjs';
 import Goal from 'lucide-react/dist/esm/icons/goal.mjs';
 import Leaf from 'lucide-react/dist/esm/icons/leaf.mjs';
+import Boxes from 'lucide-react/dist/esm/icons/boxes.mjs';
+import ListChecks from 'lucide-react/dist/esm/icons/list-checks.mjs';
 import Minus from 'lucide-react/dist/esm/icons/minus.mjs';
+import PackageCheck from 'lucide-react/dist/esm/icons/package-check.mjs';
 import Plus from 'lucide-react/dist/esm/icons/plus.mjs';
 import RotateCcw from 'lucide-react/dist/esm/icons/rotate-ccw.mjs';
 import Settings2 from 'lucide-react/dist/esm/icons/settings-2.mjs';
 import ShoppingBasket from 'lucide-react/dist/esm/icons/shopping-basket.mjs';
 import Sparkles from 'lucide-react/dist/esm/icons/sparkles.mjs';
+import Timer from 'lucide-react/dist/esm/icons/timer.mjs';
 import Utensils from 'lucide-react/dist/esm/icons/utensils.mjs';
 import X from 'lucide-react/dist/esm/icons/x.mjs';
 import Zap from 'lucide-react/dist/esm/icons/zap.mjs';
@@ -787,16 +791,18 @@ export default function CuttingProtocol() {
           </nav>
         </header>
 
-        <Hero
-          model={model}
-          targets={targets}
-          onFuel={() => setFuelOpen(true)}
-          fuelActive={fuelActive}
-          fuelSummary={fuelSummary}
-          onSnack={() => setSnackOpen(true)}
-          onCopy={copyDailyPlan}
-          copyStatus={copyStatus}
-        />
+        {tab === 'plan' && (
+          <Hero
+            model={model}
+            targets={targets}
+            onFuel={() => setFuelOpen(true)}
+            fuelActive={fuelActive}
+            fuelSummary={fuelSummary}
+            onSnack={() => setSnackOpen(true)}
+            onCopy={copyDailyPlan}
+            copyStatus={copyStatus}
+          />
+        )}
 
         {tab === 'plan' && (
           <PlanView
@@ -1289,34 +1295,147 @@ function DetailView(props) {
 }
 
 function ShopView({ model, shopDays, setShopDays }) {
+  const groupMeta = [
+    { tone: 'red', label: '蛋白主菜', caption: '肉和高蛋白先拿够', icon: Dumbbell, accent: '#c77e68' },
+    { tone: 'green', label: '主食碳水', caption: '晚饭的底盘', icon: Utensils, accent: '#9fb58f' },
+    { tone: 'gold', label: '水果加料', caption: '菠萝、香蕉、酸奶这类', icon: Apple, accent: '#d8c7a3' },
+    { tone: 'amber', label: '油脂口味', caption: '酱、蛋、坚果和风味', icon: Flame, accent: '#c8a86a' },
+  ];
+  const priorityOrder = { red: 0, green: 1, gold: 2, amber: 3 };
+  const groups = groupMeta
+    .map((group) => ({
+      ...group,
+      items: model.shopping.filter((item) => item.tone === group.tone),
+    }))
+    .filter((group) => group.items.length > 0);
+  const priorityItems = [...model.shopping].sort((a, b) => (priorityOrder[a.tone] ?? 9) - (priorityOrder[b.tone] ?? 9)).slice(0, 3);
+  const weeklyMacro = scaleMacro(model.dinner, shopDays);
+  const totalUnits = model.shopping.length;
+
   return (
-    <main className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
-      <section className="overflow-hidden rounded-lg border border-[#d8c7a3]/12 bg-[#10120f]/92">
-        <img src={generated('shop-basket.jpg')} alt="weekly grocery basket" className="h-[360px] w-full object-cover" />
-        <div className="p-4">
-          <div className="text-[10px] uppercase tracking-[0.28em] text-[#b9a36c]">备货模式</div>
-          <h2 className="mt-1 font-display text-4xl text-[#f2eadb]">按 {shopDays} 天备货</h2>
-          <div className="mt-4 flex gap-2">
-            {[3, 5, 7, 10].map((days) => (
-              <Chip key={days} active={shopDays === days} onClick={() => setShopDays(days)}>{days} 天</Chip>
-            ))}
+    <main className="grid gap-6">
+      <section className="relative overflow-hidden rounded-lg border border-[#d8c7a3]/12 bg-[#10120f]/92">
+        <img src={generated('shop-basket.jpg')} alt="weekly grocery basket" className="absolute inset-0 h-full w-full object-cover opacity-45" />
+        <div className="shop-hero-overlay absolute inset-0" />
+        <div className="relative grid gap-6 p-5 sm:p-6 lg:grid-cols-[1fr_0.95fr] lg:items-end">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-lg border border-[#d8c7a3]/14 bg-[#080908]/58 px-3 py-2 text-[10px] uppercase tracking-[0.24em] text-[#b9a36c] backdrop-blur">
+              <PackageCheck className="h-4 w-4" />
+              market run
+            </div>
+            <h2 className="mt-4 font-display text-4xl leading-none text-[#f2eadb] sm:text-5xl">采购清单</h2>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-[#cfc4b2]">
+              按今晚的晚餐结果自动折算。进店先拿主菜和主食，再补水果和风味，别在货架前重新算。
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {[3, 5, 7, 10].map((days) => (
+                <Chip key={days} active={shopDays === days} onClick={() => setShopDays(days)}>{days} 天</Chip>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <ShopStat icon={Timer} label="备货" value={`${shopDays}天`} sub="周期" />
+            <ShopStat icon={Boxes} label="品类" value={totalUnits} sub="件要拿" />
+            <ShopStat icon={Gauge} label="库存" value={Math.round(weeklyMacro.kcal)} sub="kcal" />
           </div>
         </div>
       </section>
-      <Panel eyebrow="买这些就行" title="采购清单" icon={CalendarDays}>
-        <div className="grid gap-2">
-          {model.shopping.map((item) => (
-            <div key={item.key} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-lg border border-[#d8c7a3]/10 bg-[#080908]/42 px-3 py-3">
-              <div>
-                <div className="font-cjk text-sm text-[#f2eadb]">{item.name}</div>
-                <div className="mt-1 text-xs text-[#918a7c]">每天 {round(item.qty)}{item.unit}</div>
-              </div>
-              <div className="rounded-md bg-[#d8c7a3] px-2.5 py-1 font-mono text-sm text-[#11110d]">{item.weeklyQty}{item.unit}</div>
+
+      <div className="grid gap-6 lg:grid-cols-[0.88fr_1.12fr]">
+        <Panel eyebrow="先拿这些" title="进店顺序" icon={ListChecks}>
+          <div className="grid gap-3">
+            {priorityItems.map((item, index) => (
+              <ShopPriorityCard key={item.key} item={item} index={index} />
+            ))}
+          </div>
+          <div className="mt-4 rounded-lg border border-[#d8c7a3]/10 bg-[#080908]/42 p-4">
+            <div className="text-[10px] uppercase tracking-[0.24em] text-[#918a7c]">daily dinner base</div>
+            <div className="mt-2 grid grid-cols-4 gap-2">
+              <ResultPill label="P" value={Math.round(model.dinner.p)} />
+              <ResultPill label="C" value={Math.round(model.dinner.c)} />
+              <ResultPill label="F" value={Math.round(model.dinner.f)} />
+              <ResultPill label="Kcal" value={Math.round(model.dinner.kcal)} />
             </div>
-          ))}
-        </div>
-      </Panel>
+          </div>
+        </Panel>
+
+        <Panel eyebrow="分区拿货" title="照这个买" icon={CalendarDays}>
+          <div className="grid gap-3">
+            {groups.map((group) => (
+              <ShopGroupCard key={group.tone} group={group} />
+            ))}
+          </div>
+        </Panel>
+      </div>
     </main>
+  );
+}
+
+function ShopStat({ icon: Icon, label, value, sub }) {
+  return (
+    <div className="rounded-lg border border-[#d8c7a3]/12 bg-[#080908]/58 p-3 backdrop-blur">
+      <Icon className="h-4 w-4 text-[#b9a36c]" />
+      <div className="mt-3 font-display text-3xl leading-none text-[#f2eadb]">{value}</div>
+      <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-[#918a7c]">{label} · {sub}</div>
+    </div>
+  );
+}
+
+function ShopPriorityCard({ item, index }) {
+  return (
+    <div className="grid grid-cols-[42px_1fr_auto] items-center gap-3 rounded-lg border border-[#d8c7a3]/10 bg-[#080908]/46 p-3">
+      <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#d8c7a3] font-mono text-sm text-[#11110d]">
+        {String(index + 1).padStart(2, '0')}
+      </span>
+      <div className="min-w-0">
+        <div className="truncate font-cjk text-sm font-semibold text-[#f2eadb]">{item.name}</div>
+        <div className="mt-1 truncate text-[10px] text-[#918a7c]">每天 {round(item.qty)}{item.unit} · {Math.round(macroKcal(item.macro))} kcal</div>
+      </div>
+      <div className="text-right">
+        <div className="font-display text-2xl leading-none text-[#f2eadb]">{item.weeklyQty}</div>
+        <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-[#918a7c]">{item.unit}</div>
+      </div>
+    </div>
+  );
+}
+
+function ShopGroupCard({ group }) {
+  const Icon = group.icon;
+  return (
+    <section className="rounded-lg border border-[#d8c7a3]/10 bg-[#080908]/42 p-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ backgroundColor: `${group.accent}24`, color: group.accent }}>
+            <Icon className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <div className="truncate font-cjk text-sm font-semibold text-[#f2eadb]">{group.label}</div>
+            <div className="mt-0.5 truncate text-[10px] text-[#918a7c]">{group.caption}</div>
+          </div>
+        </div>
+        <span className="rounded-md border border-[#d8c7a3]/10 px-2 py-1 font-mono text-xs text-[#cfc4b2]">{group.items.length} 项</span>
+      </div>
+      <div className="grid gap-2">
+        {group.items.map((item) => (
+          <ShopItemRow key={item.key} item={item} accent={group.accent} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ShopItemRow({ item, accent }) {
+  return (
+    <div className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-lg border border-[#d8c7a3]/8 bg-[#11130f]/68 px-3 py-3">
+      <div className="min-w-0">
+        <div className="truncate font-cjk text-sm text-[#f2eadb]">{item.name}</div>
+        <div className="mt-1 text-xs text-[#918a7c]">每天 {round(item.qty)}{item.unit}</div>
+      </div>
+      <div className="rounded-md px-2.5 py-1 text-right" style={{ backgroundColor: `${accent}22` }}>
+        <div className="font-mono text-sm text-[#f2eadb]">{item.weeklyQty}{item.unit}</div>
+        <div className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-[#918a7c]">to buy</div>
+      </div>
+    </div>
   );
 }
 
