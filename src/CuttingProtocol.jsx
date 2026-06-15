@@ -25,13 +25,18 @@ import Timer from 'lucide-react/dist/esm/icons/timer.mjs';
 import Utensils from 'lucide-react/dist/esm/icons/utensils.mjs';
 import X from 'lucide-react/dist/esm/icons/x.mjs';
 import Zap from 'lucide-react/dist/esm/icons/zap.mjs';
+import {
+  buildWeeklyShopping,
+  createDefaultShopPlan,
+  normalizeShopPlan,
+  optimizeDinnerItems as solveDinnerItems,
+} from './nutritionSolver.js';
 
 const asset = (name) => `${import.meta.env.BASE_URL}assets/${name}`;
 const generated = (name) => asset(`generated/${name}`);
 
 const DEFAULT_TARGETS = { p: 140, c: 225, f: 60, kcal: 2000 };
 const DEFAULT_TDEE = 2900;
-const PROTEIN_FLOOR = 135;
 
 const CARB_PLANS = {
   pasta: {
@@ -163,6 +168,21 @@ const DINNER_EXTRAS = {
   pineapple: { label: '切块菠萝 240g', unit: '盒', step: 1, max: 2, p: 1.44, c: 31.2, f: 0.24 },
   yogurt: { label: '无糖酸奶', unit: 'g', step: 50, max: 400, p: 0.036, c: 0.049, f: 0.03 },
 };
+
+const WEEKLY_SHOP_ITEMS = [
+  { key: 'beef', tone: 'red', source: 'protein', sourceKey: 'beef', label: '牛肉切り落とし', short: '牛肉', unit: 'g', step: 100, defaultTarget: 1200, max: 3000 },
+  { key: 'chicken', tone: 'red', source: 'protein', sourceKey: 'chicken', label: '速食鸡胸', short: '鸡胸', unit: '块', step: 1, defaultTarget: 3, max: 12 },
+  { key: 'oikos', tone: 'red', source: 'protein', sourceKey: 'oikos', label: 'Oikos 高蛋白酸奶', short: 'Oikos', unit: '個', step: 1, defaultTarget: 4, max: 14 },
+  { key: 'pasta', tone: 'green', source: 'carb', sourceKey: 'pasta', label: '干意面', short: '意面', unit: 'g', step: 100, defaultTarget: 500, max: 2000 },
+  { key: 'soba', tone: 'green', source: 'carb', sourceKey: 'soba', label: '荞麦面', short: '荞麦', unit: 'g', step: 100, defaultTarget: 400, max: 1600 },
+  { key: 'nissin', tone: 'green', source: 'carb', sourceKey: 'nissin', label: '日清非油炸', short: '日清', unit: '包', step: 1, defaultTarget: 2, max: 10 },
+  { key: 'pineapple', tone: 'gold', source: 'extra', sourceKey: 'pineapple', label: '菠萝 240g', short: '菠萝', unit: '盒', step: 1, defaultTarget: 2, max: 8 },
+  { key: 'banana', tone: 'gold', source: 'extra', sourceKey: 'banana', label: '香蕉', short: '香蕉', unit: '根', step: 1, defaultTarget: 4, max: 14 },
+  { key: 'apple', tone: 'gold', source: 'extra', sourceKey: 'apple', label: '苹果', short: '苹果', unit: '个', step: 1, defaultTarget: 2, max: 10 },
+  { key: 'egg_fried', tone: 'amber', source: 'fat', sourceKey: 'egg_fried', label: '鸡蛋', short: '鸡蛋', unit: '个', step: 1, defaultTarget: 6, max: 20 },
+  { key: 'sauce', tone: 'amber', source: 'fat', sourceKey: 'sauce', label: 'ペペロン酱', short: '蒜油酱', unit: '包', step: 1, defaultTarget: 3, max: 12 },
+  { key: 'nuts', tone: 'amber', source: 'fat', sourceKey: 'nuts', label: '素焼きナッツ', short: '坚果', unit: '10g', step: 1, defaultTarget: 4, max: 20 },
+];
 
 const TALLY_ITEMS = {
   chicken: { label: '鸡胸', unit: '块', step: 1, max: 10, p: 22, c: 1, f: 2 },
@@ -319,6 +339,21 @@ function proteinUnit(key, beefFat) {
   };
 }
 
+function shopUnitMacro(item, beefFat) {
+  if (item.source === 'protein') return proteinUnit(item.sourceKey, beefFat);
+  if (item.source === 'carb') return CARB_PLANS[item.sourceKey].perUnit;
+  if (item.source === 'extra') return DINNER_EXTRAS[item.sourceKey];
+  if (item.source === 'fat') return FAT_SOURCES[item.sourceKey];
+  return emptyMacro;
+}
+
+function resolveWeeklyShopItems(beefFat) {
+  return WEEKLY_SHOP_ITEMS.map((item) => ({
+    ...item,
+    unitMacro: shopUnitMacro(item, beefFat),
+  }));
+}
+
 function useLocalNumber(key, fallback) {
   const [value, setValue] = useState(() => {
     const saved = Number(localStorage.getItem(key));
@@ -327,6 +362,24 @@ function useLocalNumber(key, fallback) {
 
   useEffect(() => {
     localStorage.setItem(key, String(value));
+  }, [key, value]);
+
+  return [value, setValue];
+}
+
+function useLocalJson(key, fallback) {
+  const fallbackValue = () => (typeof fallback === 'function' ? fallback() : fallback);
+  const [value, setValue] = useState(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallbackValue();
+    } catch {
+      return fallbackValue();
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(key, JSON.stringify(value));
   }, [key, value]);
 
   return [value, setValue];
@@ -551,6 +604,7 @@ export default function CuttingProtocol() {
   const [saltG, setSaltG] = useState(6.5);
   const [foodK, setFoodK] = useState(2000);
   const [shopDays, setShopDays] = useState(7);
+  const [shopPlan, setShopPlan] = useLocalJson('cutting:shopPlan:v1', () => createDefaultShopPlan(WEEKLY_SHOP_ITEMS));
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [fuelOpen, setFuelOpen] = useState(false);
   const [snackOpen, setSnackOpen] = useState(false);
@@ -608,7 +662,8 @@ export default function CuttingProtocol() {
       tone: 'gold',
     }));
 
-    const proteinNeed = Math.max(0, Math.min(PROTEIN_FLOOR, targets.p) - beforeDinner.p);
+    const fixedForDinnerSolve = addMacros(beforeDinner, extraMacro);
+    const proteinNeed = Math.max(0, targets.p - fixedForDinnerSolve.p);
     const proteinItems = proteinKeys.map((key) => {
       const unit = proteinUnit(key, beefFat);
       const rawQty = proteinNeed / Math.max(1, proteinKeys.length) / unit.p;
@@ -625,10 +680,10 @@ export default function CuttingProtocol() {
         macro: scaleMacro(unit, qty),
         tone: 'red',
       };
-    }).filter((item) => item.qty > 0);
-    const proteinMacro = proteinItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
+    });
+    const proteinSeedMacro = proteinItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
 
-    const fatNeed = Math.max(0, targets.f - beforeDinner.f - extraMacro.f - proteinMacro.f);
+    const fatNeed = Math.max(0, targets.f - fixedForDinnerSolve.f - proteinSeedMacro.f);
     const activeFatKeys = fatKeys.length ? fatKeys : [];
     const fatItems = activeFatKeys.map((key) => {
       const src = FAT_SOURCES[key];
@@ -646,16 +701,16 @@ export default function CuttingProtocol() {
         macro: scaleMacro(src, qty),
         tone: 'amber',
       };
-    }).filter((item) => item.qty > 0);
-    const fatMacro = fatItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
+    });
+    const fatSeedMacro = fatItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
 
-    const usedBeforeCarb = addMacros(beforeDinner, extraMacro, proteinMacro, fatMacro);
+    const usedBeforeCarb = addMacros(fixedForDinnerSolve, proteinSeedMacro, fatSeedMacro);
     const remainingKcal = Math.max(0, targets.kcal - usedBeforeCarb.kcal);
     const carb = CARB_PLANS[carbPlan];
     const carbMax = carb.unit === '包' ? 8 : 420;
     const carbQty = clamp(roundTo(remainingKcal / carb.kcalUnit, carb.step), 0, carbMax);
     const carbMacro = scaleMacro(carb.perUnit, carbQty);
-    const carbItem = carbQty > 0 ? [{
+    const carbItem = {
       key: `carb-${carbPlan}`,
       name: carb.name,
       short: carb.short,
@@ -666,9 +721,15 @@ export default function CuttingProtocol() {
       unitMacro: carb.perUnit,
       macro: carbMacro,
       tone: 'green',
-    }] : [];
+    };
 
-    const dinnerItems = applyDinnerAdjustments([...proteinItems, ...fatItems, ...extraItems, ...carbItem], dinnerAdjustments);
+    const optimizedItems = solveDinnerItems([...proteinItems, ...fatItems, carbItem], fixedForDinnerSolve, targets);
+    const dinnerItems = applyDinnerAdjustments([
+      ...optimizedItems.filter((item) => item.tone === 'red'),
+      ...optimizedItems.filter((item) => item.tone === 'amber'),
+      ...extraItems,
+      ...optimizedItems.filter((item) => item.tone === 'green'),
+    ], dinnerAdjustments);
     const dinner = dinnerItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
     const total = addMacros(beforeDinner, dinner);
     const deficit = Math.round(tdee - total.kcal);
@@ -677,10 +738,8 @@ export default function CuttingProtocol() {
     const sodium = saltG * 393 + drinkNa;
     const potassium = foodK + drinkK;
 
-    const shopping = dinnerItems.filter((item) => item.qty > 0).map((item) => ({
-      ...item,
-      weeklyQty: round(item.qty * shopDays, item.unit === 'g' ? 0 : 1),
-    }));
+    const shopping = buildWeeklyShopping(resolveWeeklyShopItems(beefFat), shopPlan, shopDays);
+    const shoppingMacro = shopping.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
 
     return {
       lunch,
@@ -695,9 +754,10 @@ export default function CuttingProtocol() {
       potassium,
       sodium,
       shopping,
+      shoppingMacro,
       carb,
     };
-  }, [beefFat, carbPlan, dinnerAdjustments, drinkKey, drinkMl, extraCarbs, fatKeys, foodK, lunchKcal, lunchMode, pre, saltG, shopDays, snack, tally, targets, tdee, proteinKeys]);
+  }, [beefFat, carbPlan, dinnerAdjustments, drinkKey, drinkMl, extraCarbs, fatKeys, foodK, lunchKcal, lunchMode, pre, saltG, shopDays, shopPlan, snack, tally, targets, tdee, proteinKeys]);
 
   const cheatTotal = CHEAT_ITEMS.reduce((sum, item) => sum + (cheat[item.id] || 0) * item.kcal, 0);
   const cheatSurplus = Math.round(model.total.kcal + cheatTotal - tdee);
@@ -856,7 +916,7 @@ export default function CuttingProtocol() {
         )}
 
         {tab === 'shop' && (
-          <ShopView model={model} shopDays={shopDays} setShopDays={setShopDays} />
+          <ShopView model={model} shopDays={shopDays} setShopDays={setShopDays} shopPlan={shopPlan} setShopPlan={setShopPlan} />
         )}
 
         {tab === 'cheat' && (
@@ -1294,23 +1354,48 @@ function DetailView(props) {
   );
 }
 
-function ShopView({ model, shopDays, setShopDays }) {
+function ShopView({ model, shopDays, setShopDays, setShopPlan }) {
   const groupMeta = [
-    { tone: 'red', label: '蛋白主菜', caption: '肉和高蛋白先拿够', icon: Dumbbell, accent: '#c77e68' },
-    { tone: 'green', label: '主食碳水', caption: '晚饭的底盘', icon: Utensils, accent: '#9fb58f' },
-    { tone: 'gold', label: '水果加料', caption: '菠萝、香蕉、酸奶这类', icon: Apple, accent: '#d8c7a3' },
-    { tone: 'amber', label: '油脂口味', caption: '酱、蛋、坚果和风味', icon: Flame, accent: '#c8a86a' },
+    { tone: 'red', label: '蛋白主菜', caption: '肉、鸡胸、Oikos 先补齐', icon: Dumbbell, accent: '#c77e68' },
+    { tone: 'green', label: '主食碳水', caption: '按一周期望备货', icon: Utensils, accent: '#9fb58f' },
+    { tone: 'gold', label: '水果加料', caption: '菠萝 240g、香蕉、苹果', icon: Apple, accent: '#d8c7a3' },
+    { tone: 'amber', label: '油脂口味', caption: '蛋、酱、坚果和风味', icon: Flame, accent: '#c8a86a' },
   ];
   const priorityOrder = { red: 0, green: 1, gold: 2, amber: 3 };
+  const plannedItems = model.shopping.filter((item) => item.enabled);
+  const needItems = plannedItems.filter((item) => item.buyQty > 0);
+  const coveredItems = plannedItems.filter((item) => item.buyQty <= 0);
   const groups = groupMeta
     .map((group) => ({
       ...group,
       items: model.shopping.filter((item) => item.tone === group.tone),
     }))
     .filter((group) => group.items.length > 0);
-  const priorityItems = [...model.shopping].sort((a, b) => (priorityOrder[a.tone] ?? 9) - (priorityOrder[b.tone] ?? 9)).slice(0, 3);
-  const weeklyMacro = scaleMacro(model.dinner, shopDays);
-  const totalUnits = model.shopping.length;
+  const priorityItems = [...needItems]
+    .sort((a, b) => ((priorityOrder[a.tone] ?? 9) - (priorityOrder[b.tone] ?? 9)) || b.buyQty - a.buyQty)
+    .slice(0, 4);
+  const buyMacro = needItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
+  const targetMacro = plannedItems.reduce((sum, item) => addMacros(sum, item.expectedMacro), emptyMacro);
+
+  const updatePlan = (key, patch) => {
+    setShopPlan((current) => {
+      const normalized = normalizeShopPlan(current, model.shopping);
+      return {
+        ...normalized,
+        [key]: {
+          ...normalized[key],
+          ...patch,
+        },
+      };
+    });
+  };
+
+  const clearStocks = () => {
+    setShopPlan((current) => {
+      const normalized = normalizeShopPlan(current, model.shopping);
+      return Object.fromEntries(Object.entries(normalized).map(([key, value]) => [key, { ...value, stock: 0 }]));
+    });
+  };
 
   return (
     <main className="grid gap-6">
@@ -1325,18 +1410,22 @@ function ShopView({ model, shopDays, setShopDays }) {
             </div>
             <h2 className="mt-4 font-display text-4xl leading-none text-[#f2eadb] sm:text-5xl">采购清单</h2>
             <p className="mt-3 max-w-xl text-sm leading-6 text-[#cfc4b2]">
-              按今晚的晚餐结果自动折算。进店先拿主菜和主食，再补水果和风味，别在货架前重新算。
+              按每周期望库存补齐：周目标 - 家里已有 = 这次要买。它不再把今晚菜单乘以天数。
             </p>
-            <div className="mt-5 flex flex-wrap gap-2">
+            <div className="mt-5 flex flex-wrap items-center gap-2">
               {[3, 5, 7, 10].map((days) => (
                 <Chip key={days} active={shopDays === days} onClick={() => setShopDays(days)}>{days} 天</Chip>
               ))}
+              <button onClick={clearStocks} className="inline-flex items-center gap-2 rounded-lg border border-[#d8c7a3]/12 bg-[#080908]/58 px-3 py-2 text-xs text-[#918a7c] transition hover:border-[#d8c7a3]/32 hover:text-[#f2eadb]">
+                <RotateCcw className="h-4 w-4" />
+                清空已有
+              </button>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2">
             <ShopStat icon={Timer} label="备货" value={`${shopDays}天`} sub="周期" />
-            <ShopStat icon={Boxes} label="品类" value={totalUnits} sub="件要拿" />
-            <ShopStat icon={Gauge} label="库存" value={Math.round(weeklyMacro.kcal)} sub="kcal" />
+            <ShopStat icon={Boxes} label="补货" value={needItems.length} sub={`已够${coveredItems.length}`} />
+            <ShopStat icon={Gauge} label="本次" value={Math.round(buyMacro.kcal)} sub="kcal" />
           </div>
         </div>
       </section>
@@ -1344,25 +1433,32 @@ function ShopView({ model, shopDays, setShopDays }) {
       <div className="grid gap-6 lg:grid-cols-[0.88fr_1.12fr]">
         <Panel eyebrow="先拿这些" title="进店顺序" icon={ListChecks}>
           <div className="grid gap-3">
-            {priorityItems.map((item, index) => (
-              <ShopPriorityCard key={item.key} item={item} index={index} />
-            ))}
+            {priorityItems.length > 0 ? (
+              priorityItems.map((item, index) => (
+                <ShopPriorityCard key={item.key} item={item} index={index} />
+              ))
+            ) : (
+              <div className="rounded-lg border border-[#9fb58f]/20 bg-[#9fb58f]/10 p-4">
+                <div className="font-cjk text-sm font-semibold text-[#d8e7cf]">这轮不用补</div>
+                <div className="mt-1 text-xs leading-5 text-[#918a7c]">已选品类的家里库存覆盖了这个备货周期。</div>
+              </div>
+            )}
           </div>
           <div className="mt-4 rounded-lg border border-[#d8c7a3]/10 bg-[#080908]/42 p-4">
-            <div className="text-[10px] uppercase tracking-[0.24em] text-[#918a7c]">daily dinner base</div>
+            <div className="text-[10px] uppercase tracking-[0.24em] text-[#918a7c]">cycle target base</div>
             <div className="mt-2 grid grid-cols-4 gap-2">
-              <ResultPill label="P" value={Math.round(model.dinner.p)} />
-              <ResultPill label="C" value={Math.round(model.dinner.c)} />
-              <ResultPill label="F" value={Math.round(model.dinner.f)} />
-              <ResultPill label="Kcal" value={Math.round(model.dinner.kcal)} />
+              <ResultPill label="P" value={Math.round(targetMacro.p)} />
+              <ResultPill label="C" value={Math.round(targetMacro.c)} />
+              <ResultPill label="F" value={Math.round(targetMacro.f)} />
+              <ResultPill label="Kcal" value={Math.round(targetMacro.kcal)} />
             </div>
           </div>
         </Panel>
 
-        <Panel eyebrow="分区拿货" title="照这个买" icon={CalendarDays}>
+        <Panel eyebrow="分区拿货" title="目标、已有、本次补" icon={CalendarDays}>
           <div className="grid gap-3">
             {groups.map((group) => (
-              <ShopGroupCard key={group.tone} group={group} />
+              <ShopGroupCard key={group.tone} group={group} shopDays={shopDays} onUpdate={updatePlan} />
             ))}
           </div>
         </Panel>
@@ -1389,18 +1485,19 @@ function ShopPriorityCard({ item, index }) {
       </span>
       <div className="min-w-0">
         <div className="truncate font-cjk text-sm font-semibold text-[#f2eadb]">{item.name}</div>
-        <div className="mt-1 truncate text-[10px] text-[#918a7c]">每天 {round(item.qty)}{item.unit} · {Math.round(macroKcal(item.macro))} kcal</div>
+        <div className="mt-1 truncate text-[10px] text-[#918a7c]">目标 {round(item.targetQty)}{item.unit} · 家里 {round(item.stockQty)}{item.unit}</div>
       </div>
       <div className="text-right">
-        <div className="font-display text-2xl leading-none text-[#f2eadb]">{item.weeklyQty}</div>
-        <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-[#918a7c]">{item.unit}</div>
+        <div className="font-display text-2xl leading-none text-[#f2eadb]">{round(item.buyQty)}</div>
+        <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-[#918a7c]">补 {item.unit}</div>
       </div>
     </div>
   );
 }
 
-function ShopGroupCard({ group }) {
+function ShopGroupCard({ group, shopDays, onUpdate }) {
   const Icon = group.icon;
+  const needCount = group.items.filter((item) => item.enabled && item.buyQty > 0).length;
   return (
     <section className="rounded-lg border border-[#d8c7a3]/10 bg-[#080908]/42 p-3">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -1413,27 +1510,68 @@ function ShopGroupCard({ group }) {
             <div className="mt-0.5 truncate text-[10px] text-[#918a7c]">{group.caption}</div>
           </div>
         </div>
-        <span className="rounded-md border border-[#d8c7a3]/10 px-2 py-1 font-mono text-xs text-[#cfc4b2]">{group.items.length} 项</span>
+        <span className="rounded-md border border-[#d8c7a3]/10 px-2 py-1 font-mono text-xs text-[#cfc4b2]">补 {needCount}/{group.items.length}</span>
       </div>
       <div className="grid gap-2">
         {group.items.map((item) => (
-          <ShopItemRow key={item.key} item={item} accent={group.accent} />
+          <ShopItemRow key={item.key} item={item} accent={group.accent} shopDays={shopDays} onUpdate={onUpdate} />
         ))}
       </div>
     </section>
   );
 }
 
-function ShopItemRow({ item, accent }) {
+function ShopItemRow({ item, accent, shopDays, onUpdate }) {
+  const changeTarget = (delta) => {
+    onUpdate(item.key, {
+      target: clamp(roundTo(item.weeklyTarget + delta, item.step), 0, item.max ?? Infinity),
+    });
+  };
+  const changeStock = (delta) => {
+    onUpdate(item.key, {
+      stock: clamp(roundTo(item.stockQty + delta, item.step), 0, item.max ?? Infinity),
+    });
+  };
+  const buyLabel = item.enabled ? (item.buyQty > 0 ? `补 ${round(item.buyQty)}${item.unit}` : '已够') : '跳过';
+
   return (
-    <div className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-lg border border-[#d8c7a3]/8 bg-[#11130f]/68 px-3 py-3">
-      <div className="min-w-0">
-        <div className="truncate font-cjk text-sm text-[#f2eadb]">{item.name}</div>
-        <div className="mt-1 text-xs text-[#918a7c]">每天 {round(item.qty)}{item.unit}</div>
+    <div data-shop-item-row className={`rounded-lg border border-[#d8c7a3]/8 bg-[#11130f]/68 p-3 transition ${item.enabled ? '' : 'opacity-55'}`}>
+      <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start">
+        <div className="min-w-0">
+          <div className="truncate font-cjk text-sm font-semibold text-[#f2eadb]">{item.name}</div>
+          <div className="mt-1 text-xs leading-5 text-[#918a7c]">
+            周目标 {round(item.weeklyTarget)}{item.unit} · {shopDays}天目标 {round(item.targetQty)}{item.unit} · 家里 {round(item.stockQty)}{item.unit}
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-2 sm:justify-end">
+          <div className="rounded-md px-2.5 py-1 text-right" style={{ backgroundColor: `${accent}22` }}>
+            <div className="font-mono text-sm text-[#f2eadb]">{buyLabel}</div>
+            <div className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-[#918a7c]">this run</div>
+          </div>
+          <button
+            onClick={() => onUpdate(item.key, { enabled: !item.enabled })}
+            className="h-9 rounded-lg border border-[#d8c7a3]/10 px-3 text-xs text-[#cfc4b2] transition hover:border-[#d8c7a3]/35 hover:text-[#f2eadb]"
+          >
+            {item.enabled ? '跳过' : '加入'}
+          </button>
+        </div>
       </div>
-      <div className="rounded-md px-2.5 py-1 text-right" style={{ backgroundColor: `${accent}22` }}>
-        <div className="font-mono text-sm text-[#f2eadb]">{item.weeklyQty}{item.unit}</div>
-        <div className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-[#918a7c]">to buy</div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <ShopQuantityControl label="周目标" value={item.weeklyTarget} unit={item.unit} step={item.step} onMinus={() => changeTarget(-item.step)} onPlus={() => changeTarget(item.step)} />
+        <ShopQuantityControl label="家里已有" value={item.stockQty} unit={item.unit} step={item.step} onMinus={() => changeStock(-item.step)} onPlus={() => changeStock(item.step)} />
+      </div>
+    </div>
+  );
+}
+
+function ShopQuantityControl({ label, value, unit, onMinus, onPlus }) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-[#d8c7a3]/8 bg-[#080908]/40 px-2.5 py-2">
+      <span className="text-[10px] uppercase tracking-[0.18em] text-[#918a7c]">{label}</span>
+      <div className="flex items-center gap-1">
+        <IconSquare label={`减少${label}`} onClick={onMinus} icon={Minus} />
+        <span className="w-16 text-center font-mono text-xs text-[#f2eadb]">{round(value)}{unit}</span>
+        <IconSquare label={`增加${label}`} onClick={onPlus} icon={Plus} />
       </div>
     </div>
   );

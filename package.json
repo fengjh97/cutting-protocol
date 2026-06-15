@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "test:logic": "node src/nutritionSolver.test.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },
