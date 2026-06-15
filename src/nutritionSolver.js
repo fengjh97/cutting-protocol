@@ -189,3 +189,30 @@ export function buildWeeklyShopping(items, plan, days = 7) {
     };
   });
 }
+
+export function formatShopQty(qty, unit) {
+  return `${round(qty, unit === 'g' ? 0 : 1)}${unit}`;
+}
+
+export function buildShoppingRunPlan(items, toneOrder = {}) {
+  return items
+    .filter((item) => item.enabled && item.buyQty > 0)
+    .sort((a, b) => ((toneOrder[a.tone] ?? 9) - (toneOrder[b.tone] ?? 9)) || b.buyQty - a.buyQty)
+    .map((item, index) => {
+      const targetText = formatShopQty(item.targetQty, item.unit);
+      const stockText = formatShopQty(item.stockQty, item.unit);
+      const buyText = formatShopQty(item.buyQty, item.unit);
+      const reason = item.buyHint || (item.stockQty > 0
+        ? `家里还有 ${stockText}，补到目标 ${targetText}`
+        : `本周期目标 ${targetText}`);
+
+      return {
+        ...item,
+        order: index + 1,
+        buyText,
+        targetText,
+        stockText,
+        reason,
+      };
+    });
+}

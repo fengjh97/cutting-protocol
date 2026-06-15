@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   addMacros,
+  buildShoppingRunPlan,
   buildWeeklyShopping,
   optimizeDinnerItems,
   scoreDinnerTotal,
@@ -82,6 +83,66 @@ function testWeeklyShoppingScalesTheInventoryWindow() {
   assert.equal(shopping[0].buyQty, 400);
 }
 
+function testShoppingRunPlanListsConcreteBuyItemsInAisleOrder() {
+  const shopping = [
+    {
+      key: 'pasta',
+      label: '干意面',
+      short: '意面',
+      tone: 'green',
+      unit: 'g',
+      enabled: true,
+      targetQty: 500,
+      stockQty: 0,
+      buyQty: 500,
+      macro: { p: 60, c: 355, f: 7.5, kcal: 1727.5 },
+    },
+    {
+      key: 'beef',
+      label: '牛肉切り落とし',
+      short: '牛肉',
+      tone: 'red',
+      unit: 'g',
+      enabled: true,
+      targetQty: 1200,
+      stockQty: 100,
+      buyQty: 1100,
+      buyHint: '主蛋白先拿',
+      macro: { p: 209, c: 0, f: 114, kcal: 1862 },
+    },
+    {
+      key: 'banana',
+      label: '香蕉',
+      tone: 'gold',
+      unit: '根',
+      enabled: true,
+      targetQty: 4,
+      stockQty: 4,
+      buyQty: 0,
+      macro: { p: 0, c: 0, f: 0, kcal: 0 },
+    },
+    {
+      key: 'nuts',
+      label: '坚果',
+      tone: 'amber',
+      unit: '10g',
+      enabled: false,
+      targetQty: 4,
+      stockQty: 0,
+      buyQty: 4,
+      macro: { p: 8, c: 8, f: 20, kcal: 244 },
+    },
+  ];
+
+  const runPlan = buildShoppingRunPlan(shopping, { red: 0, green: 1, gold: 2, amber: 3 });
+
+  assert.deepEqual(runPlan.map((item) => item.key), ['beef', 'pasta']);
+  assert.equal(runPlan[0].order, 1);
+  assert.equal(runPlan[0].buyText, '1100g');
+  assert.equal(runPlan[0].reason, '主蛋白先拿');
+  assert.match(runPlan[1].reason, /目标 500g/);
+}
+
 function testScoringAllowsSmallKcalOvershootForBetterBalance() {
   const targets = { p: 140, c: 225, f: 60, kcal: 2000 };
   const exactKcalButUnbalanced = { p: 130, c: 225, f: 50, kcal: 2000 };
@@ -140,5 +201,6 @@ function testOptimizerImprovesASeedDinnerAcrossAllMacros() {
 
 testWeeklyShoppingReplenishesInventory();
 testWeeklyShoppingScalesTheInventoryWindow();
+testShoppingRunPlanListsConcreteBuyItemsInAisleOrder();
 testScoringAllowsSmallKcalOvershootForBetterBalance();
 testOptimizerImprovesASeedDinnerAcrossAllMacros();

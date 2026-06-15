@@ -26,6 +26,7 @@ import Utensils from 'lucide-react/dist/esm/icons/utensils.mjs';
 import X from 'lucide-react/dist/esm/icons/x.mjs';
 import Zap from 'lucide-react/dist/esm/icons/zap.mjs';
 import {
+  buildShoppingRunPlan,
   buildWeeklyShopping,
   createDefaultShopPlan,
   normalizeShopPlan,
@@ -170,18 +171,18 @@ const DINNER_EXTRAS = {
 };
 
 const WEEKLY_SHOP_ITEMS = [
-  { key: 'beef', tone: 'red', source: 'protein', sourceKey: 'beef', label: '牛肉切り落とし', short: '牛肉', unit: 'g', step: 100, defaultTarget: 1200, max: 3000 },
-  { key: 'chicken', tone: 'red', source: 'protein', sourceKey: 'chicken', label: '速食鸡胸', short: '鸡胸', unit: '块', step: 1, defaultTarget: 3, max: 12 },
-  { key: 'oikos', tone: 'red', source: 'protein', sourceKey: 'oikos', label: 'Oikos 高蛋白酸奶', short: 'Oikos', unit: '個', step: 1, defaultTarget: 4, max: 14 },
-  { key: 'pasta', tone: 'green', source: 'carb', sourceKey: 'pasta', label: '干意面', short: '意面', unit: 'g', step: 100, defaultTarget: 500, max: 2000 },
-  { key: 'soba', tone: 'green', source: 'carb', sourceKey: 'soba', label: '荞麦面', short: '荞麦', unit: 'g', step: 100, defaultTarget: 400, max: 1600 },
-  { key: 'nissin', tone: 'green', source: 'carb', sourceKey: 'nissin', label: '日清非油炸', short: '日清', unit: '包', step: 1, defaultTarget: 2, max: 10 },
-  { key: 'pineapple', tone: 'gold', source: 'extra', sourceKey: 'pineapple', label: '菠萝 240g', short: '菠萝', unit: '盒', step: 1, defaultTarget: 2, max: 8 },
-  { key: 'banana', tone: 'gold', source: 'extra', sourceKey: 'banana', label: '香蕉', short: '香蕉', unit: '根', step: 1, defaultTarget: 4, max: 14 },
-  { key: 'apple', tone: 'gold', source: 'extra', sourceKey: 'apple', label: '苹果', short: '苹果', unit: '个', step: 1, defaultTarget: 2, max: 10 },
-  { key: 'egg_fried', tone: 'amber', source: 'fat', sourceKey: 'egg_fried', label: '鸡蛋', short: '鸡蛋', unit: '个', step: 1, defaultTarget: 6, max: 20 },
-  { key: 'sauce', tone: 'amber', source: 'fat', sourceKey: 'sauce', label: 'ペペロン酱', short: '蒜油酱', unit: '包', step: 1, defaultTarget: 3, max: 12 },
-  { key: 'nuts', tone: 'amber', source: 'fat', sourceKey: 'nuts', label: '素焼きナッツ', short: '坚果', unit: '10g', step: 1, defaultTarget: 4, max: 20 },
+  { key: 'beef', tone: 'red', source: 'protein', sourceKey: 'beef', label: '牛肉切り落とし', short: '牛肉', unit: 'g', step: 100, defaultTarget: 1200, max: 3000, buyHint: '晚餐主蛋白，先拿这个' },
+  { key: 'chicken', tone: 'red', source: 'protein', sourceKey: 'chicken', label: '速食鸡胸', short: '鸡胸', unit: '块', step: 1, defaultTarget: 3, max: 12, buyHint: '懒人备用蛋白' },
+  { key: 'oikos', tone: 'red', source: 'protein', sourceKey: 'oikos', label: 'Oikos 高蛋白酸奶', short: 'Oikos', unit: '個', step: 1, defaultTarget: 4, max: 14, buyHint: '零脂补蛋白' },
+  { key: 'pasta', tone: 'green', source: 'carb', sourceKey: 'pasta', label: '干意面', short: '意面', unit: 'g', step: 100, defaultTarget: 500, max: 2000, buyHint: '主力晚餐碳水' },
+  { key: 'soba', tone: 'green', source: 'carb', sourceKey: 'soba', label: '荞麦面', short: '荞麦', unit: 'g', step: 100, defaultTarget: 400, max: 1600, buyHint: '清爽换口味' },
+  { key: 'nissin', tone: 'green', source: 'carb', sourceKey: 'nissin', label: '日清非油炸', short: '日清', unit: '包', step: 1, defaultTarget: 2, max: 10, buyHint: '没时间时顶上' },
+  { key: 'pineapple', tone: 'gold', source: 'extra', sourceKey: 'pineapple', label: '菠萝 240g', short: '菠萝', unit: '盒', step: 1, defaultTarget: 2, max: 8, buyHint: '训练前后直接吃' },
+  { key: 'banana', tone: 'gold', source: 'extra', sourceKey: 'banana', label: '香蕉', short: '香蕉', unit: '根', step: 1, defaultTarget: 4, max: 14, buyHint: '快速补碳水' },
+  { key: 'apple', tone: 'gold', source: 'extra', sourceKey: 'apple', label: '苹果', short: '苹果', unit: '个', step: 1, defaultTarget: 2, max: 10, buyHint: '顶饥水果' },
+  { key: 'egg_fried', tone: 'amber', source: 'fat', sourceKey: 'egg_fried', label: '鸡蛋', short: '鸡蛋', unit: '个', step: 1, defaultTarget: 6, max: 20, buyHint: '补脂肪和口感' },
+  { key: 'sauce', tone: 'amber', source: 'fat', sourceKey: 'sauce', label: 'ペペロン酱', short: '蒜油酱', unit: '包', step: 1, defaultTarget: 3, max: 12, buyHint: '意面直接好吃' },
+  { key: 'nuts', tone: 'amber', source: 'fat', sourceKey: 'nuts', label: '素焼きナッツ', short: '坚果', unit: '10g', step: 1, defaultTarget: 4, max: 20, buyHint: '少量脂肪备用' },
 ];
 
 const TALLY_ITEMS = {
@@ -1355,6 +1356,8 @@ function DetailView(props) {
 }
 
 function ShopView({ model, shopDays, setShopDays, setShopPlan }) {
+  const [pickedItems, setPickedItems] = useState({});
+  const [stockOpen, setStockOpen] = useState(false);
   const groupMeta = [
     { tone: 'red', label: '蛋白主菜', caption: '肉、鸡胸、Oikos 先补齐', icon: Dumbbell, accent: '#c77e68' },
     { tone: 'green', label: '主食碳水', caption: '按一周期望备货', icon: Utensils, accent: '#9fb58f' },
@@ -1362,6 +1365,7 @@ function ShopView({ model, shopDays, setShopDays, setShopPlan }) {
     { tone: 'amber', label: '油脂口味', caption: '蛋、酱、坚果和风味', icon: Flame, accent: '#c8a86a' },
   ];
   const priorityOrder = { red: 0, green: 1, gold: 2, amber: 3 };
+  const groupByTone = Object.fromEntries(groupMeta.map((group) => [group.tone, group]));
   const plannedItems = model.shopping.filter((item) => item.enabled);
   const needItems = plannedItems.filter((item) => item.buyQty > 0);
   const coveredItems = plannedItems.filter((item) => item.buyQty <= 0);
@@ -1371,9 +1375,8 @@ function ShopView({ model, shopDays, setShopDays, setShopPlan }) {
       items: model.shopping.filter((item) => item.tone === group.tone),
     }))
     .filter((group) => group.items.length > 0);
-  const priorityItems = [...needItems]
-    .sort((a, b) => ((priorityOrder[a.tone] ?? 9) - (priorityOrder[b.tone] ?? 9)) || b.buyQty - a.buyQty)
-    .slice(0, 4);
+  const runPlan = buildShoppingRunPlan(model.shopping, priorityOrder);
+  const pickedCount = runPlan.filter((item) => pickedItems[item.key]).length;
   const buyMacro = needItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
   const targetMacro = plannedItems.reduce((sum, item) => addMacros(sum, item.expectedMacro), emptyMacro);
 
@@ -1397,6 +1400,10 @@ function ShopView({ model, shopDays, setShopDays, setShopPlan }) {
     });
   };
 
+  const togglePicked = (key) => {
+    setPickedItems((current) => ({ ...current, [key]: !current[key] }));
+  };
+
   return (
     <main className="grid gap-6">
       <section className="relative overflow-hidden rounded-lg border border-[#d8c7a3]/12 bg-[#10120f]/92">
@@ -1410,7 +1417,7 @@ function ShopView({ model, shopDays, setShopDays, setShopPlan }) {
             </div>
             <h2 className="mt-4 font-display text-4xl leading-none text-[#f2eadb] sm:text-5xl">采购清单</h2>
             <p className="mt-3 max-w-xl text-sm leading-6 text-[#cfc4b2]">
-              按每周期望库存补齐：周目标 - 家里已有 = 这次要买。它不再把今晚菜单乘以天数。
+              不用自己填。下面已经按进店顺序列好这轮直接买什么，库存只有需要微调时再打开。
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-2">
               {[3, 5, 7, 10].map((days) => (
@@ -1424,26 +1431,46 @@ function ShopView({ model, shopDays, setShopDays, setShopPlan }) {
           </div>
           <div className="grid grid-cols-3 gap-2">
             <ShopStat icon={Timer} label="备货" value={`${shopDays}天`} sub="周期" />
-            <ShopStat icon={Boxes} label="补货" value={needItems.length} sub={`已够${coveredItems.length}`} />
+            <ShopStat icon={Boxes} label="商品" value={runPlan.length} sub={`已拿${pickedCount}`} />
             <ShopStat icon={Gauge} label="本次" value={Math.round(buyMacro.kcal)} sub="kcal" />
           </div>
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[0.88fr_1.12fr]">
-        <Panel eyebrow="先拿这些" title="进店顺序" icon={ListChecks}>
-          <div className="grid gap-3">
-            {priorityItems.length > 0 ? (
-              priorityItems.map((item, index) => (
-                <ShopPriorityCard key={item.key} item={item} index={index} />
-              ))
-            ) : (
-              <div className="rounded-lg border border-[#9fb58f]/20 bg-[#9fb58f]/10 p-4">
-                <div className="font-cjk text-sm font-semibold text-[#d8e7cf]">这轮不用补</div>
-                <div className="mt-1 text-xs leading-5 text-[#918a7c]">已选品类的家里库存覆盖了这个备货周期。</div>
-              </div>
-            )}
+      <Panel eyebrow="直接方案" title="照单买这些" icon={ShoppingBasket}>
+        {runPlan.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {runPlan.map((item) => (
+              <DirectBuyCard
+                key={item.key}
+                item={item}
+                group={groupByTone[item.tone]}
+                picked={Boolean(pickedItems[item.key])}
+                onToggle={() => togglePicked(item.key)}
+              />
+            ))}
           </div>
+        ) : (
+          <div className="rounded-lg border border-[#9fb58f]/20 bg-[#9fb58f]/10 p-4">
+            <div className="font-cjk text-sm font-semibold text-[#d8e7cf]">这轮不用买</div>
+            <div className="mt-1 text-xs leading-5 text-[#918a7c]">已选品类的家里库存覆盖了这个备货周期。要强制生成清单可以点“清空已有”。</div>
+          </div>
+        )}
+        <div className="mt-4 grid grid-cols-4 gap-2">
+          <ResultPill label="商品" value={runPlan.length} />
+          <ResultPill label="已拿" value={pickedCount} />
+          <ResultPill label="已够" value={coveredItems.length} />
+          <ResultPill label="Kcal" value={Math.round(buyMacro.kcal)} />
+        </div>
+      </Panel>
+
+      <Disclosure
+        open={stockOpen}
+        onToggle={() => setStockOpen(!stockOpen)}
+        title="库存微调"
+        subtitle="平时不用管；只有家里还有东西时再改目标和已有"
+      >
+        <div className="grid gap-6 lg:grid-cols-[0.86fr_1.14fr]">
           <div className="mt-4 rounded-lg border border-[#d8c7a3]/10 bg-[#080908]/42 p-4">
             <div className="text-[10px] uppercase tracking-[0.24em] text-[#918a7c]">cycle target base</div>
             <div className="mt-2 grid grid-cols-4 gap-2">
@@ -1453,17 +1480,49 @@ function ShopView({ model, shopDays, setShopDays, setShopPlan }) {
               <ResultPill label="Kcal" value={Math.round(targetMacro.kcal)} />
             </div>
           </div>
-        </Panel>
-
-        <Panel eyebrow="分区拿货" title="目标、已有、本次补" icon={CalendarDays}>
           <div className="grid gap-3">
             {groups.map((group) => (
               <ShopGroupCard key={group.tone} group={group} shopDays={shopDays} onUpdate={updatePlan} />
             ))}
           </div>
-        </Panel>
-      </div>
+        </div>
+      </Disclosure>
     </main>
+  );
+}
+
+function DirectBuyCard({ item, group, picked, onToggle }) {
+  const Icon = group?.icon || ShoppingBasket;
+  const accent = group?.accent || '#d8c7a3';
+
+  return (
+    <button
+      data-direct-buy-card
+      onClick={onToggle}
+      aria-pressed={picked}
+      className={`min-h-[156px] rounded-lg border p-4 text-left transition hover:-translate-y-0.5 ${
+        picked ? 'border-[#9fb58f]/42 bg-[#9fb58f]/12' : 'border-[#d8c7a3]/10 bg-[#080908]/46 hover:border-[#d8c7a3]/28'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-[10px] uppercase tracking-[0.16em]" style={{ backgroundColor: `${accent}22`, color: accent }}>
+          <Icon className="h-3.5 w-3.5" />
+          {group?.label || '商品'}
+        </span>
+        <span className={`grid h-8 w-8 place-items-center rounded-lg border ${picked ? 'border-[#9fb58f]/40 bg-[#9fb58f] text-[#10110d]' : 'border-[#d8c7a3]/12 text-[#918a7c]'}`}>
+          <CheckCircle2 className="h-4 w-4" />
+        </span>
+      </div>
+      <div className="mt-4 min-w-0">
+        <div className="truncate font-cjk text-base font-semibold text-[#f2eadb]">{item.label}</div>
+        <div className="mt-2 flex items-end gap-2">
+          <span className="font-display text-5xl leading-none text-[#f2eadb]">{round(item.buyQty)}</span>
+          <span className="pb-1 text-xs text-[#918a7c]">{item.unit}</span>
+        </div>
+        <div className="mt-3 text-xs leading-5 text-[#bdb4a3]">{item.reason}</div>
+        <div className="mt-2 text-[10px] text-[#918a7c]">目标 {item.targetText} · 已有 {item.stockText}</div>
+      </div>
+    </button>
   );
 }
 
