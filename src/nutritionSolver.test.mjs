@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
   addMacros,
   buildShoppingRunPlan,
   buildWeeklyShopping,
   optimizeDinnerItems,
+  scaleMacro,
   scoreDinnerTotal,
 } from './nutritionSolver.js';
 
@@ -81,6 +83,23 @@ function testWeeklyShoppingScalesTheInventoryWindow() {
   const shopping = buildWeeklyShopping(weeklyItems, { beef: { enabled: true, target: 1200, stock: 200 } }, 3.5);
   assert.equal(shopping[0].targetQty, 600);
   assert.equal(shopping[0].buyQty, 400);
+}
+
+function testScaleMacroPreservesExplicitCalories() {
+  const macro = scaleMacro({ p: 1, c: 1, f: 1, kcal: 20 }, 3);
+  assert.equal(macro.p, 3);
+  assert.equal(macro.c, 3);
+  assert.equal(macro.f, 3);
+  assert.equal(macro.kcal, 60);
+}
+
+function testFreshChilledNoodleCarbPlanUsesTenGramSteps() {
+  const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
+
+  assert.match(source, /fresh_noodle:\s*{[\s\S]*short:\s*'鲜面'[\s\S]*unit:\s*'g'[\s\S]*step:\s*10/);
+  assert.match(source, /fresh_noodle:\s*{[\s\S]*kcalUnit:\s*2\.623/);
+  assert.match(source, /fresh_noodle:\s*{[\s\S]*perUnit:\s*{\s*p:\s*0\.0869,\s*c:\s*0\.5469,\s*f:\s*0\.0123,\s*kcal:\s*2\.623/);
+  assert.match(source, /sourceKey:\s*'fresh_noodle'[\s\S]*label:\s*'冷藏鲜面'/);
 }
 
 function testShoppingRunPlanListsConcreteBuyItemsInAisleOrder() {
@@ -201,6 +220,8 @@ function testOptimizerImprovesASeedDinnerAcrossAllMacros() {
 
 testWeeklyShoppingReplenishesInventory();
 testWeeklyShoppingScalesTheInventoryWindow();
+testScaleMacroPreservesExplicitCalories();
+testFreshChilledNoodleCarbPlanUsesTenGramSteps();
 testShoppingRunPlanListsConcreteBuyItemsInAisleOrder();
 testScoringAllowsSmallKcalOvershootForBetterBalance();
 testOptimizerImprovesASeedDinnerAcrossAllMacros();

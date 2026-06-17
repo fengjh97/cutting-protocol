@@ -36,6 +36,7 @@ export function scaleMacro(item = EMPTY_MACRO, qty = 0) {
     p: (item.p || 0) * qty,
     c: (item.c || 0) * qty,
     f: (item.f || 0) * qty,
+    ...(Number.isFinite(item.kcal) ? { kcal: item.kcal * qty } : {}),
   });
 }
 

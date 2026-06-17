@@ -70,6 +70,16 @@ const CARB_PLANS = {
     kcalUnit: 291,
     color: '#ff766f',
   },
+  fresh_noodle: {
+    name: '冷藏鲜面 · 生ラーメン',
+    short: '鲜面',
+    sub: '冷藏柜无调味包',
+    unit: 'g',
+    step: 10,
+    perUnit: { p: 0.0869, c: 0.5469, f: 0.0123, kcal: 2.623 },
+    kcalUnit: 2.623,
+    color: '#f0c68a',
+  },
   pho: {
     name: '越南米粉',
     short: '米粉',
@@ -177,6 +187,7 @@ const WEEKLY_SHOP_ITEMS = [
   { key: 'pasta', tone: 'green', source: 'carb', sourceKey: 'pasta', label: '干意面', short: '意面', unit: 'g', step: 100, defaultTarget: 500, max: 2000, buyHint: '主力晚餐碳水' },
   { key: 'soba', tone: 'green', source: 'carb', sourceKey: 'soba', label: '荞麦面', short: '荞麦', unit: 'g', step: 100, defaultTarget: 400, max: 1600, buyHint: '清爽换口味' },
   { key: 'nissin', tone: 'green', source: 'carb', sourceKey: 'nissin', label: '日清非油炸', short: '日清', unit: '包', step: 1, defaultTarget: 2, max: 10, buyHint: '没时间时顶上' },
+  { key: 'fresh_noodle', tone: 'green', source: 'carb', sourceKey: 'fresh_noodle', label: '冷藏鲜面', short: '鲜面', unit: 'g', step: 10, defaultTarget: 400, max: 2000, buyHint: '冷藏柜无调味包，按 10g 算' },
   { key: 'pineapple', tone: 'gold', source: 'extra', sourceKey: 'pineapple', label: '菠萝 240g', short: '菠萝', unit: '盒', step: 1, defaultTarget: 2, max: 8, buyHint: '训练前后直接吃' },
   { key: 'banana', tone: 'gold', source: 'extra', sourceKey: 'banana', label: '香蕉', short: '香蕉', unit: '根', step: 1, defaultTarget: 4, max: 14, buyHint: '快速补碳水' },
   { key: 'apple', tone: 'gold', source: 'extra', sourceKey: 'apple', label: '苹果', short: '苹果', unit: '个', step: 1, defaultTarget: 2, max: 10, buyHint: '顶饥水果' },
@@ -244,6 +255,7 @@ function scaleMacro(item, qty) {
     p: item.p * qty,
     c: item.c * qty,
     f: item.f * qty,
+    ...(Number.isFinite(item.kcal) ? { kcal: item.kcal * qty } : {}),
   });
 }
 
@@ -1548,7 +1560,7 @@ function ShopPriorityCard({ item, index }) {
       </div>
       <div className="text-right">
         <div className="font-display text-2xl leading-none text-[#f2eadb]">{round(item.buyQty)}</div>
-        <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-[#918a7c]">补 {item.unit}</div>
+        <div className="mt-1 text-[10px] text-[#918a7c]">补 {item.unit}</div>
       </div>
     </div>
   );
@@ -2099,7 +2111,7 @@ function FoodRow({ item, index, onTune }) {
       </div>
       <div className="text-right">
         <div className="font-display text-2xl leading-none text-[#f2eadb]">{round(item.qty)}</div>
-        <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-[#918a7c]">{item.unit}</div>
+        <div className="mt-1 text-[10px] text-[#918a7c]">{item.unit}</div>
         {onTune && (
           <div className="mt-2 flex items-center justify-end gap-1">
             <IconSquare label={`减少${item.name}`} onClick={() => onTune(item, -item.step)} icon={Minus} />
