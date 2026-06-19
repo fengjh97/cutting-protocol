@@ -3,16 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cutting Lab · 今晚吃什么</title>
-    <meta name="description" content="高级感 3D 减脂晚餐计划 · 手机端优先" />
-    <meta name="theme-color" content="#0d0f10" />
+    <title>Cutting Lab · 今日餐盘</title>
+    <meta name="description" content="明亮圆润的中日双语减脂晚餐计划 · 手机端优先" />
+    <meta name="theme-color" content="#fff5ef" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..500&family=Bricolage+Grotesque:opsz,wght@12..96,300..700&family=Spline+Sans+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&family=M+PLUS+Rounded+1c:wght@400;500;700;800;900&family=Zen+Maru+Gothic:wght@400;500;700;900&family=Noto+Sans+SC:wght@400;500;700;900&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <script>
+      tailwind = {
+        config: {
+          theme: {
+            extend: {
+              fontFamily: {
+                display: ['M PLUS Rounded 1c', 'Zen Maru Gothic', 'Noto Sans SC', 'sans-serif'],
+                sans: ['Nunito', 'M PLUS Rounded 1c', 'Noto Sans SC', 'sans-serif'],
+                cjk: ['M PLUS Rounded 1c', 'Noto Sans SC', 'sans-serif'],
+                mono: ['Spline Sans Mono', 'monospace'],
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body>
     <div id="root"></div>

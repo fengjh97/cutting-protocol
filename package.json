@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "test:logic": "node src/nutritionSolver.test.mjs",
-    "build": "vite build",
+    "build": "node scripts/build-static.mjs",
+    "build:vite": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {

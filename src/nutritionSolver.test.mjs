@@ -147,6 +147,35 @@ function testDefaultDayStartsWithoutFuelOrFatSources() {
   assert.match(source, /setDrinkMl\(0\);/);
 }
 
+function testJapaneseLocaleAndSoftRoundedThemeExist() {
+  const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
+  const css = fs.readFileSync(new URL('./index.css', import.meta.url), 'utf8');
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const tailwind = fs.readFileSync(new URL('../tailwind.config.cjs', import.meta.url), 'utf8');
+
+  assert.match(source, /const LOCALES = \['zh', 'ja'\]/);
+  assert.match(source, /data-language-toggle/);
+  assert.match(source, /setLocale/);
+  assert.match(source, /日本語/);
+  assert.match(source, /今日のごはん/);
+  assert.match(source, /食べたもの/);
+  assert.match(source, /夕食/);
+  assert.match(source, /補給/);
+  assert.match(source, /theme-soft/);
+  assert.match(css, /\.theme-soft/);
+  assert.match(html, /M\+PLUS\+Rounded\+1c|Zen\+Maru\+Gothic/);
+  assert.match(tailwind, /M PLUS Rounded 1c|Zen Maru Gothic|Nunito/);
+}
+
+function testNutritionItemsExposeJapaneseLabels() {
+  const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
+
+  assert.match(source, /fresh_noodle:\s*{[\s\S]*ja:\s*{[\s\S]*name:\s*'冷蔵生麺/);
+  assert.match(source, /beef:\s*{[\s\S]*ja:\s*{[\s\S]*label:\s*'牛肉切り落とし'/);
+  assert.match(source, /pineapple:\s*{[\s\S]*ja:\s*{[\s\S]*label:\s*'カットパイン 240g'/);
+  assert.match(source, /none:\s*{[\s\S]*ja:\s*{[\s\S]*label:\s*'補給なし'/);
+}
+
 function testMacroTargetsUseBodyweightProteinFatAndCarbRemainder() {
   const targets = deriveMacroTargets({
     bodyWeightKg: 83,
@@ -297,6 +326,8 @@ testMobileFlowHasCommandDockAndAnchoredSections();
 testTabChangesResetPageScroll();
 testTargetInputsPreserveEditableNumericDrafts();
 testDefaultDayStartsWithoutFuelOrFatSources();
+testJapaneseLocaleAndSoftRoundedThemeExist();
+testNutritionItemsExposeJapaneseLabels();
 testMacroTargetsUseBodyweightProteinFatAndCarbRemainder();
 testMacroAnalysisReportsPercentagesRatiosAndCarbDay();
 testShoppingRunPlanListsConcreteBuyItemsInAisleOrder();
