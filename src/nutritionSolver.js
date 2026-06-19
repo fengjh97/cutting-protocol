@@ -40,6 +40,65 @@ export function scaleMacro(item = EMPTY_MACRO, qty = 0) {
   });
 }
 
+export function deriveMacroTargets(profile = {}) {
+  const bodyWeightKg = clamp(profile.bodyWeightKg, 1, 300);
+  const proteinPerKg = clamp(profile.proteinPerKg, 0, 5);
+  const fatMinPerKg = clamp(profile.fatMinPerKg, 0, 3);
+  const kcal = round(clamp(profile.kcal, 0, 9000));
+  const p = round(bodyWeightKg * proteinPerKg, 1);
+  const f = round(bodyWeightKg * fatMinPerKg, 1);
+  const remainingKcal = Math.max(0, kcal - p * 4 - f * 9);
+  const c = round(remainingKcal / 4, 1);
+
+  return { p, c, f, kcal };
+}
+
+export function classifyCarbDay(carbs = 0, bodyWeightKg = 1) {
+  const carbPerKg = clamp(carbs, 0, Infinity) / Math.max(1, clamp(bodyWeightKg, 1, 300));
+
+  if (carbPerKg < 2) {
+    return {
+      label: '低碳',
+      tone: 'amber',
+      note: '碳水低于 2.0g/kg，今天算收紧日',
+    };
+  }
+
+  if (carbPerKg < 3) {
+    return {
+      label: '中碳',
+      tone: 'green',
+      note: '碳水在 2.0-3.0g/kg，训练和恢复都比较稳',
+    };
+  }
+
+  return {
+    label: '高碳',
+    tone: 'red',
+    note: '碳水超过 3.0g/kg，更像补糖或高活动日',
+  };
+}
+
+export function macroAnalysis(total = EMPTY_MACRO, targets = EMPTY_MACRO, bodyWeightKg = 1) {
+  const kcal = Math.max(1, macroKcal(total));
+  const weight = Math.max(1, clamp(bodyWeightKg, 1, 300));
+  const proteinKcal = (total.p || 0) * 4;
+  const carbKcal = (total.c || 0) * 4;
+  const fatKcal = (total.f || 0) * 9;
+
+  return {
+    proteinPct: round((proteinKcal / kcal) * 100, 1),
+    carbPct: round((carbKcal / kcal) * 100, 1),
+    fatPct: round((fatKcal / kcal) * 100, 1),
+    proteinPerKg: round((total.p || 0) / weight, 1),
+    carbPerKg: round((total.c || 0) / weight, 1),
+    fatPerKg: round((total.f || 0) / weight, 1),
+    proteinTargetPerKg: round((targets.p || 0) / weight, 1),
+    carbTargetPerKg: round((targets.c || 0) / weight, 1),
+    carbDay: classifyCarbDay(total.c || 0, weight),
+  };
+}
+
 export function refreshItemMacro(item, qty) {
   const roundedQty = roundTo(clamp(qty, 0, item.max ?? Infinity), item.step || 1);
   return {

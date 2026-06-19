@@ -4,6 +4,8 @@ import {
   addMacros,
   buildShoppingRunPlan,
   buildWeeklyShopping,
+  deriveMacroTargets,
+  macroAnalysis,
   optimizeDinnerItems,
   scaleMacro,
   scoreDinnerTotal,
@@ -100,6 +102,32 @@ function testFreshChilledNoodleCarbPlanUsesTenGramSteps() {
   assert.match(source, /fresh_noodle:\s*{[\s\S]*kcalUnit:\s*2\.623/);
   assert.match(source, /fresh_noodle:\s*{[\s\S]*perUnit:\s*{\s*p:\s*0\.0869,\s*c:\s*0\.5469,\s*f:\s*0\.0123,\s*kcal:\s*2\.623/);
   assert.match(source, /sourceKey:\s*'fresh_noodle'[\s\S]*label:\s*'冷藏鲜面'/);
+}
+
+function testMacroTargetsUseBodyweightProteinFatAndCarbRemainder() {
+  const targets = deriveMacroTargets({
+    bodyWeightKg: 83,
+    proteinPerKg: 1.8,
+    fatMinPerKg: 0.6,
+    kcal: 2000,
+  });
+
+  assert.equal(targets.p, 149.4);
+  assert.equal(targets.f, 49.8);
+  assert.equal(targets.c, 238.6);
+  assert.equal(targets.kcal, 2000);
+  assert.equal(round(targets.p * 4 + targets.c * 4 + targets.f * 9), 2000);
+}
+
+function testMacroAnalysisReportsPercentagesRatiosAndCarbDay() {
+  const report = macroAnalysis({ p: 150, c: 160, f: 50, kcal: 1690 }, { p: 149.4, c: 238.6, f: 49.8, kcal: 2000 }, 83);
+
+  assert.equal(report.proteinPct, 35.5);
+  assert.equal(report.carbPct, 37.9);
+  assert.equal(report.fatPct, 26.6);
+  assert.equal(report.proteinPerKg, 1.8);
+  assert.equal(report.carbPerKg, 1.9);
+  assert.equal(report.carbDay.label, '低碳');
 }
 
 function testShoppingRunPlanListsConcreteBuyItemsInAisleOrder() {
@@ -222,6 +250,8 @@ testWeeklyShoppingReplenishesInventory();
 testWeeklyShoppingScalesTheInventoryWindow();
 testScaleMacroPreservesExplicitCalories();
 testFreshChilledNoodleCarbPlanUsesTenGramSteps();
+testMacroTargetsUseBodyweightProteinFatAndCarbRemainder();
+testMacroAnalysisReportsPercentagesRatiosAndCarbDay();
 testShoppingRunPlanListsConcreteBuyItemsInAisleOrder();
 testScoringAllowsSmallKcalOvershootForBetterBalance();
 testOptimizerImprovesASeedDinnerAcrossAllMacros();

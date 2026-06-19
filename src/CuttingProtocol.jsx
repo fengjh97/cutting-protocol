@@ -29,6 +29,8 @@ import {
   buildShoppingRunPlan,
   buildWeeklyShopping,
   createDefaultShopPlan,
+  deriveMacroTargets,
+  macroAnalysis,
   normalizeShopPlan,
   optimizeDinnerItems as solveDinnerItems,
 } from './nutritionSolver.js';
@@ -36,7 +38,7 @@ import {
 const asset = (name) => `${import.meta.env.BASE_URL}assets/${name}`;
 const generated = (name) => asset(`generated/${name}`);
 
-const DEFAULT_TARGETS = { p: 140, c: 225, f: 60, kcal: 2000 };
+const DEFAULT_TARGET_PROFILE = { bodyWeightKg: 83, proteinPerKg: 1.8, fatMinPerKg: 0.6, kcal: 2000 };
 const DEFAULT_TDEE = 2900;
 
 const CARB_PLANS = {
@@ -601,7 +603,9 @@ function MacroOrbit3D({ tone = 'warm' }) {
 
 export default function CuttingProtocol() {
   const [tab, setTab] = useState('plan');
-  const [targets, setTargets] = useState(DEFAULT_TARGETS);
+  const [targetProfile, setTargetProfile] = useLocalJson('cutting:targetProfile:v1', DEFAULT_TARGET_PROFILE);
+  const targetProfileModel = useMemo(() => ({ ...DEFAULT_TARGET_PROFILE, ...(targetProfile || {}) }), [targetProfile]);
+  const targets = useMemo(() => deriveMacroTargets(targetProfileModel), [targetProfileModel]);
   const [tdee, setTdee] = useLocalNumber('cutting:tdee', DEFAULT_TDEE);
   const [lunchMode, setLunchMode] = useState('quick');
   const [lunchKcal, setLunchKcal] = useState(800);
@@ -772,6 +776,7 @@ export default function CuttingProtocol() {
     };
   }, [beefFat, carbPlan, dinnerAdjustments, drinkKey, drinkMl, extraCarbs, fatKeys, foodK, lunchKcal, lunchMode, pre, saltG, shopDays, shopPlan, snack, tally, targets, tdee, proteinKeys]);
 
+  const macroReport = useMemo(() => macroAnalysis(model.total, targets, targetProfileModel.bodyWeightKg), [model.total, targetProfileModel.bodyWeightKg, targets]);
   const cheatTotal = CHEAT_ITEMS.reduce((sum, item) => sum + (cheat[item.id] || 0) * item.kcal, 0);
   const cheatSurplus = Math.round(model.total.kcal + cheatTotal - tdee);
   const fuelActive = isFuelActive(pre, drinkKey, drinkMl);
@@ -791,7 +796,7 @@ export default function CuttingProtocol() {
   };
 
   const resetDefaults = () => {
-    setTargets(DEFAULT_TARGETS);
+    setTargetProfile(DEFAULT_TARGET_PROFILE);
     setLunchKcal(800);
     setTally({});
     setCarbPlan('pasta');
@@ -810,6 +815,7 @@ export default function CuttingProtocol() {
 
   const buildDailyPlanPayload = () => ({
     date: new Date().toISOString().slice(0, 10),
+    targetProfile: targetProfileModel,
     targets,
     lunch: model.lunch,
     pre: model.pre,
@@ -868,6 +874,7 @@ export default function CuttingProtocol() {
           <Hero
             model={model}
             targets={targets}
+            targetProfile={targetProfileModel}
             onFuel={() => setFuelOpen(true)}
             fuelActive={fuelActive}
             fuelSummary={fuelSummary}
@@ -900,7 +907,9 @@ export default function CuttingProtocol() {
             advancedOpen={advancedOpen}
             setAdvancedOpen={setAdvancedOpen}
             targets={targets}
-            setTargets={setTargets}
+            targetProfile={targetProfileModel}
+            setTargetProfile={setTargetProfile}
+            macroReport={macroReport}
             resetDefaults={resetDefaults}
             onTuneDinner={tuneDinnerItem}
             resetDinnerAdjustments={() => setDinnerAdjustments({})}
@@ -911,7 +920,9 @@ export default function CuttingProtocol() {
           <DetailView
             model={model}
             targets={targets}
-            setTargets={setTargets}
+            targetProfile={targetProfileModel}
+            setTargetProfile={setTargetProfile}
+            macroReport={macroReport}
             tdee={tdee}
             setTdee={setTdee}
             pre={pre}
@@ -1008,7 +1019,7 @@ function NavButtons({ tab, setTab, mode }) {
   });
 }
 
-function Hero({ model, targets, onFuel, fuelActive, fuelSummary, onSnack, onCopy, copyStatus }) {
+function Hero({ model, targets, targetProfile, onFuel, fuelActive, fuelSummary, onSnack, onCopy, copyStatus }) {
   const deficitTone = model.deficit >= 650 ? 'text-[#9fb58f]' : model.deficit >= 300 ? 'text-[#d8c7a3]' : 'text-[#c77e68]';
   const copyMeta = {
     idle: { label: '复制', sub: '今日记录', icon: ClipboardList },
@@ -1023,7 +1034,7 @@ function Hero({ model, targets, onFuel, fuelActive, fuelSummary, onSnack, onCopy
         <div className="mb-5 flex flex-wrap items-center gap-2">
           <div className="inline-flex items-center gap-2 rounded-lg border border-[#d8c7a3]/12 bg-[#11130f]/78 px-3 py-2 text-xs text-[#bdb4a3] backdrop-blur-xl">
             <Activity className="h-4 w-4 text-[#9fb58f]" />
-            <span>83 kg · 25% BF · 16:8 IF · {targets.kcal} kcal target</span>
+            <span>{round(targetProfile.bodyWeightKg)} kg · P {round(targetProfile.proteinPerKg, 1)}g/kg · F min {round(targetProfile.fatMinPerKg, 1)}g/kg · {targets.kcal} kcal</span>
           </div>
           <button
             data-home-fuel-button
@@ -1108,12 +1119,42 @@ function PlanView(props) {
     advancedOpen,
     setAdvancedOpen,
     targets,
-    setTargets,
+    targetProfile,
+    setTargetProfile,
+    macroReport,
     resetDefaults,
     onTuneDinner,
     resetDinnerAdjustments,
   } = props;
   const hasDinnerAdjustments = model.dinnerItems.some((item) => item.adjustment !== 0);
+  const lunchEditingRef = useRef(false);
+  const [lunchDraft, setLunchDraft] = useState(String(Math.round(lunchKcal)));
+
+  useEffect(() => {
+    if (!lunchEditingRef.current) setLunchDraft(String(Math.round(lunchKcal)));
+  }, [lunchKcal]);
+
+  const updateLunchKcal = (raw) => {
+    const digits = raw.replace(/\D/g, '');
+    if (!digits) {
+      setLunchDraft('');
+      setLunchKcal(0);
+      return;
+    }
+
+    const normalized = digits.replace(/^0+(?=\d)/, '');
+    const next = clamp(normalized, 0, 5000);
+    setLunchDraft(String(next));
+    setLunchKcal(next);
+  };
+
+  const updateTargetProfile = (key, value, min, max) => {
+    setTargetProfile((current) => ({
+      ...DEFAULT_TARGET_PROFILE,
+      ...(current || {}),
+      [key]: clamp(value, min, max),
+    }));
+  };
 
   return (
     <main className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
@@ -1132,9 +1173,19 @@ function PlanView(props) {
               <label className="text-[10px] uppercase tracking-[0.24em] text-[#918a7c]">Lunch kcal</label>
               <div className="mt-2 flex items-end gap-3">
                 <input
-                  type="number"
-                  value={lunchKcal}
-                  onChange={(event) => setLunchKcal(clamp(event.target.value, 0, 5000))}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  aria-label="午餐热量"
+                  value={lunchDraft}
+                  onFocus={() => {
+                    lunchEditingRef.current = true;
+                  }}
+                  onBlur={() => {
+                    lunchEditingRef.current = false;
+                    setLunchDraft(String(Math.round(lunchKcal)));
+                  }}
+                  onChange={(event) => updateLunchKcal(event.target.value)}
                   className="w-36 border-b border-[#d8c7a3]/24 bg-transparent font-display text-6xl leading-none text-[#f2eadb] outline-none focus:border-[#d8c7a3]"
                 />
                 <span className="pb-2 text-xs uppercase tracking-[0.2em] text-[#918a7c]">kcal</span>
@@ -1184,7 +1235,7 @@ function PlanView(props) {
           open={advancedOpen}
           onToggle={() => setAdvancedOpen(!advancedOpen)}
           title="高级配置"
-          subtitle="肉、油脂、水果、牛肉脂肪、目标值"
+          subtitle="肉、油脂、水果、牛肉脂肪、目标公式"
         >
           <div className="grid gap-5">
             <OptionBlock title="晚餐蛋白">
@@ -1237,23 +1288,24 @@ function PlanView(props) {
               </div>
             </OptionBlock>
 
-            <OptionBlock title="目标值">
+            <OptionBlock title="目标公式">
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {[
-                  ['p', '蛋白', 'g', 500],
-                  ['c', '碳水', 'g', 800],
-                  ['f', '脂肪', 'g', 300],
-                  ['kcal', '热量', '', 8000],
-                ].map(([key, label, unit, max]) => (
+                  ['bodyWeightKg', '体重', 'kg', 30, 250],
+                  ['proteinPerKg', '蛋白倍率', 'g/kg', 0.8, 3],
+                  ['fatMinPerKg', '脂肪最低', 'g/kg', 0.3, 1.5],
+                  ['kcal', '热量', 'kcal', 1000, 5000],
+                ].map(([key, label, unit, min, max]) => (
                   <TargetInput
                     key={key}
                     label={label}
                     unit={unit}
-                    value={targets[key]}
-                    onChange={(value) => setTargets((current) => ({ ...current, [key]: clamp(value, 0, max) }))}
+                    value={targetProfile[key]}
+                    onChange={(value) => updateTargetProfile(key, value, min, max)}
                   />
                 ))}
               </div>
+              <TargetFormulaSummary targets={targets} targetProfile={targetProfile} />
               <button onClick={resetDefaults} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#d8c7a3]/12 px-3 py-2 text-xs text-[#918a7c] transition hover:border-[#c77e68]/60 hover:text-[#c77e68]">
                 <RotateCcw className="h-4 w-4" />
                 重置默认
@@ -1284,6 +1336,7 @@ function PlanView(props) {
             <MacroBar label="碳水" value={model.total.c} target={targets.c} unit="g" color="#d8c7a3" />
             <MacroBar label="脂肪" value={model.total.f} target={targets.f} unit="g" color="#9fb58f" />
             <MacroBar label="热量" value={model.total.kcal} target={targets.kcal} unit="kcal" color="#8fb8ad" />
+            <CarbDayBanner report={macroReport} />
           </div>
         </Panel>
       </section>
@@ -1295,7 +1348,9 @@ function DetailView(props) {
   const {
     model,
     targets,
-    setTargets,
+    targetProfile,
+    setTargetProfile,
+    macroReport,
     tdee,
     setTdee,
     pre,
@@ -1311,6 +1366,13 @@ function DetailView(props) {
     setFoodK,
   } = props;
   const balanceOk = model.potassium >= model.sodium;
+  const updateTargetProfile = (key, value, min, max) => {
+    setTargetProfile((current) => ({
+      ...DEFAULT_TARGET_PROFILE,
+      ...(current || {}),
+      [key]: clamp(value, min, max),
+    }));
+  };
 
   return (
     <main className="grid gap-6 lg:grid-cols-[1fr_1fr]">
@@ -1322,18 +1384,23 @@ function DetailView(props) {
         <LedgerRow label="晚餐" macro={model.dinner} strong />
       </Panel>
 
-      <Panel eyebrow="目标设置" title="目标和消耗" icon={Goal}>
+      <Panel eyebrow="目标公式" title="按体重自动分配" icon={Goal}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {[
-            ['p', '蛋白', 'g', 500],
-            ['c', '碳水', 'g', 800],
-            ['f', '脂肪', 'g', 300],
-            ['kcal', '热量', '', 8000],
-          ].map(([key, label, unit, max]) => (
-            <TargetInput key={key} label={label} unit={unit} value={targets[key]} onChange={(value) => setTargets((current) => ({ ...current, [key]: clamp(value, 0, max) }))} />
+            ['bodyWeightKg', '体重', 'kg', 30, 250],
+            ['proteinPerKg', '蛋白倍率', 'g/kg', 0.8, 3],
+            ['fatMinPerKg', '脂肪最低', 'g/kg', 0.3, 1.5],
+            ['kcal', '热量', 'kcal', 1000, 5000],
+          ].map(([key, label, unit, min, max]) => (
+            <TargetInput key={key} label={label} unit={unit} value={targetProfile[key]} onChange={(value) => updateTargetProfile(key, value, min, max)} />
           ))}
-          <TargetInput label="TDEE" unit="" value={tdee} onChange={(value) => setTdee(clamp(value, 0, 9000))} />
+          <TargetInput label="TDEE" unit="kcal" value={tdee} onChange={(value) => setTdee(clamp(value, 0, 9000))} />
         </div>
+        <TargetFormulaSummary targets={targets} targetProfile={targetProfile} />
+      </Panel>
+
+      <Panel eyebrow="今日结构" title="占比和体重倍数" icon={Gauge}>
+        <MacroInsightGrid report={macroReport} targets={targets} />
       </Panel>
 
       <Panel eyebrow="训练前" title="垫一口也算进去" icon={Dumbbell}>
@@ -2088,6 +2155,61 @@ function TargetInput({ label, unit, value, onChange }) {
   );
 }
 
+function TargetFormulaSummary({ targets, targetProfile }) {
+  const items = [
+    { label: '蛋白目标', value: `${round(targets.p, 1)}g`, sub: `${round(targetProfile.proteinPerKg, 1)}g/kg` },
+    { label: '脂肪最低', value: `${round(targets.f, 1)}g`, sub: `${round(targetProfile.fatMinPerKg, 1)}g/kg` },
+    { label: '剩余碳水', value: `${round(targets.c, 1)}g`, sub: '热量扣完 P/F 后全给碳水' },
+  ];
+
+  return (
+    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+      {items.map((item) => (
+        <div key={item.label} className="rounded-lg border border-[#d8c7a3]/10 bg-[#11130f]/58 p-3">
+          <div className="text-[10px] uppercase tracking-[0.18em] text-[#918a7c]">{item.label}</div>
+          <div className="mt-1 font-mono text-lg text-[#f2eadb]">{item.value}</div>
+          <div className="mt-1 text-[10px] text-[#918a7c]">{item.sub}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CarbDayBanner({ report }) {
+  const toneClass = {
+    amber: 'border-[#d8c7a3]/24 bg-[#d8c7a3]/10 text-[#e7d6b9]',
+    green: 'border-[#9fb58f]/30 bg-[#9fb58f]/10 text-[#d8e7cf]',
+    red: 'border-[#c77e68]/30 bg-[#c77e68]/10 text-[#f0c5b7]',
+  }[report.carbDay.tone] || 'border-[#d8c7a3]/16 bg-[#11130f]/60 text-[#cfc4b2]';
+
+  return (
+    <div className={`rounded-lg border p-3 ${toneClass}`}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs text-[#918a7c]">今天碳水日</span>
+        <span className="font-cjk text-sm font-semibold">{report.carbDay.label}</span>
+      </div>
+      <div className="mt-1 text-[10px] text-[#918a7c]">C {report.carbPerKg}g/kg · P {report.proteinPerKg}g/kg</div>
+    </div>
+  );
+}
+
+function MacroInsightGrid({ report, targets }) {
+  const insights = [
+    { label: '蛋白热量', value: `${report.proteinPct}%`, sub: `${report.proteinPerKg}g/kg · 目标 ${report.proteinTargetPerKg}g/kg` },
+    { label: '碳水热量', value: `${report.carbPct}%`, sub: `${report.carbPerKg}g/kg · 目标 ${report.carbTargetPerKg}g/kg` },
+    { label: '脂肪热量', value: `${report.fatPct}%`, sub: `${report.fatPerKg}g/kg · 目标 ${round(targets.f, 1)}g` },
+    { label: '低碳判断', value: report.carbDay.label, sub: report.carbDay.note, hot: report.carbDay.tone === 'red' },
+  ];
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {insights.map((item) => (
+        <ResultPill key={item.label} label={item.label} value={item.value} sub={item.sub} hot={item.hot} />
+      ))}
+    </div>
+  );
+}
+
 function FoodRow({ item, index, onTune }) {
   const colorMap = {
     red: '#c77e68',
@@ -2149,11 +2271,12 @@ function LedgerRow({ label, macro, strong }) {
   );
 }
 
-function ResultPill({ label, value, hot }) {
+function ResultPill({ label, value, sub, hot }) {
   return (
     <div className={`rounded-lg border p-3 ${hot ? 'border-[#c77e68]/30 bg-[#c77e68]/10' : 'border-[#d8c7a3]/10 bg-[#080908]/42'}`}>
       <div className="text-[10px] text-[#918a7c]">{label}</div>
       <div className={`mt-1 font-mono text-lg ${hot ? 'text-[#c77e68]' : 'text-[#f2eadb]'}`}>{value}</div>
+      {sub && <div className="mt-1 text-[10px] leading-4 text-[#918a7c]">{sub}</div>}
     </div>
   );
 }
