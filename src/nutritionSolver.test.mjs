@@ -136,6 +136,17 @@ function testTargetInputsPreserveEditableNumericDrafts() {
   assert.doesNotMatch(match[0], /value={round\(value, 1\)}/);
 }
 
+function testDefaultDayStartsWithoutFuelOrFatSources() {
+  const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
+
+  assert.match(source, /const \[fatKeys, setFatKeys\] = useState\(\[\]\);/);
+  assert.match(source, /const \[drinkKey, setDrinkKey\] = useState\('none'\);/);
+  assert.match(source, /const \[drinkMl, setDrinkMl\] = useState\(0\);/);
+  assert.match(source, /setFatKeys\(\[\]\);/);
+  assert.match(source, /setDrinkKey\('none'\);/);
+  assert.match(source, /setDrinkMl\(0\);/);
+}
+
 function testMacroTargetsUseBodyweightProteinFatAndCarbRemainder() {
   const targets = deriveMacroTargets({
     bodyWeightKg: 83,
@@ -285,6 +296,7 @@ testFreshChilledNoodleCarbPlanUsesTenGramSteps();
 testMobileFlowHasCommandDockAndAnchoredSections();
 testTabChangesResetPageScroll();
 testTargetInputsPreserveEditableNumericDrafts();
+testDefaultDayStartsWithoutFuelOrFatSources();
 testMacroTargetsUseBodyweightProteinFatAndCarbRemainder();
 testMacroAnalysisReportsPercentagesRatiosAndCarbDay();
 testShoppingRunPlanListsConcreteBuyItemsInAisleOrder();
