@@ -813,6 +813,10 @@ export default function CuttingProtocol() {
 
   useEffect(() => () => window.clearTimeout(copyResetRef.current), []);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [tab]);
+
   const buildDailyPlanPayload = () => ({
     date: new Date().toISOString().slice(0, 10),
     targetProfile: targetProfileModel,
@@ -848,6 +852,12 @@ export default function CuttingProtocol() {
     copyResetRef.current = window.setTimeout(() => setCopyStatus('idle'), 1800);
   };
 
+  const scrollToPlanSection = (section) => {
+    window.requestAnimationFrame(() => {
+      document.getElementById(`plan-${section}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
   return (
     <div className="min-h-screen overflow-hidden text-[#eee8dc]">
       <MacroOrbit3D tone={tab === 'cheat' ? 'cool' : 'warm'} />
@@ -869,6 +879,19 @@ export default function CuttingProtocol() {
             <NavButtons tab={tab} setTab={setTab} mode="top" />
           </nav>
         </header>
+
+        {tab === 'plan' && (
+          <PlanCommandDock
+            model={model}
+            macroReport={macroReport}
+            fuelActive={fuelActive}
+            onFuel={() => setFuelOpen(true)}
+            onSnack={() => setSnackOpen(true)}
+            onCopy={copyDailyPlan}
+            copyStatus={copyStatus}
+            onJump={scrollToPlanSection}
+          />
+        )}
 
         {tab === 'plan' && (
           <Hero
@@ -1019,6 +1042,44 @@ function NavButtons({ tab, setTab, mode }) {
   });
 }
 
+function PlanCommandDock({ model, macroReport, fuelActive, onFuel, onSnack, onCopy, copyStatus, onJump }) {
+  const copyMeta = {
+    idle: '复制',
+    copying: '复制中',
+    copied: '已复制',
+    failed: '重试',
+  }[copyStatus] || '复制';
+  const actions = [
+    { key: 'intake', icon: ClipboardList, label: '已吃', value: `${Math.round(model.lunch.kcal)} kcal`, onClick: () => onJump('intake') },
+    { key: 'dinner', icon: Utensils, label: '晚餐', value: `${Math.round(model.dinner.kcal)} kcal`, onClick: () => onJump('dinner') },
+    { key: 'rhythm', icon: Gauge, label: macroReport.carbDay.label, value: `C ${macroReport.carbPerKg}g/kg`, onClick: () => onJump('rhythm') },
+    { key: 'fuel', icon: Dumbbell, label: '补给', value: fuelActive ? 'ON' : 'OFF', onClick: onFuel },
+    { key: 'copy', icon: ClipboardList, label: copyMeta, value: '记录', onClick: onCopy },
+  ];
+
+  return (
+    <div data-plan-flow-dock className="premium-header-shadow sticky top-[74px] z-30 rounded-lg border border-[#d8c7a3]/12 bg-[#090b0a]/82 p-1.5 backdrop-blur-2xl lg:top-[82px]">
+      <div className="grid grid-cols-5 gap-1">
+        {actions.map((action) => {
+          const Icon = action.icon;
+          return (
+            <button
+              key={action.key}
+              data-flow-action={action.key}
+              onClick={action.onClick}
+              className="min-w-0 rounded-md border border-[#d8c7a3]/8 bg-[#11130f]/70 px-1.5 py-2 text-left transition hover:border-[#d8c7a3]/28 hover:bg-[#171912]"
+            >
+              <Icon className="mx-auto h-4 w-4 text-[#b9a36c]" />
+              <div className="mt-1 truncate text-center font-cjk text-[11px] font-semibold leading-none text-[#f2eadb]">{action.label}</div>
+              <div className="mt-1 truncate text-center font-mono text-[9px] leading-none text-[#918a7c]">{action.value}</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Hero({ model, targets, targetProfile, onFuel, fuelActive, fuelSummary, onSnack, onCopy, copyStatus }) {
   const deficitTone = model.deficit >= 650 ? 'text-[#9fb58f]' : model.deficit >= 300 ? 'text-[#d8c7a3]' : 'text-[#c77e68]';
   const copyMeta = {
@@ -1029,7 +1090,7 @@ function Hero({ model, targets, targetProfile, onFuel, fuelActive, fuelSummary, 
   }[copyStatus] || { label: '复制', sub: '今日记录', icon: ClipboardList };
 
   return (
-    <section className="premium-hero-grid relative grid min-h-[72vh] items-end gap-6 py-4 lg:items-center">
+    <section className="premium-hero-grid relative grid min-h-[46vh] items-end gap-4 py-2 sm:min-h-[60vh] sm:gap-6 sm:py-4 lg:min-h-[72vh] lg:items-center">
       <div className="relative order-2 lg:order-1">
         <div className="mb-5 flex flex-wrap items-center gap-2">
           <div className="inline-flex items-center gap-2 rounded-lg border border-[#d8c7a3]/12 bg-[#11130f]/78 px-3 py-2 text-xs text-[#bdb4a3] backdrop-blur-xl">
@@ -1056,10 +1117,10 @@ function Hero({ model, targets, targetProfile, onFuel, fuelActive, fuelSummary, 
           今晚吃什么
           <span className="block text-[#9fb58f]">一眼定</span>
         </h1>
-        <p className="mt-5 max-w-xl text-sm leading-7 text-[#bdb4a3] sm:text-base">
+        <p className="mt-5 hidden max-w-xl text-sm leading-7 text-[#bdb4a3] sm:block sm:text-base">
           输入今天已经吃掉的部分，系统把晚餐、补给和赤字压成一张清楚的执行卡。少解释，直接吃。
         </p>
-        <div className="mt-6 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+        <div className="mt-6 hidden grid-cols-3 gap-2 sm:flex sm:flex-wrap">
           <HeroAction icon={Zap} label="零食" onClick={onSnack} />
           <HeroAction icon={copyMeta.icon} label={copyMeta.label} sub={copyMeta.sub} onClick={onCopy} dataAttr="copy-plan-button" />
           <HeroAction icon={Goal} label={`${model.deficit > 0 ? '-' : '+'}${Math.abs(model.deficit)}`} sub="今日赤字" />
@@ -1069,7 +1130,7 @@ function Hero({ model, targets, targetProfile, onFuel, fuelActive, fuelSummary, 
       <div className="relative order-1 lg:order-2">
         <div className="absolute -inset-6 rounded-lg bg-[#d8c7a3]/8 blur-3xl" />
         <div className="premium-card-shadow relative overflow-hidden rounded-lg border border-[#d8c7a3]/12 bg-[#11130f]/86 backdrop-blur-xl">
-          <img src={generated('protocol-hero-premium.jpg')} alt="Cutting Lab dinner visual" className="h-[280px] w-full object-cover object-center saturate-[0.92] contrast-[1.04] sm:h-[440px]" />
+          <img src={generated('protocol-hero-premium.jpg')} alt="Cutting Lab dinner visual" className="h-[190px] w-full object-cover object-center saturate-[0.92] contrast-[1.04] sm:h-[360px] lg:h-[440px]" />
           <div className="premium-hero-overlay absolute inset-0" />
           <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
             <div className="mb-3 flex items-end justify-between gap-3">
@@ -1159,7 +1220,7 @@ function PlanView(props) {
   return (
     <main className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
       <section className="space-y-6">
-        <Panel eyebrow="01 · 先记今天" title="今天吃到哪了" icon={ClipboardList}>
+        <Panel id="plan-intake" eyebrow="01 · 先记今天" title="今天吃到哪了" icon={ClipboardList}>
           <Segmented
             value={lunchMode}
             onChange={setLunchMode}
@@ -1316,7 +1377,7 @@ function PlanView(props) {
       </section>
 
       <section className="space-y-6">
-        <Panel eyebrow="03 · 今晚答案" title="今晚就这样吃" icon={Sparkles}>
+        <Panel id="plan-dinner" eyebrow="03 · 今晚答案" title="今晚就这样吃" icon={Sparkles}>
           <div className="grid gap-2">
             {model.dinnerItems.map((item, index) => (
               <FoodRow key={item.key} item={item} index={index} onTune={onTuneDinner} />
@@ -1330,7 +1391,7 @@ function PlanView(props) {
           )}
         </Panel>
 
-        <Panel eyebrow="04 · 今日节奏" title="看一眼就够" icon={Gauge}>
+        <Panel id="plan-rhythm" eyebrow="04 · 今日节奏" title="看一眼就够" icon={Gauge}>
           <div className="space-y-3">
             <MacroBar label="蛋白" value={model.total.p} target={targets.p} unit="g" color="#c77e68" />
             <MacroBar label="碳水" value={model.total.c} target={targets.c} unit="g" color="#d8c7a3" />
@@ -1989,9 +2050,9 @@ function SnackDrawer({ open, setOpen, snack, setSnack, active, dinnerSummary }) 
   );
 }
 
-function Panel({ eyebrow, title, icon: Icon, children }) {
+function Panel({ id, eyebrow, title, icon: Icon, children }) {
   return (
-    <section className="premium-panel-shadow rounded-lg border border-[#d8c7a3]/12 bg-[#10120f]/92 p-4 backdrop-blur-xl sm:p-5">
+    <section id={id} className="premium-panel-shadow scroll-mt-28 rounded-lg border border-[#d8c7a3]/12 bg-[#10120f]/92 p-4 backdrop-blur-xl sm:p-5">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <div className="text-[10px] uppercase tracking-[0.28em] text-[#b9a36c]">{eyebrow}</div>

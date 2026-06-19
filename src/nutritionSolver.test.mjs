@@ -104,6 +104,25 @@ function testFreshChilledNoodleCarbPlanUsesTenGramSteps() {
   assert.match(source, /sourceKey:\s*'fresh_noodle'[\s\S]*label:\s*'冷藏鲜面'/);
 }
 
+function testMobileFlowHasCommandDockAndAnchoredSections() {
+  const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
+
+  assert.match(source, /function PlanCommandDock/);
+  assert.match(source, /data-plan-flow-dock/);
+  assert.match(source, /key:\s*'intake'[\s\S]*onJump\('intake'\)/);
+  assert.match(source, /data-flow-action={action\.key}/);
+  assert.match(source, /id="plan-intake"/);
+  assert.match(source, /id="plan-dinner"/);
+  assert.match(source, /id="plan-rhythm"/);
+  assert.match(source, /scrollToPlanSection/);
+}
+
+function testTabChangesResetPageScroll() {
+  const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
+
+  assert.match(source, /useEffect\(\(\) => {\s*window\.scrollTo\({ top: 0, behavior: 'auto' }\);\s*}, \[tab\]\);/);
+}
+
 function testMacroTargetsUseBodyweightProteinFatAndCarbRemainder() {
   const targets = deriveMacroTargets({
     bodyWeightKg: 83,
@@ -250,6 +269,8 @@ testWeeklyShoppingReplenishesInventory();
 testWeeklyShoppingScalesTheInventoryWindow();
 testScaleMacroPreservesExplicitCalories();
 testFreshChilledNoodleCarbPlanUsesTenGramSteps();
+testMobileFlowHasCommandDockAndAnchoredSections();
+testTabChangesResetPageScroll();
 testMacroTargetsUseBodyweightProteinFatAndCarbRemainder();
 testMacroAnalysisReportsPercentagesRatiosAndCarbDay();
 testShoppingRunPlanListsConcreteBuyItemsInAisleOrder();
