@@ -123,6 +123,19 @@ function testTabChangesResetPageScroll() {
   assert.match(source, /useEffect\(\(\) => {\s*window\.scrollTo\({ top: 0, behavior: 'auto' }\);\s*}, \[tab\]\);/);
 }
 
+function testTargetInputsPreserveEditableNumericDrafts() {
+  const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
+  const match = source.match(/function TargetInput[\s\S]*?function TargetFormulaSummary/);
+
+  assert.ok(match, 'TargetInput component should exist');
+  assert.match(match[0], /useState/);
+  assert.match(match[0], /editingRef/);
+  assert.match(match[0], /type="text"/);
+  assert.match(match[0], /inputMode="decimal"/);
+  assert.match(match[0], /aria-label={label}/);
+  assert.doesNotMatch(match[0], /value={round\(value, 1\)}/);
+}
+
 function testMacroTargetsUseBodyweightProteinFatAndCarbRemainder() {
   const targets = deriveMacroTargets({
     bodyWeightKg: 83,
@@ -271,6 +284,7 @@ testScaleMacroPreservesExplicitCalories();
 testFreshChilledNoodleCarbPlanUsesTenGramSteps();
 testMobileFlowHasCommandDockAndAnchoredSections();
 testTabChangesResetPageScroll();
+testTargetInputsPreserveEditableNumericDrafts();
 testMacroTargetsUseBodyweightProteinFatAndCarbRemainder();
 testMacroAnalysisReportsPercentagesRatiosAndCarbDay();
 testShoppingRunPlanListsConcreteBuyItemsInAisleOrder();

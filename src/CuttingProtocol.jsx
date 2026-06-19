@@ -1362,6 +1362,8 @@ function PlanView(props) {
                     label={label}
                     unit={unit}
                     value={targetProfile[key]}
+                    min={min}
+                    max={max}
                     onChange={(value) => updateTargetProfile(key, value, min, max)}
                   />
                 ))}
@@ -1453,9 +1455,9 @@ function DetailView(props) {
             ['fatMinPerKg', '脂肪最低', 'g/kg', 0.3, 1.5],
             ['kcal', '热量', 'kcal', 1000, 5000],
           ].map(([key, label, unit, min, max]) => (
-            <TargetInput key={key} label={label} unit={unit} value={targetProfile[key]} onChange={(value) => updateTargetProfile(key, value, min, max)} />
+            <TargetInput key={key} label={label} unit={unit} value={targetProfile[key]} min={min} max={max} onChange={(value) => updateTargetProfile(key, value, min, max)} />
           ))}
-          <TargetInput label="TDEE" unit="kcal" value={tdee} onChange={(value) => setTdee(clamp(value, 0, 9000))} />
+          <TargetInput label="TDEE" unit="kcal" value={tdee} min={0} max={9000} onChange={(value) => setTdee(clamp(value, 0, 9000))} />
         </div>
         <TargetFormulaSummary targets={targets} targetProfile={targetProfile} />
       </Panel>
@@ -1479,9 +1481,9 @@ function DetailView(props) {
           ))}
         </div>
         <div className="mt-4 grid grid-cols-3 gap-2">
-          <TargetInput label="饮料" unit="ml" value={drinkMl} onChange={(value) => setDrinkMl(clamp(value, 0, 2000))} />
-          <TargetInput label="盐" unit="g" value={saltG} onChange={(value) => setSaltG(clamp(value, 0, 20))} />
-          <TargetInput label="食物钾" unit="mg" value={foodK} onChange={(value) => setFoodK(clamp(value, 0, 8000))} />
+          <TargetInput label="饮料" unit="ml" value={drinkMl} min={0} max={2000} onChange={(value) => setDrinkMl(clamp(value, 0, 2000))} />
+          <TargetInput label="盐" unit="g" value={saltG} min={0} max={20} onChange={(value) => setSaltG(clamp(value, 0, 20))} />
+          <TargetInput label="食物钾" unit="mg" value={foodK} min={0} max={8000} onChange={(value) => setFoodK(clamp(value, 0, 8000))} />
         </div>
         <div className={`mt-4 rounded-lg border p-4 ${balanceOk ? 'border-[#9fb58f]/30 bg-[#9fb58f]/10' : 'border-[#c77e68]/30 bg-[#c77e68]/10'}`}>
           <div className="flex items-center justify-between gap-3">
@@ -1928,7 +1930,7 @@ function FuelDrawer({ open, setOpen, pre, setPre, setMapQty, drinkKey, setDrinkK
                 ))}
               </div>
               <div className="mt-3">
-                <TargetInput label="饮料" unit="ml" value={drinkMl} onChange={(value) => setDrinkMl(clamp(value, 0, 2000))} />
+                <TargetInput label="饮料" unit="ml" value={drinkMl} min={0} max={2000} onChange={(value) => setDrinkMl(clamp(value, 0, 2000))} />
               </div>
             </OptionBlock>
           </div>
@@ -2031,7 +2033,7 @@ function SnackDrawer({ open, setOpen, snack, setSnack, active, dinnerSummary }) 
               ['c', '碳水'],
               ['f', '脂肪'],
             ].map(([key, label]) => (
-              <TargetInput key={key} label={label} unit={key === 'kcal' ? '' : 'g'} value={snack[key]} onChange={(value) => setField(key, value)} />
+              <TargetInput key={key} label={label} unit={key === 'kcal' ? '' : 'g'} value={snack[key]} min={0} max={key === 'kcal' ? 5000 : 500} onChange={(value) => setField(key, value)} />
             ))}
           </div>
           <div className="mt-5 rounded-lg border border-[#d8c7a3]/20 bg-[#d8c7a3]/10 p-4">
@@ -2199,15 +2201,66 @@ function IconSquare({ label, onClick, icon: Icon }) {
   );
 }
 
-function TargetInput({ label, unit, value, onChange }) {
+function formatNumberDraft(value) {
+  return String(round(value, 1));
+}
+
+function cleanNumberDraft(value) {
+  const text = String(value).replace(/[^\d.]/g, '');
+  if (!text) return '';
+
+  const [integer = '', ...decimalParts] = text.split('.');
+  const integerPart = integer.replace(/^0+(?=\d)/, '');
+  if (!decimalParts.length) return integerPart;
+
+  const normalizedInteger = integerPart || (text.startsWith('.') ? '0' : '0');
+  return `${normalizedInteger}.${decimalParts.join('')}`;
+}
+
+function TargetInput({ label, unit, value, onChange, min = 0, max = Infinity }) {
+  const editingRef = useRef(false);
+  const [draft, setDraft] = useState(() => formatNumberDraft(value));
+
+  useEffect(() => {
+    if (!editingRef.current) setDraft(formatNumberDraft(value));
+  }, [value]);
+
+  const commitDraft = (nextDraft) => {
+    if (!nextDraft) return;
+    const nextValue = Number(nextDraft);
+    if (Number.isFinite(nextValue)) onChange(clamp(nextValue, min, max));
+  };
+
+  const handleBlur = () => {
+    editingRef.current = false;
+    if (!draft || !Number.isFinite(Number(draft))) {
+      setDraft(formatNumberDraft(value));
+      return;
+    }
+
+    const nextValue = clamp(draft, min, max);
+    onChange(nextValue);
+    setDraft(formatNumberDraft(nextValue));
+  };
+
   return (
     <label className="block rounded-lg border border-[#d8c7a3]/10 bg-[#080908]/42 p-3">
       <span className="block text-[10px] uppercase tracking-[0.18em] text-[#918a7c]">{label}</span>
       <span className="mt-1 flex items-baseline gap-1">
         <input
-          type="number"
-          value={round(value, 1)}
-          onChange={(event) => onChange(event.target.value)}
+          type="text"
+          inputMode="decimal"
+          aria-label={label}
+          value={draft}
+          onFocus={() => {
+            editingRef.current = true;
+          }}
+          onBlur={handleBlur}
+          onChange={(event) => {
+            const nextDraft = cleanNumberDraft(event.target.value);
+            setDraft(nextDraft);
+            commitDraft(nextDraft);
+          }}
           className="min-w-0 flex-1 bg-transparent font-mono text-lg text-[#f2eadb] outline-none"
         />
         <span className="text-[10px] text-[#918a7c]">{unit}</span>
