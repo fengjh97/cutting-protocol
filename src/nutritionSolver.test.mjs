@@ -133,7 +133,9 @@ function testTargetInputsPreserveEditableNumericDrafts() {
   assert.match(match[0], /type="text"/);
   assert.match(match[0], /inputMode="decimal"/);
   assert.match(match[0], /aria-label={label}/);
+  assert.match(match[0], /onKeyDown/);
   assert.doesNotMatch(match[0], /value={round\(value, 1\)}/);
+  assert.doesNotMatch(match[0], /commitDraft\(nextDraft\)/);
 }
 
 function testDefaultDayStartsWithoutFuelOrFatSources() {
@@ -145,6 +147,9 @@ function testDefaultDayStartsWithoutFuelOrFatSources() {
   assert.match(source, /setFatKeys\(\[\]\);/);
   assert.match(source, /setDrinkKey\('none'\);/);
   assert.match(source, /setDrinkMl\(0\);/);
+  assert.match(source, /key:\s*'egg_fried'[\s\S]*defaultEnabled:\s*false/);
+  assert.match(source, /key:\s*'sauce'[\s\S]*defaultEnabled:\s*false/);
+  assert.match(source, /key:\s*'nuts'[\s\S]*defaultEnabled:\s*false/);
 }
 
 function testJapaneseLocaleAndSoftRoundedThemeExist() {

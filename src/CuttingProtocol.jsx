@@ -537,9 +537,9 @@ const WEEKLY_SHOP_ITEMS = [
   { key: 'pineapple', tone: 'gold', source: 'extra', sourceKey: 'pineapple', label: '菠萝 240g', short: '菠萝', unit: '盒', step: 1, defaultTarget: 2, max: 8, buyHint: '训练前后直接吃', ja: { label: 'カットパイン 240g', short: 'パイン', unit: '盒', buyHint: '運動前後にそのまま食べる' } },
   { key: 'banana', tone: 'gold', source: 'extra', sourceKey: 'banana', label: '香蕉', short: '香蕉', unit: '根', step: 1, defaultTarget: 4, max: 14, buyHint: '快速补碳水', ja: { label: 'バナナ', short: 'バナナ', unit: '本', buyHint: 'すぐ足せる炭水化物' } },
   { key: 'apple', tone: 'gold', source: 'extra', sourceKey: 'apple', label: '苹果', short: '苹果', unit: '个', step: 1, defaultTarget: 2, max: 10, buyHint: '顶饥水果', ja: { label: 'りんご', short: 'りんご', unit: '個', buyHint: 'お腹にたまる果物' } },
-  { key: 'egg_fried', tone: 'amber', source: 'fat', sourceKey: 'egg_fried', label: '鸡蛋', short: '鸡蛋', unit: '个', step: 1, defaultTarget: 6, max: 20, buyHint: '补脂肪和口感', ja: { label: '卵', short: '卵', unit: '個', buyHint: '脂質と満足感を足す' } },
-  { key: 'sauce', tone: 'amber', source: 'fat', sourceKey: 'sauce', label: 'ペペロン酱', short: '蒜油酱', unit: '包', step: 1, defaultTarget: 3, max: 12, buyHint: '意面直接好吃', ja: { label: 'ペペロンソース', short: 'ソース', unit: '袋', buyHint: 'パスタがすぐおいしい' } },
-  { key: 'nuts', tone: 'amber', source: 'fat', sourceKey: 'nuts', label: '素焼きナッツ', short: '坚果', unit: '10g', step: 1, defaultTarget: 4, max: 20, buyHint: '少量脂肪备用', ja: { label: '素焼きナッツ', short: 'ナッツ', buyHint: '少量脂質の保険' } },
+  { key: 'egg_fried', tone: 'amber', source: 'fat', sourceKey: 'egg_fried', label: '鸡蛋', short: '鸡蛋', unit: '个', step: 1, defaultTarget: 6, max: 20, defaultEnabled: false, buyHint: '补脂肪和口感', ja: { label: '卵', short: '卵', unit: '個', buyHint: '脂質と満足感を足す' } },
+  { key: 'sauce', tone: 'amber', source: 'fat', sourceKey: 'sauce', label: 'ペペロン酱', short: '蒜油酱', unit: '包', step: 1, defaultTarget: 3, max: 12, defaultEnabled: false, buyHint: '意面直接好吃', ja: { label: 'ペペロンソース', short: 'ソース', unit: '袋', buyHint: 'パスタがすぐおいしい' } },
+  { key: 'nuts', tone: 'amber', source: 'fat', sourceKey: 'nuts', label: '素焼きナッツ', short: '坚果', unit: '10g', step: 1, defaultTarget: 4, max: 20, defaultEnabled: false, buyHint: '少量脂肪备用', ja: { label: '素焼きナッツ', short: 'ナッツ', buyHint: '少量脂質の保険' } },
 ];
 
 const TALLY_ITEMS = {
@@ -2491,21 +2491,20 @@ function TargetInput({ label, unit, value, onChange, min = 0, max = Infinity }) 
     if (!editingRef.current) setDraft(formatNumberDraft(value));
   }, [value]);
 
-  const commitDraft = (nextDraft) => {
-    if (!nextDraft) return;
-    const nextValue = Number(nextDraft);
-    if (Number.isFinite(nextValue)) onChange(clamp(nextValue, min, max));
-  };
-
-  const handleBlur = () => {
-    editingRef.current = false;
-    if (!draft || !Number.isFinite(Number(draft))) {
+  const commitDraft = () => {
+    const nextValue = Number(draft);
+    if (!draft || !Number.isFinite(nextValue)) {
       setDraft(formatNumberDraft(value));
       return;
     }
-    const nextValue = clamp(draft, min, max);
-    onChange(nextValue);
-    setDraft(formatNumberDraft(nextValue));
+    const committedValue = clamp(nextValue, min, max);
+    onChange(committedValue);
+    setDraft(formatNumberDraft(committedValue));
+  };
+
+  const finishEditing = () => {
+    editingRef.current = false;
+    commitDraft();
   };
 
   return (
@@ -2520,11 +2519,13 @@ function TargetInput({ label, unit, value, onChange, min = 0, max = Infinity }) 
           onFocus={() => {
             editingRef.current = true;
           }}
-          onBlur={handleBlur}
+          onBlur={finishEditing}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur();
+          }}
           onChange={(event) => {
             const nextDraft = cleanNumberDraft(event.target.value);
             setDraft(nextDraft);
-            commitDraft(nextDraft);
           }}
           className="min-w-0 flex-1 bg-transparent font-mono text-lg font-bold text-[#4d3934] outline-none"
         />
