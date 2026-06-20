@@ -150,6 +150,14 @@ function testDefaultDayStartsWithoutFuelOrFatSources() {
   assert.match(source, /key:\s*'egg_fried'[\s\S]*defaultEnabled:\s*false/);
   assert.match(source, /key:\s*'sauce'[\s\S]*defaultEnabled:\s*false/);
   assert.match(source, /key:\s*'nuts'[\s\S]*defaultEnabled:\s*false/);
+  assert.match(source, /key:\s*'cheese_bite'[\s\S]*defaultEnabled:\s*false/);
+}
+
+function testCheeseBiteFatSourceUsesPackageNutrition() {
+  const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
+
+  assert.match(source, /cheese_bite:\s*{[\s\S]*label:\s*'小芝士'[\s\S]*unit:\s*'个'[\s\S]*p:\s*2\.6[\s\S]*c:\s*0\.4[\s\S]*f:\s*3\.4[\s\S]*kcal:\s*43/);
+  assert.match(source, /key:\s*'cheese_bite'[\s\S]*sourceKey:\s*'cheese_bite'[\s\S]*defaultTarget:\s*6[\s\S]*max:\s*24/);
 }
 
 function testJapaneseLocaleAndSoftRoundedThemeExist() {
@@ -331,6 +339,7 @@ testMobileFlowHasCommandDockAndAnchoredSections();
 testTabChangesResetPageScroll();
 testTargetInputsPreserveEditableNumericDrafts();
 testDefaultDayStartsWithoutFuelOrFatSources();
+testCheeseBiteFatSourceUsesPackageNutrition();
 testJapaneseLocaleAndSoftRoundedThemeExist();
 testNutritionItemsExposeJapaneseLabels();
 testMacroTargetsUseBodyweightProteinFatAndCarbRemainder();

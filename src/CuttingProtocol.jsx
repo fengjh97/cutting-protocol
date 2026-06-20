@@ -505,6 +505,18 @@ const FAT_SOURCES = {
     max: 5,
     ja: { label: '素焼きナッツ', short: 'ナッツ' },
   },
+  cheese_bite: {
+    label: '小芝士',
+    short: '芝士',
+    unit: '个',
+    step: 1,
+    p: 2.6,
+    c: 0.4,
+    f: 3.4,
+    kcal: 43,
+    max: 8,
+    ja: { label: 'ベビーチーズ', short: 'チーズ', unit: '個' },
+  },
   avocado: {
     label: 'アボカド',
     short: '牛油果',
@@ -540,6 +552,7 @@ const WEEKLY_SHOP_ITEMS = [
   { key: 'egg_fried', tone: 'amber', source: 'fat', sourceKey: 'egg_fried', label: '鸡蛋', short: '鸡蛋', unit: '个', step: 1, defaultTarget: 6, max: 20, defaultEnabled: false, buyHint: '补脂肪和口感', ja: { label: '卵', short: '卵', unit: '個', buyHint: '脂質と満足感を足す' } },
   { key: 'sauce', tone: 'amber', source: 'fat', sourceKey: 'sauce', label: 'ペペロン酱', short: '蒜油酱', unit: '包', step: 1, defaultTarget: 3, max: 12, defaultEnabled: false, buyHint: '意面直接好吃', ja: { label: 'ペペロンソース', short: 'ソース', unit: '袋', buyHint: 'パスタがすぐおいしい' } },
   { key: 'nuts', tone: 'amber', source: 'fat', sourceKey: 'nuts', label: '素焼きナッツ', short: '坚果', unit: '10g', step: 1, defaultTarget: 4, max: 20, defaultEnabled: false, buyHint: '少量脂肪备用', ja: { label: '素焼きナッツ', short: 'ナッツ', buyHint: '少量脂質の保険' } },
+  { key: 'cheese_bite', tone: 'amber', source: 'fat', sourceKey: 'cheese_bite', label: '小芝士', short: '芝士', unit: '个', step: 1, defaultTarget: 6, max: 24, defaultEnabled: false, buyHint: '每个 43kcal，少量补脂肪', ja: { label: 'ベビーチーズ', short: 'チーズ', unit: '個', buyHint: '1個43kcal。少量脂質に' } },
 ];
 
 const TALLY_ITEMS = {
@@ -1776,7 +1789,7 @@ function ShopView({ locale, t, model, shopDays, setShopDays, setShopPlan }) {
     { tone: 'red', label: locale === 'ja' ? 'たんぱく' : '蛋白主菜', caption: locale === 'ja' ? '肉、チキン、オイコス' : '肉、鸡胸、Oikos 先补齐', icon: Dumbbell, accent: '#ff8d82' },
     { tone: 'green', label: locale === 'ja' ? '主食' : '主食碳水', caption: locale === 'ja' ? '周期分の炭水化物' : '按一周期望备货', icon: Utensils, accent: '#69cda5' },
     { tone: 'gold', label: locale === 'ja' ? '果物' : '水果加料', caption: locale === 'ja' ? 'パイン、バナナ、りんご' : '菠萝 240g、香蕉、苹果', icon: Apple, accent: '#ffcf7d' },
-    { tone: 'amber', label: locale === 'ja' ? '脂質' : '油脂口味', caption: locale === 'ja' ? '卵、ソース、ナッツ' : '蛋、酱、坚果和风味', icon: Flame, accent: '#f1b36a' },
+    { tone: 'amber', label: locale === 'ja' ? '脂質' : '油脂口味', caption: locale === 'ja' ? '卵、チーズ、ソース、ナッツ' : '蛋、芝士、酱和坚果', icon: Flame, accent: '#f1b36a' },
   ];
   const priorityOrder = { red: 0, green: 1, gold: 2, amber: 3 };
   const groupByTone = Object.fromEntries(groupMeta.map((group) => [group.tone, group]));
