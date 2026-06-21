@@ -110,11 +110,29 @@ function testMobileFlowHasCommandDockAndAnchoredSections() {
   assert.match(source, /function PlanCommandDock/);
   assert.match(source, /data-plan-flow-dock/);
   assert.match(source, /key:\s*'intake'[\s\S]*onJump\('intake'\)/);
+  assert.match(source, /key:\s*'edit-intake'[\s\S]*onClick:\s*onIntake/);
   assert.match(source, /data-flow-action={action\.key}/);
   assert.match(source, /id="plan-intake"/);
   assert.match(source, /id="plan-dinner"/);
   assert.match(source, /id="plan-rhythm"/);
   assert.match(source, /scrollToPlanSection/);
+}
+
+function testIntakeFuelAndSnackUseOneEditor() {
+  const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
+
+  assert.match(source, /function IntakeEditor/);
+  assert.match(source, /function IntakeDrawer/);
+  assert.match(source, /function LunchEditor/);
+  assert.match(source, /function FuelControls/);
+  assert.match(source, /function SnackMacroEditor/);
+  assert.match(source, /data-home-intake-button/);
+  assert.match(source, /describeIntake\(model\.lunch, pre, drinkKey, drinkMl, snack, activeLocale, t\)/);
+  assert.match(source, /const \[intakeOpen, setIntakeOpen\] = useState\(false\);/);
+  assert.doesNotMatch(source, /function FuelDrawer/);
+  assert.doesNotMatch(source, /function SnackDrawer/);
+  assert.doesNotMatch(source, /const \[fuelOpen, setFuelOpen\]/);
+  assert.doesNotMatch(source, /const \[snackOpen, setSnackOpen\]/);
 }
 
 function testTabChangesResetPageScroll() {
@@ -336,6 +354,7 @@ testWeeklyShoppingScalesTheInventoryWindow();
 testScaleMacroPreservesExplicitCalories();
 testFreshChilledNoodleCarbPlanUsesTenGramSteps();
 testMobileFlowHasCommandDockAndAnchoredSections();
+testIntakeFuelAndSnackUseOneEditor();
 testTabChangesResetPageScroll();
 testTargetInputsPreserveEditableNumericDrafts();
 testDefaultDayStartsWithoutFuelOrFatSources();
