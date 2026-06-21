@@ -31,6 +31,30 @@ export function addMacros(...items) {
   }), { ...EMPTY_MACRO }));
 }
 
+export function splitMealTargets(targets = EMPTY_MACRO, fixedMacro = EMPTY_MACRO, lunchRatio = 0.4) {
+  const ratio = clamp(lunchRatio, 0.1, 0.9);
+  const remaining = {
+    p: round(Math.max(0, (targets.p || 0) - (fixedMacro.p || 0)), 1),
+    c: round(Math.max(0, (targets.c || 0) - (fixedMacro.c || 0)), 1),
+    f: round(Math.max(0, (targets.f || 0) - (fixedMacro.f || 0)), 1),
+    kcal: round(Math.max(0, macroKcal(targets) - macroKcal(fixedMacro))),
+  };
+  const lunch = {
+    p: round(remaining.p * ratio, 1),
+    c: round(remaining.c * ratio, 1),
+    f: round(remaining.f * ratio, 1),
+    kcal: round(remaining.kcal * ratio),
+  };
+  const dinner = {
+    p: round(Math.max(0, remaining.p - lunch.p), 1),
+    c: round(Math.max(0, remaining.c - lunch.c), 1),
+    f: round(Math.max(0, remaining.f - lunch.f), 1),
+    kcal: round(Math.max(0, remaining.kcal - lunch.kcal)),
+  };
+
+  return { remaining, lunch, dinner };
+}
+
 export function scaleMacro(item = EMPTY_MACRO, qty = 0) {
   return withKcal({
     p: (item.p || 0) * qty,

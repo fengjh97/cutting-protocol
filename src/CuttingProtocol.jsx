@@ -35,6 +35,7 @@ import {
   round,
   roundTo,
   scaleMacro,
+  splitMealTargets,
   withKcal,
 } from './nutritionSolver.js';
 
@@ -88,6 +89,13 @@ const TEXT = {
     editIntake: '调整已吃',
     quickKcal: '直接 kcal',
     tallyMode: '点选记账',
+    plannedMode: '自动规划',
+    mealSplit: '午晚比例',
+    lunchPlannerTitle: '午餐想吃什么',
+    dinnerPlannerTitle: '晚餐想吃什么',
+    generatedLunch: '生成午餐',
+    generatedDinner: '生成晚餐',
+    lunchShare: '午餐比例',
     lunchKcal: '午餐热量',
     commonPicks: '常用数字',
     planChoiceEyebrow: '02 · 晚餐方向',
@@ -234,6 +242,13 @@ const TEXT = {
     editIntake: '食べたもの調整',
     quickKcal: 'kcal だけ',
     tallyMode: '食材で記録',
+    plannedMode: '自動プラン',
+    mealSplit: '昼夜比率',
+    lunchPlannerTitle: '昼食で食べたいもの',
+    dinnerPlannerTitle: '夕食で食べたいもの',
+    generatedLunch: '昼食プラン',
+    generatedDinner: '夕食プラン',
+    lunchShare: '昼食比率',
     lunchKcal: '昼食カロリー',
     commonPicks: 'よく使う数字',
     planChoiceEyebrow: '02 · 夕食の気分',
@@ -715,6 +730,93 @@ function applyDinnerAdjustments(items, adjustments) {
   });
 }
 
+function orderMealItems(items, fixedItems = []) {
+  return [
+    ...items.filter((item) => item.tone === 'red'),
+    ...items.filter((item) => item.tone === 'amber'),
+    ...fixedItems,
+    ...items.filter((item) => item.tone === 'green'),
+    ...items.filter((item) => !['red', 'amber', 'green'].includes(item.tone)),
+  ];
+}
+
+function mealSolveTargets(targets, proteinKeys, fatKeys, beefFat) {
+  const canMeaningfullySolveFat = fatKeys.length > 0 || proteinKeys.some((key) => {
+    const unit = proteinUnit(key, beefFat);
+    return ['beef', 'duck', 'kfc'].includes(key) || (unit.f || 0) >= 6;
+  });
+  if (canMeaningfullySolveFat) return targets;
+  return {
+    ...targets,
+    c: round((targets.c || 0) + ((targets.f || 0) * 9) / 4, 1),
+    f: 0,
+  };
+}
+
+function buildMealVariableItems({ proteinKeys, fatKeys, carbPlan, targets, fixedMacro = emptyMacro, beefFat }) {
+  const safeProteinKeys = proteinKeys.length ? proteinKeys : ['beef'];
+  const proteinNeed = Math.max(0, (targets.p || 0) - (fixedMacro.p || 0));
+  const proteinItems = safeProteinKeys.map((key) => {
+    const unit = proteinUnit(key, beefFat);
+    const rawQty = proteinNeed / Math.max(1, safeProteinKeys.length) / Math.max(1, unit.p);
+    const qty = clamp(roundTo(rawQty, unit.step), 0, unit.max);
+    return {
+      key,
+      name: unit.label,
+      short: unit.short,
+      qty,
+      unit: unit.unit,
+      step: unit.step,
+      max: unit.max,
+      unitMacro: unit,
+      macro: scaleMacro(unit, qty),
+      tone: 'red',
+    };
+  });
+  const proteinSeedMacro = proteinItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
+
+  const activeFatKeys = fatKeys.length ? fatKeys : [];
+  const fatNeed = Math.max(0, (targets.f || 0) - (fixedMacro.f || 0) - proteinSeedMacro.f);
+  const fatItems = activeFatKeys.map((key) => {
+    const src = FAT_SOURCES[key];
+    const rawQty = fatNeed / Math.max(1, activeFatKeys.length) / Math.max(1, src.f);
+    const qty = clamp(roundTo(rawQty, src.step), 0, src.max);
+    return {
+      key: `fat-${key}`,
+      name: src.label,
+      short: src.short,
+      qty,
+      unit: src.unit,
+      step: src.step,
+      max: src.max,
+      unitMacro: src,
+      macro: scaleMacro(src, qty),
+      tone: 'amber',
+    };
+  });
+  const fatSeedMacro = fatItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
+
+  const usedBeforeCarb = addMacros(fixedMacro, proteinSeedMacro, fatSeedMacro);
+  const remainingKcal = Math.max(0, (targets.kcal || 0) - usedBeforeCarb.kcal);
+  const carb = CARB_PLANS[carbPlan] || CARB_PLANS.pasta;
+  const carbMax = carb.unit === '包' ? 8 : 420;
+  const carbQty = clamp(roundTo(remainingKcal / carb.kcalUnit, carb.step), 0, carbMax);
+  const carbItem = {
+    key: `carb-${carbPlan}`,
+    name: carb.name,
+    short: carb.short,
+    qty: carbQty,
+    unit: carb.unit,
+    step: carb.step,
+    max: carbMax,
+    unitMacro: carb.perUnit,
+    macro: scaleMacro(carb.perUnit, carbQty),
+    tone: 'green',
+  };
+
+  return [...proteinItems, ...fatItems, carbItem];
+}
+
 function estimateLunch(kcal) {
   return withKcal({
     p: (kcal * 0.31) / 4,
@@ -921,9 +1023,13 @@ export default function CuttingProtocol() {
   const targetProfileModel = useMemo(() => ({ ...DEFAULT_TARGET_PROFILE, ...(targetProfile || {}) }), [targetProfile]);
   const targets = useMemo(() => deriveMacroTargets(targetProfileModel), [targetProfileModel]);
   const [tdee, setTdee] = useLocalNumber('cutting:tdee', DEFAULT_TDEE);
-  const [lunchMode, setLunchMode] = useState('quick');
+  const [lunchMode, setLunchMode] = useState('planned');
   const [lunchKcal, setLunchKcal] = useState(800);
   const [tally, setTally] = useState({});
+  const [mealSplitPct, setMealSplitPct] = useState(40);
+  const [lunchCarbPlan, setLunchCarbPlan] = useState('fresh_noodle');
+  const [lunchProteinKeys, setLunchProteinKeys] = useState(['chicken']);
+  const [lunchFatKeys, setLunchFatKeys] = useState([]);
   const [carbPlan, setCarbPlan] = useState('pasta');
   const [proteinKeys, setProteinKeys] = useState(['beef']);
   const [fatKeys, setFatKeys] = useState([]);
@@ -938,6 +1044,7 @@ export default function CuttingProtocol() {
   const [shopPlan, setShopPlan] = useLocalJson('cutting:shopPlan:v1', () => createDefaultShopPlan(WEEKLY_SHOP_ITEMS));
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [intakeOpen, setIntakeOpen] = useState(false);
+  const [lunchAdjustments, setLunchAdjustments] = useState({});
   const [dinnerAdjustments, setDinnerAdjustments] = useState({});
   const [snack, setSnack] = useState({ name: '手动加餐', p: 0, c: 0, f: 0, kcal: 0 });
   const [cheat, setCheat] = useState({});
@@ -963,19 +1070,29 @@ export default function CuttingProtocol() {
     });
   };
 
+  const toggleLunchProtein = (key) => {
+    setLunchProteinKeys((current) => {
+      if (current.includes(key)) return current.length > 1 ? current.filter((x) => x !== key) : current;
+      return [...current, key];
+    });
+  };
+
   const toggleFat = (key) => {
     setFatKeys((current) => (current.includes(key) ? current.filter((x) => x !== key) : [...current, key]));
   };
 
+  const toggleLunchFat = (key) => {
+    setLunchFatKeys((current) => (current.includes(key) ? current.filter((x) => x !== key) : [...current, key]));
+  };
+
   const model = useMemo(() => {
     const tallyMacro = Object.entries(tally).reduce((sum, [key, qty]) => addMacros(sum, scaleMacro(TALLY_ITEMS[key], qty)), emptyMacro);
-    const lunch = lunchMode === 'tally' && tallyMacro.kcal > 0 ? tallyMacro : estimateLunch(lunchKcal);
-
     const preMacro = Object.entries(pre).reduce((sum, [key, qty]) => addMacros(sum, scaleMacro(PRE_ITEMS[key], qty)), emptyMacro);
     const drink = DRINKS[drinkKey] || DRINKS.none;
     const drinkMacro = withKcal(scaleMacro(drink, drinkMl / 200));
     const snackMacro = withKcal(snack);
-    const beforeDinner = addMacros(lunch, preMacro, drinkMacro, snackMacro);
+    const fixedIntake = addMacros(preMacro, drinkMacro, snackMacro);
+    const mealTargets = splitMealTargets(targets, fixedIntake, mealSplitPct / 100);
 
     const extraEntries = Object.entries(extraCarbs).filter(([key, qty]) => DINNER_EXTRAS[key] && qty > 0);
     const extraMacro = extraEntries.reduce((sum, [key, qty]) => addMacros(sum, scaleMacro(DINNER_EXTRAS[key], qty)), emptyMacro);
@@ -992,73 +1109,35 @@ export default function CuttingProtocol() {
       tone: 'gold',
     }));
 
-    const fixedForDinnerSolve = addMacros(beforeDinner, extraMacro);
-    const proteinNeed = Math.max(0, targets.p - fixedForDinnerSolve.p);
-    const proteinItems = proteinKeys.map((key) => {
-      const unit = proteinUnit(key, beefFat);
-      const rawQty = proteinNeed / Math.max(1, proteinKeys.length) / Math.max(1, unit.p);
-      const qty = clamp(roundTo(rawQty, unit.step), 0, unit.max);
-      return {
-        key,
-        name: unit.label,
-        short: unit.short,
-        qty,
-        unit: unit.unit,
-        step: unit.step,
-        max: unit.max,
-        unitMacro: unit,
-        macro: scaleMacro(unit, qty),
-        tone: 'red',
-      };
+    const lunchSolveTargets = mealSolveTargets(mealTargets.lunch, lunchProteinKeys, lunchFatKeys, beefFat);
+    const lunchVariableItems = buildMealVariableItems({
+      proteinKeys: lunchProteinKeys,
+      fatKeys: lunchFatKeys,
+      carbPlan: lunchCarbPlan,
+      targets: lunchSolveTargets,
+      beefFat,
     });
-    const proteinSeedMacro = proteinItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
+    const optimizedLunchItems = solveDinnerItems(lunchVariableItems, emptyMacro, lunchSolveTargets);
+    const lunchItems = lunchMode === 'planned' ? applyDinnerAdjustments(orderMealItems(optimizedLunchItems), lunchAdjustments) : [];
+    const plannedLunch = lunchItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
+    const manualLunch = lunchMode === 'tally' && tallyMacro.kcal > 0 ? tallyMacro : estimateLunch(lunchKcal);
+    const lunch = lunchMode === 'planned' ? plannedLunch : manualLunch;
+    const beforeDinner = addMacros(lunch, fixedIntake);
 
-    const fatNeed = Math.max(0, targets.f - fixedForDinnerSolve.f - proteinSeedMacro.f);
-    const activeFatKeys = fatKeys.length ? fatKeys : [];
-    const fatItems = activeFatKeys.map((key) => {
-      const src = FAT_SOURCES[key];
-      const rawQty = fatNeed / Math.max(1, activeFatKeys.length) / Math.max(1, src.f);
-      const qty = clamp(roundTo(rawQty, src.step), 0, src.max);
-      return {
-        key: `fat-${key}`,
-        name: src.label,
-        short: src.short,
-        qty,
-        unit: src.unit,
-        step: src.step,
-        max: src.max,
-        unitMacro: src,
-        macro: scaleMacro(src, qty),
-        tone: 'amber',
-      };
+    const dinnerTarget = lunchMode === 'planned' ? splitMealTargets(targets, beforeDinner, 0.5).remaining : targets;
+    const activeMealTargets = lunchMode === 'planned' ? { ...mealTargets, dinner: dinnerTarget } : mealTargets;
+    const dinnerSolveTarget = lunchMode === 'planned' ? mealSolveTargets(dinnerTarget, proteinKeys, fatKeys, beefFat) : dinnerTarget;
+    const dinnerFixedMacro = lunchMode === 'planned' ? extraMacro : addMacros(beforeDinner, extraMacro);
+    const dinnerVariableItems = buildMealVariableItems({
+      proteinKeys,
+      fatKeys,
+      carbPlan,
+      targets: dinnerSolveTarget,
+      fixedMacro: dinnerFixedMacro,
+      beefFat,
     });
-    const fatSeedMacro = fatItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
-
-    const usedBeforeCarb = addMacros(fixedForDinnerSolve, proteinSeedMacro, fatSeedMacro);
-    const remainingKcal = Math.max(0, targets.kcal - usedBeforeCarb.kcal);
-    const carb = CARB_PLANS[carbPlan];
-    const carbMax = carb.unit === '包' ? 8 : 420;
-    const carbQty = clamp(roundTo(remainingKcal / carb.kcalUnit, carb.step), 0, carbMax);
-    const carbItem = {
-      key: `carb-${carbPlan}`,
-      name: carb.name,
-      short: carb.short,
-      qty: carbQty,
-      unit: carb.unit,
-      step: carb.step,
-      max: carbMax,
-      unitMacro: carb.perUnit,
-      macro: scaleMacro(carb.perUnit, carbQty),
-      tone: 'green',
-    };
-
-    const optimizedItems = solveDinnerItems([...proteinItems, ...fatItems, carbItem], fixedForDinnerSolve, targets);
-    const dinnerItems = applyDinnerAdjustments([
-      ...optimizedItems.filter((item) => item.tone === 'red'),
-      ...optimizedItems.filter((item) => item.tone === 'amber'),
-      ...extraItems,
-      ...optimizedItems.filter((item) => item.tone === 'green'),
-    ], dinnerAdjustments);
+    const optimizedDinnerItems = solveDinnerItems(dinnerVariableItems, dinnerFixedMacro, dinnerSolveTarget);
+    const dinnerItems = applyDinnerAdjustments(orderMealItems(optimizedDinnerItems, extraItems), dinnerAdjustments);
     const dinner = dinnerItems.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
     const total = addMacros(beforeDinner, dinner);
     const deficit = Math.round(tdee - total.kcal);
@@ -1071,21 +1150,23 @@ export default function CuttingProtocol() {
 
     return {
       lunch,
+      lunchItems,
       pre: preMacro,
       drink: drinkMacro,
       snack: snackMacro,
       beforeDinner,
       dinner,
       dinnerItems,
+      mealTargets: activeMealTargets,
       total,
       deficit,
       potassium,
       sodium,
       shopping,
       shoppingMacro,
-      carb,
+      carb: CARB_PLANS[carbPlan] || CARB_PLANS.pasta,
     };
-  }, [activeLocale, beefFat, carbPlan, dinnerAdjustments, drinkKey, drinkMl, extraCarbs, fatKeys, foodK, lunchKcal, lunchMode, pre, saltG, shopDays, shopPlan, snack, tally, targets, tdee, proteinKeys]);
+  }, [activeLocale, beefFat, carbPlan, dinnerAdjustments, drinkKey, drinkMl, extraCarbs, fatKeys, foodK, lunchAdjustments, lunchCarbPlan, lunchFatKeys, lunchKcal, lunchMode, lunchProteinKeys, mealSplitPct, pre, saltG, shopDays, shopPlan, snack, tally, targets, tdee, proteinKeys]);
 
   const macroReport = useMemo(() => macroAnalysis(model.total, targets, targetProfileModel.bodyWeightKg), [model.total, targetProfileModel.bodyWeightKg, targets]);
   const cheatTotal = CHEAT_ITEMS.reduce((sum, item) => sum + (cheat[item.id] || 0) * item.kcal, 0);
@@ -1095,8 +1176,8 @@ export default function CuttingProtocol() {
   const intakeActive = fuelActive || snackActive || model.lunch.kcal > 0;
   const intakeSummary = describeIntake(model.lunch, pre, drinkKey, drinkMl, snack, activeLocale, t);
 
-  const tuneDinnerItem = (item, delta) => {
-    setDinnerAdjustments((current) => {
+  const tuneMealItem = (setter, item, delta) => {
+    setter((current) => {
       const baseQty = item.baseQty ?? item.qty;
       const nextQty = clamp(item.qty + delta, 0, item.max ?? Infinity);
       const nextAdjustment = round(nextQty - baseQty, item.step < 1 ? 1 : 2);
@@ -1107,10 +1188,18 @@ export default function CuttingProtocol() {
     });
   };
 
+  const tuneLunchItem = (item, delta) => tuneMealItem(setLunchAdjustments, item, delta);
+  const tuneDinnerItem = (item, delta) => tuneMealItem(setDinnerAdjustments, item, delta);
+
   const resetDefaults = () => {
     setTargetProfile(DEFAULT_TARGET_PROFILE);
+    setLunchMode('planned');
     setLunchKcal(800);
     setTally({});
+    setMealSplitPct(40);
+    setLunchCarbPlan('fresh_noodle');
+    setLunchProteinKeys(['chicken']);
+    setLunchFatKeys([]);
     setCarbPlan('pasta');
     setProteinKeys(['beef']);
     setFatKeys([]);
@@ -1119,6 +1208,7 @@ export default function CuttingProtocol() {
     setPre({});
     setDrinkKey('none');
     setDrinkMl(0);
+    setLunchAdjustments({});
     setDinnerAdjustments({});
     setSnack({ name: activeLocale === 'ja' ? '手入力の間食' : '手动加餐', p: 0, c: 0, f: 0, kcal: 0 });
   };
@@ -1140,7 +1230,9 @@ export default function CuttingProtocol() {
     locale: activeLocale,
     targetProfile: targetProfileModel,
     targets,
+    mealSplitPct,
     lunch: model.lunch,
+    lunchItems: model.lunchItems.map((item) => displayDinnerItem(item, activeLocale)),
     pre: model.pre,
     drink: { key: drinkKey, ml: drinkMl, macro: model.drink },
     snack,
@@ -1245,6 +1337,14 @@ export default function CuttingProtocol() {
             tally={tally}
             setTally={setTally}
             setMapQty={setMapQty}
+            mealSplitPct={mealSplitPct}
+            setMealSplitPct={setMealSplitPct}
+            lunchCarbPlan={lunchCarbPlan}
+            setLunchCarbPlan={setLunchCarbPlan}
+            lunchProteinKeys={lunchProteinKeys}
+            toggleLunchProtein={toggleLunchProtein}
+            lunchFatKeys={lunchFatKeys}
+            toggleLunchFat={toggleLunchFat}
             pre={pre}
             setPre={setPre}
             drinkKey={drinkKey}
@@ -1271,6 +1371,8 @@ export default function CuttingProtocol() {
             macroReport={macroReport}
             activeCarbDay={activeCarbDay}
             resetDefaults={resetDefaults}
+            onTuneLunch={tuneLunchItem}
+            resetLunchAdjustments={() => setLunchAdjustments({})}
             onTuneDinner={tuneDinnerItem}
             resetDinnerAdjustments={() => setDinnerAdjustments({})}
           />
@@ -1294,6 +1396,14 @@ export default function CuttingProtocol() {
             setLunchKcal={setLunchKcal}
             tally={tally}
             setTally={setTally}
+            mealSplitPct={mealSplitPct}
+            setMealSplitPct={setMealSplitPct}
+            lunchCarbPlan={lunchCarbPlan}
+            setLunchCarbPlan={setLunchCarbPlan}
+            lunchProteinKeys={lunchProteinKeys}
+            toggleLunchProtein={toggleLunchProtein}
+            lunchFatKeys={lunchFatKeys}
+            toggleLunchFat={toggleLunchFat}
             pre={pre}
             setPre={setPre}
             setMapQty={setMapQty}
@@ -1303,6 +1413,8 @@ export default function CuttingProtocol() {
             setDrinkMl={setDrinkMl}
             snack={snack}
             setSnack={setSnack}
+            onTuneLunch={tuneLunchItem}
+            resetLunchAdjustments={() => setLunchAdjustments({})}
             saltG={saltG}
             setSaltG={setSaltG}
             foodK={foodK}
@@ -1331,6 +1443,14 @@ export default function CuttingProtocol() {
         setLunchKcal={setLunchKcal}
         tally={tally}
         setTally={setTally}
+        mealSplitPct={mealSplitPct}
+        setMealSplitPct={setMealSplitPct}
+        lunchCarbPlan={lunchCarbPlan}
+        setLunchCarbPlan={setLunchCarbPlan}
+        lunchProteinKeys={lunchProteinKeys}
+        toggleLunchProtein={toggleLunchProtein}
+        lunchFatKeys={lunchFatKeys}
+        toggleLunchFat={toggleLunchFat}
         pre={pre}
         setPre={setPre}
         setMapQty={setMapQty}
@@ -1340,6 +1460,8 @@ export default function CuttingProtocol() {
         setDrinkMl={setDrinkMl}
         snack={snack}
         setSnack={setSnack}
+        onTuneLunch={tuneLunchItem}
+        resetLunchAdjustments={() => setLunchAdjustments({})}
         dinnerSummary={model.dinnerItems.slice(0, 4).map((item) => {
           const display = displayDinnerItem(item, activeLocale);
           return `${display.short || display.name} ${round(display.qty)}${display.unit}`;
@@ -1519,18 +1641,146 @@ function Hero({ model, targets, targetProfile, onIntake, intakeActive, intakeSum
   );
 }
 
-function LunchEditor({ locale, t, lunchMode, setLunchMode, lunchKcal, setLunchKcal, tally, setTally, setMapQty }) {
+function MealPreferenceEditor({ locale, t, proteinKeys, toggleProtein, carbPlan, setCarbPlan, fatKeys, toggleFat }) {
   return (
-    <div>
+    <div className="grid gap-4">
+      <OptionBlock title={t('protein')}>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {Object.entries(PROTEINS).map(([key, source]) => {
+            const item = localize(source, locale);
+            return <OptionCard key={key} active={proteinKeys.includes(key)} onClick={() => toggleProtein(key)} title={item.short} meta={item.note} />;
+          })}
+        </div>
+      </OptionBlock>
+
+      <OptionBlock title={t('carb')}>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {Object.entries(CARB_PLANS).map(([key, source]) => {
+            const plan = localize(source, locale);
+            return (
+              <button
+                key={key}
+                onClick={() => setCarbPlan(key)}
+                className={`rounded-[22px] border p-3 text-left transition hover:-translate-y-0.5 ${
+                  carbPlan === key ? 'border-[#ffb8ae] bg-[#fff0ed] text-[#4d3934]' : 'border-[#ffe3da] bg-white/58 text-[#8f6c64] hover:border-[#ffb8ae] hover:bg-white'
+                }`}
+              >
+                <div className="h-2 w-10 rounded-full" style={{ backgroundColor: plan.color }} />
+                <div className="mt-3 font-cjk text-sm font-extrabold">{plan.short}</div>
+                <div className="mt-1 text-[11px] font-semibold text-[#a47b72]">{plan.sub}</div>
+              </button>
+            );
+          })}
+        </div>
+      </OptionBlock>
+
+      <OptionBlock title={t('fatSource')}>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {Object.entries(FAT_SOURCES).map(([key, source]) => {
+            const item = localize(source, locale);
+            return <OptionCard key={key} active={fatKeys.includes(key)} onClick={() => toggleFat(key)} title={item.short} meta={`${item.f}g / ${item.unit}`} tone="amber" />;
+          })}
+        </div>
+      </OptionBlock>
+    </div>
+  );
+}
+
+function PlannedMealEditor({ locale, t, title, items, target, preferenceProps, onTune, resetAdjustments }) {
+  const hasAdjustments = items.some((item) => item.adjustment !== 0);
+  const total = items.reduce((sum, item) => addMacros(sum, item.macro), emptyMacro);
+
+  return (
+    <div className="grid gap-4">
+      <MealPreferenceEditor locale={locale} t={t} {...preferenceProps} />
+      <div className="rounded-[24px] border border-[#ffe3da] bg-white/58 p-3">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-extrabold text-[#ff8d82]">{title}</div>
+            <div className="mt-1 text-[11px] font-bold text-[#a47b72]">target {Math.round(target.kcal)} kcal</div>
+          </div>
+          <div className="font-mono text-xs font-bold text-[#a47b72]">P{round(total.p)} C{round(total.c)} F{round(total.f)}</div>
+        </div>
+        <div className="grid gap-2">
+          {items.length ? items.map((item, index) => (
+            <FoodRow key={item.key} item={displayDinnerItem(item, locale)} index={index} onTune={onTune} t={t} />
+          )) : (
+            <div className="rounded-[22px] border border-[#ffe3da] bg-white/58 p-4 text-sm font-bold text-[#a47b72]">{t('noDinner')}</div>
+          )}
+        </div>
+        {hasAdjustments && (
+          <button onClick={resetAdjustments} className="mt-3 inline-flex items-center gap-2 rounded-[18px] border border-[#ffe3da] bg-white/60 px-3 py-2 text-xs font-extrabold text-[#a47b72] transition hover:border-[#ffb8ae] hover:text-[#ff7d75]">
+            <RotateCcw className="h-4 w-4" />
+            {t('resetTune')}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LunchEditor({
+  locale,
+  t,
+  model,
+  lunchMode,
+  setLunchMode,
+  lunchKcal,
+  setLunchKcal,
+  tally,
+  setTally,
+  setMapQty,
+  mealSplitPct,
+  setMealSplitPct,
+  lunchCarbPlan,
+  setLunchCarbPlan,
+  lunchProteinKeys,
+  toggleLunchProtein,
+  lunchFatKeys,
+  toggleLunchFat,
+  onTuneLunch,
+  resetLunchAdjustments,
+}) {
+  return (
+    <div className="grid gap-4">
       <Segmented
         value={lunchMode}
         onChange={setLunchMode}
         options={[
+          { value: 'planned', label: t('plannedMode') },
           { value: 'quick', label: t('quickKcal') },
           { value: 'tally', label: t('tallyMode') },
         ]}
       />
-      {lunchMode === 'quick' ? (
+      {lunchMode === 'planned' ? (
+        <div className="grid gap-4">
+          <OptionBlock title={t('mealSplit')}>
+            <div className="grid grid-cols-4 gap-2">
+              {[35, 40, 45, 50].map((value) => (
+                <Chip key={value} active={mealSplitPct === value} onClick={() => setMealSplitPct(value)}>{value}/{100 - value}</Chip>
+              ))}
+            </div>
+            <div className="mt-2 text-[11px] font-bold text-[#a47b72]">{t('lunchShare')} {mealSplitPct}% · {t('dinner')} {100 - mealSplitPct}%</div>
+          </OptionBlock>
+          <PlannedMealEditor
+            locale={locale}
+            t={t}
+            title={t('generatedLunch')}
+            items={model.lunchItems}
+            target={model.mealTargets.lunch}
+            preferenceProps={{
+              proteinKeys: lunchProteinKeys,
+              toggleProtein: toggleLunchProtein,
+              carbPlan: lunchCarbPlan,
+              setCarbPlan: setLunchCarbPlan,
+              fatKeys: lunchFatKeys,
+              toggleFat: toggleLunchFat,
+            }}
+            onTune={onTuneLunch}
+            resetAdjustments={resetLunchAdjustments}
+          />
+        </div>
+      ) : lunchMode === 'quick' ? (
         <LunchKcalInput value={lunchKcal} onChange={setLunchKcal} t={t} />
       ) : (
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
@@ -1689,6 +1939,14 @@ function IntakeEditor(props) {
     tally,
     setTally,
     setMapQty,
+    mealSplitPct,
+    setMealSplitPct,
+    lunchCarbPlan,
+    setLunchCarbPlan,
+    lunchProteinKeys,
+    toggleLunchProtein,
+    lunchFatKeys,
+    toggleLunchFat,
     pre,
     setPre,
     drinkKey,
@@ -1697,6 +1955,8 @@ function IntakeEditor(props) {
     setDrinkMl,
     snack,
     setSnack,
+    onTuneLunch,
+    resetLunchAdjustments,
     dinnerSummary,
   } = props;
 
@@ -1710,7 +1970,28 @@ function IntakeEditor(props) {
       </div>
 
       <OptionBlock title={t('lunch')}>
-        <LunchEditor locale={locale} t={t} lunchMode={lunchMode} setLunchMode={setLunchMode} lunchKcal={lunchKcal} setLunchKcal={setLunchKcal} tally={tally} setTally={setTally} setMapQty={setMapQty} />
+        <LunchEditor
+          locale={locale}
+          t={t}
+          model={model}
+          lunchMode={lunchMode}
+          setLunchMode={setLunchMode}
+          lunchKcal={lunchKcal}
+          setLunchKcal={setLunchKcal}
+          tally={tally}
+          setTally={setTally}
+          setMapQty={setMapQty}
+          mealSplitPct={mealSplitPct}
+          setMealSplitPct={setMealSplitPct}
+          lunchCarbPlan={lunchCarbPlan}
+          setLunchCarbPlan={setLunchCarbPlan}
+          lunchProteinKeys={lunchProteinKeys}
+          toggleLunchProtein={toggleLunchProtein}
+          lunchFatKeys={lunchFatKeys}
+          toggleLunchFat={toggleLunchFat}
+          onTuneLunch={onTuneLunch}
+          resetLunchAdjustments={resetLunchAdjustments}
+        />
       </OptionBlock>
 
       <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
@@ -1737,6 +2018,14 @@ function PlanView(props) {
     tally,
     setTally,
     setMapQty,
+    mealSplitPct,
+    setMealSplitPct,
+    lunchCarbPlan,
+    setLunchCarbPlan,
+    lunchProteinKeys,
+    toggleLunchProtein,
+    lunchFatKeys,
+    toggleLunchFat,
     pre,
     setPre,
     drinkKey,
@@ -1763,6 +2052,8 @@ function PlanView(props) {
     macroReport,
     activeCarbDay,
     resetDefaults,
+    onTuneLunch,
+    resetLunchAdjustments,
     onTuneDinner,
     resetDinnerAdjustments,
   } = props;
@@ -1791,6 +2082,14 @@ function PlanView(props) {
             tally={tally}
             setTally={setTally}
             setMapQty={setMapQty}
+            mealSplitPct={mealSplitPct}
+            setMealSplitPct={setMealSplitPct}
+            lunchCarbPlan={lunchCarbPlan}
+            setLunchCarbPlan={setLunchCarbPlan}
+            lunchProteinKeys={lunchProteinKeys}
+            toggleLunchProtein={toggleLunchProtein}
+            lunchFatKeys={lunchFatKeys}
+            toggleLunchFat={toggleLunchFat}
             pre={pre}
             setPre={setPre}
             drinkKey={drinkKey}
@@ -1799,6 +2098,8 @@ function PlanView(props) {
             setDrinkMl={setDrinkMl}
             snack={snack}
             setSnack={setSnack}
+            onTuneLunch={onTuneLunch}
+            resetLunchAdjustments={resetLunchAdjustments}
             dinnerSummary={model.dinnerItems.slice(0, 4).map((item) => {
               const display = displayDinnerItem(item, locale);
               return `${display.short || display.name} ${round(display.qty)}${display.unit}`;
@@ -1808,24 +2109,6 @@ function PlanView(props) {
 
         <Disclosure open={advancedOpen} onToggle={() => setAdvancedOpen(!advancedOpen)} title={t('advanced')} subtitle={t('advancedSub')}>
           <div className="grid gap-5">
-            <OptionBlock title={t('dinnerProtein')}>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {Object.entries(PROTEINS).map(([key, source]) => {
-                  const item = localize(source, locale);
-                  return <OptionCard key={key} active={proteinKeys.includes(key)} onClick={() => toggleProtein(key)} title={item.short} meta={item.note} />;
-                })}
-              </div>
-            </OptionBlock>
-
-            <OptionBlock title={t('fatSource')}>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {Object.entries(FAT_SOURCES).map(([key, source]) => {
-                  const item = localize(source, locale);
-                  return <OptionCard key={key} active={fatKeys.includes(key)} onClick={() => toggleFat(key)} title={item.short} meta={`${item.f}g / ${item.unit}`} tone="amber" />;
-                })}
-              </div>
-            </OptionBlock>
-
             <OptionBlock title={t('extras')}>
               <div className="grid gap-2 sm:grid-cols-2">
                 {Object.entries(DINNER_EXTRAS).map(([key, source]) => {
@@ -1886,25 +2169,17 @@ function PlanView(props) {
 
       <section className="space-y-5">
         <Panel id="plan-dinner" eyebrow={t('dinnerAnswerEyebrow')} title={t('dinnerAnswerTitle')} icon={Sparkles}>
-          <OptionBlock title={t('planChoiceTitle')}>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-              {Object.entries(CARB_PLANS).map(([key, source]) => {
-                const plan = localize(source, locale);
-                return (
-                  <button
-                    key={key}
-                    onClick={() => setCarbPlan(key)}
-                    className={`rounded-[22px] border p-3 text-left transition hover:-translate-y-0.5 ${
-                      carbPlan === key ? 'border-[#ffb8ae] bg-[#fff0ed] text-[#4d3934]' : 'border-[#ffe3da] bg-white/58 text-[#8f6c64] hover:border-[#ffb8ae] hover:bg-white'
-                    }`}
-                  >
-                    <div className="h-2 w-10 rounded-full" style={{ backgroundColor: plan.color }} />
-                    <div className="mt-3 font-cjk text-sm font-extrabold">{plan.short}</div>
-                    <div className="mt-1 text-[11px] font-semibold text-[#a47b72]">{plan.sub}</div>
-                  </button>
-                );
-              })}
-            </div>
+          <OptionBlock title={t('dinnerPlannerTitle')}>
+            <MealPreferenceEditor
+              locale={locale}
+              t={t}
+              proteinKeys={proteinKeys}
+              toggleProtein={toggleProtein}
+              carbPlan={carbPlan}
+              setCarbPlan={setCarbPlan}
+              fatKeys={fatKeys}
+              toggleFat={toggleFat}
+            />
           </OptionBlock>
 
           <div className="grid gap-2">
@@ -1954,6 +2229,14 @@ function DetailView(props) {
     setLunchKcal,
     tally,
     setTally,
+    mealSplitPct,
+    setMealSplitPct,
+    lunchCarbPlan,
+    setLunchCarbPlan,
+    lunchProteinKeys,
+    toggleLunchProtein,
+    lunchFatKeys,
+    toggleLunchFat,
     pre,
     setPre,
     setMapQty,
@@ -1963,6 +2246,8 @@ function DetailView(props) {
     setDrinkMl,
     snack,
     setSnack,
+    onTuneLunch,
+    resetLunchAdjustments,
     saltG,
     setSaltG,
     foodK,
@@ -1999,6 +2284,14 @@ function DetailView(props) {
           tally={tally}
           setTally={setTally}
           setMapQty={setMapQty}
+          mealSplitPct={mealSplitPct}
+          setMealSplitPct={setMealSplitPct}
+          lunchCarbPlan={lunchCarbPlan}
+          setLunchCarbPlan={setLunchCarbPlan}
+          lunchProteinKeys={lunchProteinKeys}
+          toggleLunchProtein={toggleLunchProtein}
+          lunchFatKeys={lunchFatKeys}
+          toggleLunchFat={toggleLunchFat}
           pre={pre}
           setPre={setPre}
           drinkKey={drinkKey}
@@ -2007,6 +2300,8 @@ function DetailView(props) {
           setDrinkMl={setDrinkMl}
           snack={snack}
           setSnack={setSnack}
+          onTuneLunch={onTuneLunch}
+          resetLunchAdjustments={resetLunchAdjustments}
           dinnerSummary={model.dinnerItems.slice(0, 4).map((item) => {
             const display = displayDinnerItem(item, locale);
             return `${display.short || display.name} ${round(display.qty)}${display.unit}`;
@@ -2358,6 +2653,14 @@ function IntakeDrawer({
   setLunchKcal,
   tally,
   setTally,
+  mealSplitPct,
+  setMealSplitPct,
+  lunchCarbPlan,
+  setLunchCarbPlan,
+  lunchProteinKeys,
+  toggleLunchProtein,
+  lunchFatKeys,
+  toggleLunchFat,
   pre,
   setPre,
   setMapQty,
@@ -2367,6 +2670,8 @@ function IntakeDrawer({
   setDrinkMl,
   snack,
   setSnack,
+  onTuneLunch,
+  resetLunchAdjustments,
   dinnerSummary,
 }) {
   if (!open) return null;
@@ -2400,6 +2705,14 @@ function IntakeDrawer({
             tally={tally}
             setTally={setTally}
             setMapQty={setMapQty}
+            mealSplitPct={mealSplitPct}
+            setMealSplitPct={setMealSplitPct}
+            lunchCarbPlan={lunchCarbPlan}
+            setLunchCarbPlan={setLunchCarbPlan}
+            lunchProteinKeys={lunchProteinKeys}
+            toggleLunchProtein={toggleLunchProtein}
+            lunchFatKeys={lunchFatKeys}
+            toggleLunchFat={toggleLunchFat}
             pre={pre}
             setPre={setPre}
             drinkKey={drinkKey}
@@ -2408,6 +2721,8 @@ function IntakeDrawer({
             setDrinkMl={setDrinkMl}
             snack={snack}
             setSnack={setSnack}
+            onTuneLunch={onTuneLunch}
+            resetLunchAdjustments={resetLunchAdjustments}
             dinnerSummary={dinnerSummary}
           />
         </div>
@@ -2520,7 +2835,7 @@ function MetricTile({ label, value, target, unit }) {
 
 function Segmented({ value, onChange, options }) {
   return (
-    <div className="grid grid-cols-2 rounded-[22px] border border-[#ffe3da] bg-[#fff9f4] p-1">
+    <div className="grid rounded-[22px] border border-[#ffe3da] bg-[#fff9f4] p-1" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
       {options.map((option) => (
         <button key={option.value} onClick={() => onChange(option.value)} className={`rounded-[18px] px-3 py-2 text-sm font-extrabold transition ${value === option.value ? 'bg-[#ff9f95] text-white' : 'text-[#a47b72] hover:bg-white hover:text-[#4d3934]'}`}>
           {option.label}

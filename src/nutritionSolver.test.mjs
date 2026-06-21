@@ -9,6 +9,7 @@ import {
   optimizeDinnerItems,
   scaleMacro,
   scoreDinnerTotal,
+  splitMealTargets,
 } from './nutritionSolver.js';
 
 const round = (value, digits = 0) => Number((Number(value) || 0).toFixed(digits));
@@ -133,6 +134,34 @@ function testIntakeFuelAndSnackUseOneEditor() {
   assert.doesNotMatch(source, /function SnackDrawer/);
   assert.doesNotMatch(source, /const \[fuelOpen, setFuelOpen\]/);
   assert.doesNotMatch(source, /const \[snackOpen, setSnackOpen\]/);
+}
+
+function testPlannedLunchAndDinnerUseOneMealPlanner() {
+  const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
+
+  assert.match(source, /const \[lunchMode, setLunchMode\] = useState\('planned'\);/);
+  assert.match(source, /const \[mealSplitPct, setMealSplitPct\] = useState\(40\);/);
+  assert.match(source, /function buildMealVariableItems/);
+  assert.match(source, /function MealPreferenceEditor/);
+  assert.match(source, /function PlannedMealEditor/);
+  assert.match(source, /const lunchVariableItems = buildMealVariableItems/);
+  assert.match(source, /const dinnerVariableItems = buildMealVariableItems/);
+  assert.match(source, /solveDinnerItems\(lunchVariableItems/);
+  assert.match(source, /solveDinnerItems\(dinnerVariableItems/);
+  assert.match(source, /model\.lunchItems\.map/);
+  assert.match(source, /onTuneLunch/);
+}
+
+function testSplitMealTargetsAppliesFortySixtyAfterFixedIntake() {
+  const split = splitMealTargets(
+    { p: 150, c: 240, f: 50, kcal: 2000 },
+    { p: 10, c: 20, f: 5, kcal: 200 },
+    0.4,
+  );
+
+  assert.deepEqual(split.remaining, { p: 140, c: 220, f: 45, kcal: 1800 });
+  assert.deepEqual(split.lunch, { p: 56, c: 88, f: 18, kcal: 720 });
+  assert.deepEqual(split.dinner, { p: 84, c: 132, f: 27, kcal: 1080 });
 }
 
 function testTabChangesResetPageScroll() {
@@ -355,6 +384,8 @@ testScaleMacroPreservesExplicitCalories();
 testFreshChilledNoodleCarbPlanUsesTenGramSteps();
 testMobileFlowHasCommandDockAndAnchoredSections();
 testIntakeFuelAndSnackUseOneEditor();
+testPlannedLunchAndDinnerUseOneMealPlanner();
+testSplitMealTargetsAppliesFortySixtyAfterFixedIntake();
 testTabChangesResetPageScroll();
 testTargetInputsPreserveEditableNumericDrafts();
 testDefaultDayStartsWithoutFuelOrFatSources();
