@@ -401,6 +401,18 @@ const CARB_PLANS = {
     color: '#f1c47b',
     ja: { name: '冷蔵生麺 · 調味なし', short: '生麺', sub: '10g 単位で調整' },
   },
+  banana: {
+    name: '香蕉',
+    short: '香蕉',
+    sub: '按整根补碳水',
+    unit: '根',
+    step: 1,
+    max: 8,
+    perUnit: { p: 1, c: 27, f: 0.25, kcal: 114 },
+    kcalUnit: 114,
+    color: '#f4cf58',
+    ja: { name: 'バナナ', short: 'バナナ', unit: '本', sub: '1本単位で調整' },
+  },
   pho: {
     name: '越南米粉',
     short: '米粉',
@@ -476,19 +488,6 @@ const PROTEINS = {
     max: 5,
     note: '爽，但盐高',
     ja: { label: 'KFC オリジナルチキン', short: 'KFC', unit: '個', note: '満足感あり、塩分高め' },
-  },
-  oikos: {
-    label: 'Oikos 高蛋白酸奶',
-    short: 'Oikos',
-    tag: 'per cup',
-    unit: '個',
-    step: 1,
-    p: 12,
-    c: 5,
-    f: 0,
-    max: 8,
-    note: '零脂补蛋白',
-    ja: { label: 'オイコス 高たんぱく', short: 'オイコス', note: '脂質なしで補給' },
   },
 };
 
@@ -573,7 +572,6 @@ const DINNER_EXTRAS = {
 const WEEKLY_SHOP_ITEMS = [
   { key: 'beef', tone: 'red', source: 'protein', sourceKey: 'beef', label: '牛肉切り落とし', short: '牛肉', unit: 'g', step: 100, defaultTarget: 1200, max: 3000, buyHint: '晚餐主蛋白，先拿这个', ja: { label: '牛肉切り落とし', short: '牛肉', buyHint: '夕食の主役。まず取る' } },
   { key: 'chicken', tone: 'red', source: 'protein', sourceKey: 'chicken', label: '速食鸡胸', short: '鸡胸', unit: '块', step: 1, defaultTarget: 3, max: 12, buyHint: '懒人备用蛋白', ja: { label: 'サラダチキン', short: 'チキン', unit: '個', buyHint: '忙しい日のたんぱく質' } },
-  { key: 'oikos', tone: 'red', source: 'protein', sourceKey: 'oikos', label: 'Oikos 高蛋白酸奶', short: 'Oikos', unit: '個', step: 1, defaultTarget: 4, max: 14, buyHint: '零脂补蛋白', ja: { label: 'オイコス 高たんぱく', short: 'オイコス', buyHint: '脂質なしで補給' } },
   { key: 'pasta', tone: 'green', source: 'carb', sourceKey: 'pasta', label: '干意面', short: '意面', unit: 'g', step: 100, defaultTarget: 500, max: 2000, buyHint: '主力晚餐碳水', ja: { label: '乾燥パスタ', short: 'パスタ', buyHint: '夕食の主力炭水化物' } },
   { key: 'soba', tone: 'green', source: 'carb', sourceKey: 'soba', label: '荞麦面', short: '荞麦', unit: 'g', step: 100, defaultTarget: 400, max: 1600, buyHint: '清爽换口味', ja: { label: 'そば', short: 'そば', buyHint: '軽く味変できる' } },
   { key: 'nissin', tone: 'green', source: 'carb', sourceKey: 'nissin', label: '日清非油炸', short: '日清', unit: '包', step: 1, defaultTarget: 2, max: 10, buyHint: '没时间时顶上', ja: { label: '日清ノンフライ', short: '日清', unit: '袋', buyHint: '時間がない日の保険' } },
@@ -590,12 +588,12 @@ const WEEKLY_SHOP_ITEMS = [
 const TALLY_ITEMS = {
   chicken: { label: '鸡胸', unit: '块', step: 1, max: 10, p: 22, c: 1, f: 2, ja: { label: 'チキン', unit: '個' } },
   egg: { label: '全蛋', unit: '个', step: 1, max: 10, p: 6, c: 0.5, f: 5, ja: { label: '卵', unit: '個' } },
-  oikos: { label: 'Oikos', unit: '個', step: 1, max: 6, p: 12, c: 5, f: 0, ja: { label: 'オイコス' } },
   onigiri: { label: '饭团', unit: '个', step: 1, max: 6, p: 3, c: 39, f: 0.5, ja: { label: 'おにぎり', unit: '個' } },
   nissin: { label: '日清面', unit: '包', step: 1, max: 4, p: 6.7, c: 55, f: 4.9, ja: { label: '日清麺', unit: '袋' } },
   rice: { label: '米饭', unit: 'g', step: 50, max: 1000, p: 0.026, c: 0.28, f: 0.003, ja: { label: 'ごはん' } },
   beef: { label: '牛肉', unit: 'g', step: 50, max: 600, p: 0.19, c: 0, f: 0.072, ja: { label: '牛肉' } },
   pasta: { label: '干意面', unit: 'g', step: 50, max: 300, p: 0.12, c: 0.71, f: 0.015, ja: { label: '乾燥パスタ' } },
+  fresh_noodle: { label: '冷藏鲜面', unit: 'g', step: 10, max: 600, p: 0.0869, c: 0.5469, f: 0.0123, kcal: 2.623, ja: { label: '冷蔵生麺' } },
   banana: { label: '香蕉', unit: '根', step: 1, max: 4, p: 1, c: 27, f: 0.25, ja: { label: 'バナナ', unit: '本' } },
 };
 
@@ -604,7 +602,6 @@ const PRE_ITEMS = {
   eggs: { label: '全蛋', unit: '个', step: 1, max: 6, p: 6, c: 0.5, f: 5, ja: { label: '卵', unit: '個' } },
   banana: { label: '香蕉', unit: '根', step: 1, max: 4, p: 1, c: 27, f: 0.25, ja: { label: 'バナナ', unit: '本' } },
   pineapple: { label: '菠萝 240g', unit: '盒', step: 1, max: 2, p: 1.44, c: 31.2, f: 0.24, ja: { label: 'カットパイン 240g', unit: '盒' } },
-  oikos: { label: 'Oikos', unit: '個', step: 1, max: 5, p: 12, c: 5, f: 0, ja: { label: 'オイコス' } },
 };
 
 const DRINKS = {
@@ -799,7 +796,7 @@ function buildMealVariableItems({ proteinKeys, fatKeys, carbPlan, targets, fixed
   const usedBeforeCarb = addMacros(fixedMacro, proteinSeedMacro, fatSeedMacro);
   const remainingKcal = Math.max(0, (targets.kcal || 0) - usedBeforeCarb.kcal);
   const carb = CARB_PLANS[carbPlan] || CARB_PLANS.pasta;
-  const carbMax = carb.unit === '包' ? 8 : 420;
+  const carbMax = carb.max ?? (carb.unit === '包' ? 8 : 420);
   const carbQty = clamp(roundTo(remainingKcal / carb.kcalUnit, carb.step), 0, carbMax);
   const carbItem = {
     key: `carb-${carbPlan}`,
@@ -2349,7 +2346,7 @@ function ShopView({ locale, t, model, shopDays, setShopDays, setShopPlan }) {
   const [pickedItems, setPickedItems] = useState({});
   const [stockOpen, setStockOpen] = useState(false);
   const groupMeta = [
-    { tone: 'red', label: locale === 'ja' ? 'たんぱく' : '蛋白主菜', caption: locale === 'ja' ? '肉、チキン、オイコス' : '肉、鸡胸、Oikos 先补齐', icon: Dumbbell, accent: '#ff8d82' },
+    { tone: 'red', label: locale === 'ja' ? 'たんぱく' : '蛋白主菜', caption: locale === 'ja' ? '肉、チキンを先に' : '肉、鸡胸先补齐', icon: Dumbbell, accent: '#ff8d82' },
     { tone: 'green', label: locale === 'ja' ? '主食' : '主食碳水', caption: locale === 'ja' ? '周期分の炭水化物' : '按一周期望备货', icon: Utensils, accent: '#69cda5' },
     { tone: 'gold', label: locale === 'ja' ? '果物' : '水果加料', caption: locale === 'ja' ? 'パイン、バナナ、りんご' : '菠萝 240g、香蕉、苹果', icon: Apple, accent: '#ffcf7d' },
     { tone: 'amber', label: locale === 'ja' ? '脂質' : '油脂口味', caption: locale === 'ja' ? '卵、チーズ、ソース、ナッツ' : '蛋、芝士、酱和坚果', icon: Flame, accent: '#f1b36a' },

@@ -103,6 +103,15 @@ function testFreshChilledNoodleCarbPlanUsesTenGramSteps() {
   assert.match(source, /fresh_noodle:\s*{[\s\S]*kcalUnit:\s*2\.623/);
   assert.match(source, /fresh_noodle:\s*{[\s\S]*perUnit:\s*{\s*p:\s*0\.0869,\s*c:\s*0\.5469,\s*f:\s*0\.0123,\s*kcal:\s*2\.623/);
   assert.match(source, /sourceKey:\s*'fresh_noodle'[\s\S]*label:\s*'冷藏鲜面'/);
+  assert.match(source, /const TALLY_ITEMS = {[\s\S]*fresh_noodle:\s*{[\s\S]*label:\s*'冷藏鲜面'[\s\S]*step:\s*10/);
+}
+
+function testBananaCarbPlanUsesWholeFruitStepsAndProteinYogurtIsRemoved() {
+  const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
+
+  assert.match(source, /const CARB_PLANS = {[\s\S]*banana:\s*{[\s\S]*short:\s*'香蕉'[\s\S]*unit:\s*'根'[\s\S]*step:\s*1[\s\S]*kcalUnit:\s*114/);
+  assert.doesNotMatch(source, /oikos:/i);
+  assert.doesNotMatch(source, /Oikos|オイコス/);
 }
 
 function testMobileFlowHasCommandDockAndAnchoredSections() {
@@ -382,6 +391,7 @@ testWeeklyShoppingReplenishesInventory();
 testWeeklyShoppingScalesTheInventoryWindow();
 testScaleMacroPreservesExplicitCalories();
 testFreshChilledNoodleCarbPlanUsesTenGramSteps();
+testBananaCarbPlanUsesWholeFruitStepsAndProteinYogurtIsRemoved();
 testMobileFlowHasCommandDockAndAnchoredSections();
 testIntakeFuelAndSnackUseOneEditor();
 testPlannedLunchAndDinnerUseOneMealPlanner();
