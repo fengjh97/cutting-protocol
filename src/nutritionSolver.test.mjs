@@ -123,6 +123,14 @@ function testDryWhiteRiceCarbPlanUsesTenGramSteps() {
   assert.match(source, /name:\s*'白米 · 生米干重'/);
 }
 
+function testPreTrainingIncludesOnigiriAndSevenGoldBread() {
+  const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
+
+  assert.match(source, /const PRE_ITEMS = {[\s\S]*onigiri:\s*{[\s\S]*label:\s*'饭团（普通）'[\s\S]*unit:\s*'个'[\s\S]*step:\s*1/);
+  assert.match(source, /const PRE_ITEMS = {[\s\S]*gold_bread:\s*{[\s\S]*label:\s*'711 金の食パン'[\s\S]*unit:\s*'片'[\s\S]*step:\s*1/);
+  assert.match(source, /gold_bread:\s*{[\s\S]*p:\s*8\.8,\s*c:\s*45\.4,\s*f:\s*5\.3,\s*kcal:\s*261/);
+}
+
 function testMobileFlowHasCommandDockAndAnchoredSections() {
   const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
 
@@ -402,6 +410,7 @@ testScaleMacroPreservesExplicitCalories();
 testFreshChilledNoodleCarbPlanUsesTenGramSteps();
 testBananaCarbPlanUsesWholeFruitStepsAndProteinYogurtIsRemoved();
 testDryWhiteRiceCarbPlanUsesTenGramSteps();
+testPreTrainingIncludesOnigiriAndSevenGoldBread();
 testMobileFlowHasCommandDockAndAnchoredSections();
 testIntakeFuelAndSnackUseOneEditor();
 testPlannedLunchAndDinnerUseOneMealPlanner();

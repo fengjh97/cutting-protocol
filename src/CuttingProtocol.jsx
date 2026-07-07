@@ -611,6 +611,8 @@ const TALLY_ITEMS = {
 const PRE_ITEMS = {
   chicken: { label: '鸡胸', unit: '块', step: 1, max: 5, p: 22, c: 1, f: 2, ja: { label: 'チキン', unit: '個' } },
   eggs: { label: '全蛋', unit: '个', step: 1, max: 6, p: 6, c: 0.5, f: 5, ja: { label: '卵', unit: '個' } },
+  onigiri: { label: '饭团（普通）', unit: '个', step: 1, max: 3, p: 3, c: 39, f: 0.5, ja: { label: 'おにぎり（普通）', unit: '個' } },
+  gold_bread: { label: '711 金の食パン', unit: '片', step: 1, max: 2, p: 8.8, c: 45.4, f: 5.3, kcal: 261, ja: { label: 'セブン 金の食パン', unit: '枚' } },
   banana: { label: '香蕉', unit: '根', step: 1, max: 4, p: 1, c: 27, f: 0.25, ja: { label: 'バナナ', unit: '本' } },
   pineapple: { label: '菠萝 240g', unit: '盒', step: 1, max: 2, p: 1.44, c: 31.2, f: 0.24, ja: { label: 'カットパイン 240g', unit: '盒' } },
 };
