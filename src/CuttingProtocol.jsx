@@ -413,6 +413,17 @@ const CARB_PLANS = {
     color: '#f4cf58',
     ja: { name: 'バナナ', short: 'バナナ', unit: '本', sub: '1本単位で調整' },
   },
+  rice_dry: {
+    name: '白米 · 生米干重',
+    short: '白米',
+    sub: '煮饭前称重',
+    unit: 'g',
+    step: 10,
+    perUnit: { p: 0.061, c: 0.776, f: 0.009, kcal: 3.42 },
+    kcalUnit: 3.42,
+    color: '#d9d4c8',
+    ja: { name: '精白米 · 生米', short: '白米', sub: '炊飯前の重量' },
+  },
   pho: {
     name: '越南米粉',
     short: '米粉',

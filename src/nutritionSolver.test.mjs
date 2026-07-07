@@ -114,6 +114,15 @@ function testBananaCarbPlanUsesWholeFruitStepsAndProteinYogurtIsRemoved() {
   assert.doesNotMatch(source, /Oikos|オイコス/);
 }
 
+function testDryWhiteRiceCarbPlanUsesTenGramSteps() {
+  const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
+
+  assert.match(source, /rice_dry:\s*{[\s\S]*short:\s*'白米'[\s\S]*unit:\s*'g'[\s\S]*step:\s*10/);
+  assert.match(source, /rice_dry:\s*{[\s\S]*perUnit:\s*{\s*p:\s*0\.061,\s*c:\s*0\.776,\s*f:\s*0\.009,\s*kcal:\s*3\.42/);
+  assert.match(source, /rice_dry:\s*{[\s\S]*kcalUnit:\s*3\.42/);
+  assert.match(source, /name:\s*'白米 · 生米干重'/);
+}
+
 function testMobileFlowHasCommandDockAndAnchoredSections() {
   const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
 
@@ -392,6 +401,7 @@ testWeeklyShoppingScalesTheInventoryWindow();
 testScaleMacroPreservesExplicitCalories();
 testFreshChilledNoodleCarbPlanUsesTenGramSteps();
 testBananaCarbPlanUsesWholeFruitStepsAndProteinYogurtIsRemoved();
+testDryWhiteRiceCarbPlanUsesTenGramSteps();
 testMobileFlowHasCommandDockAndAnchoredSections();
 testIntakeFuelAndSnackUseOneEditor();
 testPlannedLunchAndDinnerUseOneMealPlanner();
