@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
@@ -10,11 +11,16 @@ const assets = path.join(dist, 'assets');
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(assets, { recursive: true });
 fs.cpSync(path.join(root, 'public'), dist, { recursive: true });
-fs.copyFileSync(path.join(root, 'src', 'index.css'), path.join(assets, 'app.css'));
+
+const css = fs.readFileSync(path.join(root, 'src', 'index.css'));
+const cssHash = createHash('sha256').update(css).digest('hex').slice(0, 8);
+const cssFile = `app-${cssHash}.css`;
+fs.writeFileSync(path.join(assets, cssFile), css);
 
 await build({
-  entryPoints: [path.join(root, 'src', 'main.jsx')],
-  outfile: path.join(assets, 'app.js'),
+  entryPoints: { app: path.join(root, 'src', 'main.jsx') },
+  outdir: dist,
+  entryNames: 'assets/[name]-[hash]',
   bundle: true,
   minify: true,
   format: 'esm',
@@ -35,9 +41,15 @@ await build({
   logLevel: 'info',
 });
 
+const jsFile = fs.readdirSync(assets).find((file) => /^app-[a-z0-9]+\.js$/i.test(file));
+if (!jsFile) throw new Error('Static build did not produce a fingerprinted app bundle');
+
 const htmlPath = path.join(root, 'index.html');
 const html = fs.readFileSync(htmlPath, 'utf8')
-  .replace('<script type="module" src="/src/main.jsx"></script>', '<link rel="stylesheet" href="./assets/app.css" />\n    <script type="module" src="./assets/app.js"></script>');
+  .replace(
+    '<script type="module" src="/src/main.jsx"></script>',
+    `<link rel="stylesheet" href="./assets/${cssFile}" />\n    <script type="module" src="./assets/${jsFile}"></script>`,
+  );
 
 fs.writeFileSync(path.join(dist, 'index.html'), html);
 fs.writeFileSync(path.join(dist, '.nojekyll'), '');

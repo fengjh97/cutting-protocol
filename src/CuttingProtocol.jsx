@@ -156,16 +156,10 @@ const TEXT = {
     clear: '清空',
     fuelSwitch: '补给开关',
     fuelSub: '训练前吃什么喝什么',
-    fuelPreset: '快捷模板',
     currentState: '当前状态',
     fueled: '已补给',
     noFuel: '不补给',
     applyNoFuel: '清空训练前',
-    applyNoFuelSub: '不吃也不喝',
-    lightFuel: '轻量模板',
-    lightFuelSub: '香蕉 + 番茄汁',
-    pineappleBox: '菠萝盒',
-    pineappleBoxSub: '240g + 番茄汁',
     eatWhat: '吃什么',
     drinkWhat: '喝什么',
     manualCopy: '手动复制',
@@ -309,16 +303,10 @@ const TEXT = {
     clear: 'クリア',
     fuelSwitch: '補給スイッチ',
     fuelSub: '運動前に食べる/飲むもの',
-    fuelPreset: 'クイック設定',
     currentState: '現在',
     fueled: '補給あり',
     noFuel: '補給なし',
     applyNoFuel: '運動前をクリア',
-    applyNoFuelSub: '食べない・飲まない',
-    lightFuel: '軽めセット',
-    lightFuelSub: 'バナナ + トマトジュース',
-    pineappleBox: 'パイン補給',
-    pineappleBoxSub: '240g + トマトジュース',
     eatWhat: '食べるもの',
     drinkWhat: '飲むもの',
     manualCopy: '手動コピー',
@@ -609,12 +597,8 @@ const TALLY_ITEMS = {
 };
 
 const PRE_ITEMS = {
-  chicken: { label: '鸡胸', unit: '块', step: 1, max: 5, p: 22, c: 1, f: 2, ja: { label: 'チキン', unit: '個' } },
-  eggs: { label: '全蛋', unit: '个', step: 1, max: 6, p: 6, c: 0.5, f: 5, ja: { label: '卵', unit: '個' } },
   onigiri: { label: '饭团（普通）', unit: '个', step: 1, max: 3, p: 3, c: 39, f: 0.5, ja: { label: 'おにぎり（普通）', unit: '個' } },
   gold_bread: { label: '711 金の食パン', unit: '片', step: 1, max: 2, p: 8.8, c: 45.4, f: 5.3, kcal: 261, ja: { label: 'セブン 金の食パン', unit: '枚' } },
-  banana: { label: '香蕉', unit: '根', step: 1, max: 4, p: 1, c: 27, f: 0.25, ja: { label: 'バナナ', unit: '本' } },
-  pineapple: { label: '菠萝 240g', unit: '盒', step: 1, max: 2, p: 1.44, c: 31.2, f: 0.24, ja: { label: 'カットパイン 240g', unit: '盒' } },
 };
 
 const DRINKS = {
@@ -1826,18 +1810,6 @@ function FuelControls({ locale, t, pre, setPre, setMapQty, drinkKey, setDrinkKey
     setDrinkMl(0);
   };
 
-  const applyLightFuel = () => {
-    setPre({ banana: 1 });
-    setDrinkKey('tomato');
-    setDrinkMl(400);
-  };
-
-  const applyPineappleFuel = () => {
-    setPre({ pineapple: 1 });
-    setDrinkKey('tomato');
-    setDrinkMl(400);
-  };
-
   const chooseDrink = (key) => {
     setDrinkKey(key);
     if (key === 'none') setDrinkMl(0);
@@ -1855,23 +1827,6 @@ function FuelControls({ locale, t, pre, setPre, setMapQty, drinkKey, setDrinkKey
         <div className="mt-2 font-mono text-xs font-bold text-[#a47b72]">P{round(fuelMacro.p)} C{round(fuelMacro.c)} F{round(fuelMacro.f)} · {Math.round(fuelMacro.kcal)} kcal</div>
       </div>
 
-      <OptionBlock title={t('fuelPreset')}>
-        <div className="grid grid-cols-3 gap-2">
-          <button onClick={applyNoFuel} className="rounded-[22px] border border-[#ffe3da] bg-white/70 p-3 text-left transition hover:border-[#ffb8ae]">
-            <div className="font-cjk text-sm font-extrabold text-[#4d3934]">{t('applyNoFuel')}</div>
-            <div className="mt-1 text-[11px] font-semibold text-[#a47b72]">{t('applyNoFuelSub')}</div>
-          </button>
-          <button onClick={applyLightFuel} className="rounded-[22px] border border-[#ffd6a5] bg-[#fff6df] p-3 text-left transition hover:-translate-y-0.5">
-            <div className="font-cjk text-sm font-extrabold text-[#4d3934]">{t('lightFuel')}</div>
-            <div className="mt-1 text-[11px] font-semibold text-[#a47b72]">{t('lightFuelSub')}</div>
-          </button>
-          <button onClick={applyPineappleFuel} className="rounded-[22px] border border-[#bdf0d9] bg-[#edfff6] p-3 text-left transition hover:-translate-y-0.5">
-            <div className="font-cjk text-sm font-extrabold text-[#4d3934]">{t('pineappleBox')}</div>
-            <div className="mt-1 text-[11px] font-semibold text-[#a47b72]">{t('pineappleBoxSub')}</div>
-          </button>
-        </div>
-      </OptionBlock>
-
       <OptionBlock title={t('eatWhat')}>
         <div className="grid gap-2 sm:grid-cols-2">
           {Object.entries(PRE_ITEMS).map(([key, source]) => {
@@ -1881,6 +1836,12 @@ function FuelControls({ locale, t, pre, setPre, setMapQty, drinkKey, setDrinkKey
             );
           })}
         </div>
+        {fuelActive && (
+          <button onClick={applyNoFuel} className="mt-3 inline-flex items-center gap-2 rounded-[18px] border border-[#ffe3da] bg-white/70 px-3 py-2 text-xs font-extrabold text-[#a47b72] hover:text-[#ff7d75]">
+            <RotateCcw className="h-4 w-4" />
+            {t('applyNoFuel')}
+          </button>
+        )}
       </OptionBlock>
 
       <OptionBlock title={t('drinkWhat')}>

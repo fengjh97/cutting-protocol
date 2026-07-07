@@ -123,12 +123,28 @@ function testDryWhiteRiceCarbPlanUsesTenGramSteps() {
   assert.match(source, /name:\s*'白米 · 生米干重'/);
 }
 
-function testPreTrainingIncludesOnigiriAndSevenGoldBread() {
+function testPreTrainingOnlyOffersOnigiriAndSevenGoldBread() {
   const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
+  const preItems = source.match(/const PRE_ITEMS = \{([\s\S]*?)\n\};/);
 
+  assert.ok(preItems, 'PRE_ITEMS should exist');
+  assert.deepEqual(
+    [...preItems[1].matchAll(/^\s{2}([a-z_]+):/gm)].map((match) => match[1]),
+    ['onigiri', 'gold_bread'],
+  );
   assert.match(source, /const PRE_ITEMS = {[\s\S]*onigiri:\s*{[\s\S]*label:\s*'饭团（普通）'[\s\S]*unit:\s*'个'[\s\S]*step:\s*1/);
   assert.match(source, /const PRE_ITEMS = {[\s\S]*gold_bread:\s*{[\s\S]*label:\s*'711 金の食パン'[\s\S]*unit:\s*'片'[\s\S]*step:\s*1/);
   assert.match(source, /gold_bread:\s*{[\s\S]*p:\s*8\.8,\s*c:\s*45\.4,\s*f:\s*5\.3,\s*kcal:\s*261/);
+  assert.doesNotMatch(source, /applyLightFuel|applyPineappleFuel/);
+}
+
+function testStaticBuildFingerprintsJavascriptAndCss() {
+  const source = fs.readFileSync(new URL('../scripts/build-static.mjs', import.meta.url), 'utf8');
+
+  assert.match(source, /entryNames:\s*'assets\/\[name\]-\[hash\]'/);
+  assert.match(source, /createHash\('sha256'\)/);
+  assert.doesNotMatch(source, /outfile:\s*path\.join\(assets,\s*'app\.js'\)/);
+  assert.doesNotMatch(source, /href="\.\/assets\/app\.css"/);
 }
 
 function testMobileFlowHasCommandDockAndAnchoredSections() {
@@ -410,7 +426,8 @@ testScaleMacroPreservesExplicitCalories();
 testFreshChilledNoodleCarbPlanUsesTenGramSteps();
 testBananaCarbPlanUsesWholeFruitStepsAndProteinYogurtIsRemoved();
 testDryWhiteRiceCarbPlanUsesTenGramSteps();
-testPreTrainingIncludesOnigiriAndSevenGoldBread();
+testPreTrainingOnlyOffersOnigiriAndSevenGoldBread();
+testStaticBuildFingerprintsJavascriptAndCss();
 testMobileFlowHasCommandDockAndAnchoredSections();
 testIntakeFuelAndSnackUseOneEditor();
 testPlannedLunchAndDinnerUseOneMealPlanner();
