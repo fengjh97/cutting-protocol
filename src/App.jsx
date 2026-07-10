@@ -38,14 +38,15 @@ const initialState = {
   cheat: {},
 };
 
-/* furniture hotspots as % of the 3:4 kitchen scene */
+/* furniture hotspots as % of the 3:4 kitchen scene.
+   sign = where the always-visible mini wood-sign button sits. */
 const HOTSPOTS = [
-  { id: 'intake',    label: { zh: '冰箱 · 今日已吃', ja: '冷蔵庫 · 食べたもの' }, box: { left: '1%',  top: '39%', width: '21%', height: '36%' } },
-  { id: 'dinner',    label: { zh: '灶台 · 今晚就这样吃', ja: 'コンロ · 夕食' },   box: { left: '22%', top: '43%', width: '26%', height: '31%' } },
-  { id: 'structure', label: { zh: '黑板 · 今日结构', ja: '黒板 · 今日の構成' },   box: { left: '46%', top: '20%', width: '17%', height: '22%' } },
-  { id: 'shop',      label: { zh: '篮子 · 采购', ja: 'かご · 買い物' },          box: { left: '53%', top: '61%', width: '21%', height: '18%' } },
-  { id: 'detail',    label: { zh: '账本 · 明细', ja: '帳簿 · 詳細' },           box: { left: '27%', top: '73%', width: '22%', height: '13%' } },
-  { id: 'cheat',     label: { zh: '摇椅 · 放松', ja: 'ロッキングチェア · ごほうび' }, box: { left: '77%', top: '50%', width: '22%', height: '35%' } },
+  { id: 'intake',    label: { zh: '冰箱 · 今日已吃', ja: '冷蔵庫 · 食べたもの' }, sign: { zh: '已吃', ja: '記録' },   box: { left: '1%',  top: '39%', width: '21%', height: '36%' }, signPos: { left: '10%', top: '42%' } },
+  { id: 'dinner',    label: { zh: '灶台 · 今晚就这样吃', ja: 'コンロ · 夕食' },   sign: { zh: '晚餐', ja: '夕食' },   box: { left: '22%', top: '43%', width: '26%', height: '31%' }, signPos: { left: '35%', top: '46%' } },
+  { id: 'structure', label: { zh: '黑板 · 今日结构', ja: '黒板 · 今日の構成' },   sign: { zh: '结构', ja: '構成' },   box: { left: '46%', top: '20%', width: '17%', height: '22%' }, signPos: { left: '54.5%', top: '40%' } },
+  { id: 'shop',      label: { zh: '篮子 · 采购', ja: 'かご · 買い物' },          sign: { zh: '采购', ja: '買物' },   box: { left: '53%', top: '61%', width: '21%', height: '18%' }, signPos: { left: '63%', top: '63%' } },
+  { id: 'detail',    label: { zh: '账本 · 明细', ja: '帳簿 · 詳細' },           sign: { zh: '明细', ja: '詳細' },   box: { left: '27%', top: '73%', width: '22%', height: '13%' }, signPos: { left: '38%', top: '84%' } },
+  { id: 'cheat',     label: { zh: '摇椅 · 放松', ja: 'ロッキングチェア · ごほうび' }, sign: { zh: '放松', ja: '休憩' }, box: { left: '77%', top: '50%', width: '22%', height: '35%' }, signPos: { left: '87%', top: '52%' } },
 ];
 
 function timeOfDay() {
@@ -123,6 +124,14 @@ export default function App() {
             <button key={h.id} className="hub-hot" style={h.box}
               onClick={() => { sfx('open'); setOpen(h.id); }} aria-label={h.label[locale]}>
               <span className="tag">{h.label[locale]}</span>
+            </button>
+          ))}
+          {/* always-visible mini wood-sign buttons so nothing needs guessing */}
+          {HOTSPOTS.map((h) => (
+            <button key={`sign-${h.id}`} className="hub-sign anim-bob"
+              style={{ ...h.signPos, animationDelay: `${(h.id.length % 4) * 0.35}s` }}
+              onClick={() => { sfx('open'); setOpen(h.id); }} aria-hidden="true" tabIndex={-1}>
+              {h.sign[locale]}
             </button>
           ))}
           {/* chef */}
