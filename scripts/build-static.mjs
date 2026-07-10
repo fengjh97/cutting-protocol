@@ -13,7 +13,7 @@ fs.mkdirSync(assets, { recursive: true });
 const publicDir = path.join(root, 'public');
 if (fs.existsSync(publicDir)) fs.cpSync(publicDir, dist, { recursive: true });
 
-const css = fs.readFileSync(path.join(root, 'src', 'index.css'), 'utf8');
+const css = fs.readFileSync(path.join(root, 'src', 'pixel.css'), 'utf8');
 const cssHash = createHash('sha256').update(css).digest('hex').slice(0, 8);
 const cssFile = `app-${cssHash}.css`;
 fs.writeFileSync(path.join(assets, cssFile), css);
