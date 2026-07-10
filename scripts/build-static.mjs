@@ -3,9 +3,6 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
-import postcss from 'postcss';
-import tailwindcss from 'tailwindcss';
-import autoprefixer from 'autoprefixer';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
@@ -16,12 +13,7 @@ fs.mkdirSync(assets, { recursive: true });
 const publicDir = path.join(root, 'public');
 if (fs.existsSync(publicDir)) fs.cpSync(publicDir, dist, { recursive: true });
 
-const cssSourcePath = path.join(root, 'src', 'index.css');
-const cssSource = fs.readFileSync(cssSourcePath, 'utf8');
-const { css } = await postcss([
-  tailwindcss(path.join(root, 'tailwind.config.cjs')),
-  autoprefixer(),
-]).process(cssSource, { from: cssSourcePath });
+const css = fs.readFileSync(path.join(root, 'src', 'index.css'), 'utf8');
 const cssHash = createHash('sha256').update(css).digest('hex').slice(0, 8);
 const cssFile = `app-${cssHash}.css`;
 fs.writeFileSync(path.join(assets, cssFile), css);

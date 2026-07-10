@@ -146,9 +146,10 @@ function testStaticBuildFingerprintsJavascriptAndCss() {
   assert.match(source, /createHash\('sha256'\)/);
   assert.doesNotMatch(source, /outfile:\s*path\.join\(assets,\s*'app\.js'\)/);
   assert.doesNotMatch(source, /href="\.\/assets\/app\.css"/);
-  assert.match(source, /tailwindcss\(/);
-  assert.match(source, /autoprefixer\(\)/);
-  assert.doesNotMatch(html, /cdn\.tailwindcss\.com/);
+  assert.doesNotMatch(source, /import\s+tailwindcss|tailwindcss\(/);
+  assert.doesNotMatch(source, /import\s+autoprefixer|autoprefixer\(/);
+  assert.match(html, /tailwind\.config/);
+  assert.match(html, /cdn\.tailwindcss\.com/);
 }
 
 function testMobileFlowHasCommandDockAndAnchoredSections() {
