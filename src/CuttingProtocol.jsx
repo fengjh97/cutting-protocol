@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import * as THREE from 'three';
 import Activity from 'lucide-react/dist/esm/icons/activity.mjs';
 import Apple from 'lucide-react/dist/esm/icons/apple.mjs';
 import CheckCircle2 from 'lucide-react/dist/esm/icons/circle-check.mjs';
@@ -897,117 +896,6 @@ function useLocalJson(key, fallback) {
   return [value, setValue];
 }
 
-function MacroOrbit3D() {
-  const mountRef = useRef(null);
-
-  useEffect(() => {
-    const mount = mountRef.current;
-    if (!mount) return undefined;
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
-    camera.position.set(0, 0, 10);
-
-    let renderer;
-    try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-    } catch {
-      return undefined;
-    }
-
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.setClearColor(0xffffff, 0);
-    mount.appendChild(renderer.domElement);
-
-    const group = new THREE.Group();
-    scene.add(group);
-    scene.add(new THREE.AmbientLight(0xffffff, 1.1));
-    const peachLight = new THREE.PointLight(0xff9f95, 2.8, 24);
-    peachLight.position.set(5, 3, 7);
-    scene.add(peachLight);
-    const mintLight = new THREE.PointLight(0x81d5b0, 1.9, 18);
-    mintLight.position.set(-5, -2, 5);
-    scene.add(mintLight);
-
-    const palette = [0xffa59b, 0xffcf7d, 0x8ad8b4, 0x93d9e4];
-    const ribbonGeo = new THREE.TorusKnotGeometry(0.56, 0.12, 120, 16);
-    const beadGeo = new THREE.CapsuleGeometry(0.12, 0.34, 8, 18);
-    const ribbons = palette.map((color, index) => {
-      const material = new THREE.MeshStandardMaterial({
-        color,
-        emissive: color,
-        emissiveIntensity: 0.12,
-        roughness: 0.42,
-        metalness: 0.04,
-      });
-      const mesh = new THREE.Mesh(ribbonGeo, material);
-      const angle = index * Math.PI * 0.5;
-      mesh.position.set(Math.cos(angle) * 3.2, Math.sin(angle) * 1.5, -1 - index * 0.2);
-      mesh.rotation.set(index * 0.5, index * 0.35, index * 0.8);
-      mesh.userData = { angle, speed: 0.002 + index * 0.0007 };
-      group.add(mesh);
-      return mesh;
-    });
-
-    const beads = Array.from({ length: 26 }, (_, index) => {
-      const material = new THREE.MeshStandardMaterial({
-        color: palette[index % palette.length],
-        roughness: 0.48,
-        metalness: 0.02,
-      });
-      const mesh = new THREE.Mesh(beadGeo, material);
-      const angle = index * 0.58;
-      const radius = 2.2 + (index % 4) * 0.54;
-      mesh.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius * 0.42, -2.4 - (index % 5) * 0.18);
-      mesh.rotation.set(angle * 0.7, angle * 0.3, angle);
-      mesh.userData = { angle, radius, speed: 0.003 + (index % 5) * 0.0006 };
-      group.add(mesh);
-      return mesh;
-    });
-
-    const resize = () => {
-      const { width, height } = mount.getBoundingClientRect();
-      renderer.setSize(Math.max(1, width), Math.max(1, height), false);
-      camera.aspect = Math.max(1, width) / Math.max(1, height);
-      camera.updateProjectionMatrix();
-    };
-
-    resize();
-    const observer = new ResizeObserver(resize);
-    observer.observe(mount);
-
-    let frameId = 0;
-    const animate = () => {
-      frameId = window.requestAnimationFrame(animate);
-      group.rotation.z += 0.0011;
-      group.rotation.y = Math.sin(Date.now() * 0.00028) * 0.16;
-      ribbons.forEach((mesh) => {
-        mesh.rotation.x += mesh.userData.speed * 1.7;
-        mesh.rotation.y += mesh.userData.speed;
-      });
-      beads.forEach((mesh) => {
-        mesh.userData.angle += mesh.userData.speed;
-        mesh.position.x = Math.cos(mesh.userData.angle) * mesh.userData.radius;
-        mesh.position.y = Math.sin(mesh.userData.angle) * mesh.userData.radius * 0.42;
-        mesh.rotation.z += 0.006;
-      });
-      renderer.render(scene, camera);
-    };
-    animate();
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      observer.disconnect();
-      renderer.dispose();
-      ribbonGeo.dispose();
-      beadGeo.dispose();
-      mount.removeChild(renderer.domElement);
-    };
-  }, []);
-
-  return <div ref={mountRef} className="pointer-events-none fixed inset-0 -z-10 opacity-55" data-three-orbit />;
-}
-
 export default function CuttingProtocol() {
   const [tab, setTab] = useState('plan');
   const [locale, setLocale] = useLocalJson('cutting:locale:v1', 'zh');
@@ -1270,7 +1158,6 @@ export default function CuttingProtocol() {
 
   return (
     <div className="theme-soft min-h-screen overflow-hidden text-[#4d3934]">
-      <MacroOrbit3D />
       <div className="soft-app-bg fixed inset-0 -z-30" />
       <div className="soft-grid-bg fixed inset-0 -z-20" />
 
@@ -1293,6 +1180,7 @@ export default function CuttingProtocol() {
         </header>
 
         {tab === 'plan' && (
+          <div className="hidden lg:block">
           <PlanCommandDock
             model={model}
             macroReport={macroReport}
@@ -1303,9 +1191,11 @@ export default function CuttingProtocol() {
             onJump={scrollToPlanSection}
             t={t}
           />
+          </div>
         )}
 
         {tab === 'plan' && (
+          <div className="hidden lg:block">
           <Hero
             model={model}
             targets={targets}
@@ -1317,6 +1207,7 @@ export default function CuttingProtocol() {
             copyStatus={copyStatus}
             t={t}
           />
+          </div>
         )}
 
         {tab === 'plan' && (
@@ -1369,6 +1260,9 @@ export default function CuttingProtocol() {
             resetLunchAdjustments={() => setLunchAdjustments({})}
             onTuneDinner={tuneDinnerItem}
             resetDinnerAdjustments={() => setDinnerAdjustments({})}
+            onIntake={() => setIntakeOpen(true)}
+            onCopy={copyDailyPlan}
+            copyStatus={copyStatus}
           />
         )}
 
@@ -1478,7 +1372,7 @@ export default function CuttingProtocol() {
         {(fuelActive || snackActive) && <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[#69cda5]" />}
       </button>
 
-      <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-4 rounded-[24px] border border-white/80 bg-white/82 p-1.5 shadow-[0_18px_65px_-35px_rgba(134,80,70,0.8)] backdrop-blur-2xl lg:hidden">
+      <nav className="mobile-safe-bottom fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 rounded-t-[28px] border border-b-0 border-white/80 bg-white/92 px-2 pb-1 pt-1.5 shadow-[0_-18px_55px_-34px_rgba(134,80,70,0.65)] backdrop-blur-2xl lg:hidden">
         <NavButtons tab={tab} setTab={setTab} mode="bottom" t={t} />
       </nav>
     </div>
@@ -2027,7 +1921,11 @@ function PlanView(props) {
     resetLunchAdjustments,
     onTuneDinner,
     resetDinnerAdjustments,
+    onIntake,
+    onCopy,
+    copyStatus,
   } = props;
+  const [mobileDinnerOpen, setMobileDinnerOpen] = useState(false);
   const hasDinnerAdjustments = model.dinnerItems.some((item) => item.adjustment !== 0);
 
   const updateTargetProfile = (key, value, min, max) => {
@@ -2039,7 +1937,35 @@ function PlanView(props) {
   };
 
   return (
-    <main className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+    <>
+      <MobilePlanHome
+        locale={locale}
+        t={t}
+        model={model}
+        targets={targets}
+        activeCarbDay={activeCarbDay}
+        onIntake={onIntake}
+        onCopy={onCopy}
+        copyStatus={copyStatus}
+        onEditDinner={() => setMobileDinnerOpen(true)}
+      />
+      <MobileDinnerSheet
+        open={mobileDinnerOpen}
+        setOpen={setMobileDinnerOpen}
+        locale={locale}
+        t={t}
+        model={model}
+        proteinKeys={proteinKeys}
+        toggleProtein={toggleProtein}
+        carbPlan={carbPlan}
+        setCarbPlan={setCarbPlan}
+        fatKeys={fatKeys}
+        toggleFat={toggleFat}
+        onTuneDinner={onTuneDinner}
+        resetDinnerAdjustments={resetDinnerAdjustments}
+        hasDinnerAdjustments={hasDinnerAdjustments}
+      />
+    <main className="hidden gap-5 lg:grid lg:grid-cols-[0.9fr_1.1fr]">
       <section className="space-y-5">
         <Panel id="plan-intake" eyebrow={t('planIntakeEyebrow')} title={t('intakeHubTitle')} icon={ClipboardList}>
           <IntakeEditor
@@ -2179,6 +2105,150 @@ function PlanView(props) {
         </Panel>
       </section>
     </main>
+    </>
+  );
+}
+
+function MobilePlanHome({ locale, t, model, targets, activeCarbDay, onIntake, onCopy, copyStatus, onEditDinner }) {
+  const copyLabel = copyStatus === 'copied' ? t('copied') : copyStatus === 'copying' ? t('copying') : t('copy');
+  const kcalPct = Math.min(100, (model.total.kcal / Math.max(1, targets.kcal)) * 100);
+  const deficitValue = model.deficit >= 0 ? model.deficit : Math.abs(model.deficit);
+  const deficitLabel = model.deficit >= 0 ? t('deficit') : (locale === 'ja' ? 'オーバー' : '超出');
+
+  return (
+    <main className="grid gap-3 lg:hidden" data-mobile-home>
+      <section className="mobile-glass-card overflow-hidden rounded-[30px] p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-[11px] font-extrabold text-[#ff8d82]">TODAY</div>
+            <h1 className="mt-1 font-display text-2xl font-extrabold text-[#4d3934]">{t('dinnerAnswerTitle')}</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <PixelBuddy variant="runner" />
+            <span className="rounded-full border border-[#bdf0d9] bg-[#edfff6] px-3 py-1.5 text-xs font-extrabold text-[#3da77d]">{activeCarbDay.label}</span>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-[1.2fr_0.8fr] gap-2">
+          <div className="rounded-[24px] bg-[#ff9f95] p-4 text-white shadow-[0_18px_38px_-28px_rgba(255,125,117,0.85)]">
+            <div className="text-[11px] font-bold text-white/78">{t('dinnerKcal')}</div>
+            <div className="mt-1 font-display text-5xl font-extrabold leading-none">{Math.round(model.dinner.kcal)}</div>
+            <div className="mt-1 text-[11px] font-bold text-white/78">kcal</div>
+          </div>
+          <div className={`rounded-[24px] border p-4 ${model.deficit >= 0 ? 'border-[#bdf0d9] bg-[#edfff6]' : 'border-[#ffd1cb] bg-[#fff1ee]'}`}>
+            <div className="text-[11px] font-bold text-[#a47b72]">{deficitLabel}</div>
+            <div className={`mt-2 font-display text-4xl font-extrabold leading-none ${model.deficit >= 0 ? 'text-[#3da77d]' : 'text-[#ff7d75]'}`}>{deficitValue}</div>
+            <div className="mt-1 text-[11px] font-bold text-[#a47b72]">kcal</div>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <div className="flex items-end justify-between gap-3">
+            <span className="text-xs font-extrabold text-[#8f6c64]">{t('todayTotal')}</span>
+            <span className="font-mono text-sm font-bold text-[#4d3934]">{Math.round(model.total.kcal)} / {Math.round(targets.kcal)} kcal</span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#fff0ed]">
+            <div className="h-full rounded-full bg-[#69cda5] transition-all duration-500" style={{ width: `${kcalPct}%` }} />
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <MobileMacro label="P" value={model.total.p} target={targets.p} color="#ff8d82" />
+          <MobileMacro label="C" value={model.total.c} target={targets.c} color="#f1b36a" />
+          <MobileMacro label="F" value={model.total.f} target={targets.f} color="#69cda5" />
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button onClick={onIntake} className="flex h-12 items-center justify-center gap-2 rounded-[20px] bg-[#4d3934] px-3 text-sm font-extrabold text-white">
+            <ClipboardList className="h-4 w-4" />{t('editIntake')}
+          </button>
+          <button onClick={onCopy} className="flex h-12 items-center justify-center gap-2 rounded-[20px] border border-[#ffe3da] bg-white/78 px-3 text-sm font-extrabold text-[#8f6c64]">
+            {copyStatus === 'copied' ? <CheckCircle2 className="h-4 w-4 text-[#3da77d]" /> : <ClipboardList className="h-4 w-4" />}{copyLabel}
+          </button>
+        </div>
+
+        <div className="pixel-crew-stage mt-3" aria-hidden="true">
+          <span className="pixel-crew-glow" />
+          <img
+            src={generated('pixel-cutting-crew-v1.webp')}
+            alt=""
+            className="pixel-crew-float"
+          />
+        </div>
+      </section>
+
+      <section className="mobile-glass-card rounded-[30px] p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[11px] font-extrabold text-[#ff8d82]">DINNER</div>
+            <h2 className="mt-1 font-display text-xl font-extrabold text-[#4d3934]">{t('dinnerAnswerTitle')}</h2>
+          </div>
+          <button onClick={onEditDinner} className="rounded-[18px] bg-[#fff0ed] px-3 py-2 text-xs font-extrabold text-[#ff7d75]">{locale === 'ja' ? '調整' : '调整晚餐'}</button>
+        </div>
+        <div className="mt-3 grid gap-2">
+          {model.dinnerItems.slice(0, 4).map((item) => <MobileDinnerRow key={item.key} item={displayDinnerItem(item, locale)} />)}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function MobileMacro({ label, value, target, color }) {
+  const ok = Math.abs(value - target) <= Math.max(6, target * 0.08);
+  return (
+    <div className="rounded-[20px] border border-white/80 bg-white/72 p-3">
+      <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-[#a47b72]"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />{label}</div>
+      <div className="mt-1 font-mono text-lg font-bold text-[#4d3934]">{Math.round(value)}<span className="text-[10px] text-[#a47b72]">/{Math.round(target)}</span></div>
+      <div className={`text-[10px] font-bold ${ok ? 'text-[#3da77d]' : 'text-[#ff7d75]'}`}>{value >= target ? '+' : ''}{Math.round(value - target)}g</div>
+    </div>
+  );
+}
+
+function PixelBuddy({ variant = 'runner' }) {
+  return (
+    <span className={`pixel-buddy pixel-buddy-${variant}`} aria-hidden="true">
+      <span className="pixel-buddy-head"><i /><b /></span>
+      <span className="pixel-buddy-body" />
+      <span className="pixel-buddy-arm pixel-buddy-arm-left" />
+      <span className="pixel-buddy-arm pixel-buddy-arm-right" />
+      <span className="pixel-buddy-leg pixel-buddy-leg-left" />
+      <span className="pixel-buddy-leg pixel-buddy-leg-right" />
+    </span>
+  );
+}
+
+function MobileDinnerRow({ item }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-[20px] border border-[#ffe3da] bg-white/66 px-3 py-2.5">
+      <div className="min-w-0">
+        <div className="truncate font-cjk text-sm font-extrabold text-[#4d3934]">{item.name}</div>
+        <div className="mt-0.5 text-[10px] font-bold text-[#a47b72]">P{round(item.macro.p)} · C{round(item.macro.c)} · F{round(item.macro.f)}</div>
+      </div>
+      <div className="shrink-0 text-right"><span className="font-display text-xl font-extrabold text-[#4d3934]">{round(item.qty)}</span><span className="ml-1 text-[10px] font-bold text-[#a47b72]">{item.unit}</span></div>
+    </div>
+  );
+}
+
+function MobileDinnerSheet({ open, setOpen, locale, t, model, proteinKeys, toggleProtein, carbPlan, setCarbPlan, fatKeys, toggleFat, onTuneDinner, resetDinnerAdjustments, hasDinnerAdjustments }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[75] lg:hidden">
+      <button className="absolute inset-0 bg-[#4d3934]/28 backdrop-blur-sm" onClick={() => setOpen(false)} aria-label="close dinner" />
+      <aside className="mobile-sheet mobile-safe-bottom absolute inset-x-0 bottom-0 flex max-h-[92dvh] flex-col rounded-t-[32px] border border-white/80 bg-[#fffaf4] shadow-2xl">
+        <div className="mx-auto mt-2 h-1.5 w-12 rounded-full bg-[#e7cfc8]" />
+        <div className="flex items-center justify-between border-b border-[#ffe3da] px-4 pb-3 pt-2">
+          <div><div className="font-display text-xl font-extrabold text-[#4d3934]">{t('dinnerPlannerTitle')}</div><div className="text-[11px] font-bold text-[#a47b72]">{Math.round(model.dinner.kcal)} kcal</div></div>
+          <button onClick={() => setOpen(false)} className="grid h-10 w-10 place-items-center rounded-[16px] bg-[#4d3934] text-white" aria-label="done"><CheckCircle2 className="h-5 w-5" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          <MealPreferenceEditor locale={locale} t={t} proteinKeys={proteinKeys} toggleProtein={toggleProtein} carbPlan={carbPlan} setCarbPlan={setCarbPlan} fatKeys={fatKeys} toggleFat={toggleFat} />
+          <div className="mt-5 grid gap-2">
+            {model.dinnerItems.map((item, index) => <FoodRow key={item.key} item={displayDinnerItem(item, locale)} index={index} onTune={onTuneDinner} t={t} />)}
+          </div>
+          {hasDinnerAdjustments && <button onClick={resetDinnerAdjustments} className="mt-3 inline-flex items-center gap-2 rounded-[18px] border border-[#ffe3da] bg-white/70 px-3 py-2 text-xs font-extrabold text-[#a47b72]"><RotateCcw className="h-4 w-4" />{t('resetTune')}</button>}
+        </div>
+      </aside>
+    </div>
   );
 }
 
@@ -2365,6 +2435,7 @@ function ShopView({ locale, t, model, shopDays, setShopDays, setShopPlan }) {
   return (
     <main className="grid gap-5">
       <section className="relative overflow-hidden rounded-[34px] border border-white/70 bg-white/76 shadow-[0_30px_90px_-60px_rgba(134,80,70,0.75)]">
+        <div className="absolute right-4 top-4 z-10 lg:hidden"><PixelBuddy variant="shopper" /></div>
         <img src={generated('shop-basket.jpg')} alt="weekly grocery basket" className="absolute inset-0 h-full w-full object-cover opacity-40 brightness-[1.16] contrast-[0.92]" />
         <div className="soft-shop-wash absolute inset-0" />
         <div className="relative grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_0.95fr] lg:items-end">
@@ -2593,7 +2664,8 @@ function CheatView({ locale, t, cheat, setCheat, cheatTotal, cheatSurplus, tdee,
       </Panel>
       <section className="overflow-hidden rounded-[34px] border border-white/70 bg-white/76 shadow-[0_30px_90px_-60px_rgba(134,80,70,0.75)]">
         <img src={asset('cheat.jpg')} alt="cheat meal" className="h-56 w-full object-cover brightness-[1.08] contrast-[0.94]" />
-        <div className="p-5">
+        <div className="relative p-5">
+          <div className="absolute right-4 top-4 lg:hidden"><PixelBuddy variant="relax" /></div>
           <div className="text-xs font-extrabold text-[#ff8d82]">{t('cheatResult')}</div>
           <div className="mt-2 font-display text-6xl font-extrabold text-[#4d3934]">{cheatTotal}</div>
           <div className="text-sm font-bold text-[#a47b72]">{t('cheatKcal')}</div>
@@ -2650,7 +2722,8 @@ function IntakeDrawer({
   return (
     <div className="fixed inset-0 z-[70]">
       <button className="absolute inset-0 bg-[#5d4037]/30 backdrop-blur-sm" onClick={() => setOpen(false)} aria-label="close intake" />
-      <aside className="absolute inset-y-0 right-0 flex w-[min(760px,96vw)] flex-col border-l border-white/80 bg-[#fffaf4] shadow-2xl">
+      <aside className="mobile-sheet mobile-safe-bottom absolute inset-x-0 bottom-0 flex max-h-[94dvh] flex-col rounded-t-[32px] border border-white/80 bg-[#fffaf4] shadow-2xl sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[min(760px,96vw)] sm:rounded-none sm:border-l">
+        <div className="mx-auto mt-2 h-1.5 w-12 rounded-full bg-[#e7cfc8] sm:hidden" />
         <div className="flex items-center justify-between border-b border-[#ffe3da] p-4">
           <div className="flex items-center gap-3">
             <img src={asset('pre.jpg')} alt="" className="h-12 w-12 rounded-[18px] object-cover brightness-[1.08]" />

@@ -140,11 +140,15 @@ function testPreTrainingOnlyOffersOnigiriAndSevenGoldBread() {
 
 function testStaticBuildFingerprintsJavascriptAndCss() {
   const source = fs.readFileSync(new URL('../scripts/build-static.mjs', import.meta.url), 'utf8');
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
   assert.match(source, /entryNames:\s*'assets\/\[name\]-\[hash\]'/);
   assert.match(source, /createHash\('sha256'\)/);
   assert.doesNotMatch(source, /outfile:\s*path\.join\(assets,\s*'app\.js'\)/);
   assert.doesNotMatch(source, /href="\.\/assets\/app\.css"/);
+  assert.match(source, /tailwindcss\(/);
+  assert.match(source, /autoprefixer\(\)/);
+  assert.doesNotMatch(html, /cdn\.tailwindcss\.com/);
 }
 
 function testMobileFlowHasCommandDockAndAnchoredSections() {
@@ -159,6 +163,11 @@ function testMobileFlowHasCommandDockAndAnchoredSections() {
   assert.match(source, /id="plan-dinner"/);
   assert.match(source, /id="plan-rhythm"/);
   assert.match(source, /scrollToPlanSection/);
+  assert.match(source, /function MobilePlanHome/);
+  assert.match(source, /function MobileDinnerSheet/);
+  assert.match(source, /data-mobile-home/);
+  assert.match(source, /function PixelBuddy/);
+  assert.match(source, /pixel-cutting-crew-v1\.webp/);
 }
 
 function testIntakeFuelAndSnackUseOneEditor() {
