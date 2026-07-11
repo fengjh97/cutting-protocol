@@ -151,6 +151,17 @@ export default function App3D() {
           </div>
         </div>
         <div className="row" style={{ gap: 6 }}>
+          {/* device switch: 桌面端(this 3D build) ⇄ 手机端(pixel build at site root) */}
+          <div className="row" style={{ gap: 0 }}>
+            <a className="pbtn sm ghost" href="../" onClick={() => sfx('tap')}
+              aria-label={locale === 'ja' ? 'モバイル' : '手机端'}
+              title={locale === 'ja' ? 'モバイル版へ' : '切换到手机端'}
+              style={{ textDecoration: 'none', borderTopRightRadius: 0, borderBottomRightRadius: 0 }}>📱</a>
+            <button className="pbtn sm sel"
+              aria-label={locale === 'ja' ? 'デスクトップ' : '桌面端'}
+              title={locale === 'ja' ? 'デスクトップ 3D(表示中)' : '桌面端 3D · 当前'}
+              style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}>🖥</button>
+          </div>
           <button className={`pbtn sm ${music ? 'on' : 'ghost'}`}
             onClick={() => { primeAudio(); const on = toggleMusic(); setMusic(on); sfx('tap'); }}
             aria-label="music" title="music">♪</button>
