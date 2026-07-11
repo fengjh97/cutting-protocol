@@ -105,18 +105,21 @@ export const CARB_PLANS = {
 // ── §2.2 PROTEINS ─────────────────────────────────────────────────────────────
 export const PROTEINS = {
   beef: {
-    label: '牛肉切り落とし',
-    short: '牛肉',
+    label: '牛すね肉',
+    short: 'すね',
     tag: 'raw · per g',
     unit: 'g',
     step: 10,
-    p: 0.19,
+    // 牛すね肉（牛腱子肉）＝赤身の脂質少なめ部位。日本食品標準成分表(八訂)の
+    // 輸入牛肉 もも赤肉 生を近似値として採用: たんぱく質 21.2g / 脂質 4.3g / 100g。
+    p: 0.212,
     c: 0,
     // NOTE: beef has no static `f`. Fat is overridden dynamically by
     // proteinUnit('beef') in model.js as f = (beefFat * 0.8) / 100 per gram.
+    // Default beefFat=5 → 実効 4.0g/100g（すねの脂質水準）。
     max: 650,
-    note: '脂肪按包装校准',
-    ja: { label: '牛肉切り落とし', short: '牛肉', note: '脂質は包装で調整' },
+    note: '赤身・脂質少なめ',
+    ja: { label: '牛すね肉', short: 'すね', note: '赤身で脂質控えめ' },
   },
   chicken: {
     label: '速食鸡胸',
@@ -246,7 +249,7 @@ export const TALLY_ITEMS = {
   onigiri: { label: '饭团', unit: '个', step: 1, max: 6, p: 3, c: 39, f: 0.5, ja: { label: 'おにぎり', unit: '個' } },
   nissin: { label: '日清面', unit: '包', step: 1, max: 4, p: 6.7, c: 55, f: 4.9, ja: { label: '日清麺', unit: '袋' } },
   rice: { label: '米饭', unit: 'g', step: 50, max: 1000, p: 0.026, c: 0.28, f: 0.003, ja: { label: 'ごはん' } },
-  beef: { label: '牛肉', unit: 'g', step: 50, max: 600, p: 0.19, c: 0, f: 0.072, ja: { label: '牛肉' } },
+  beef: { label: '牛すね', unit: 'g', step: 50, max: 600, p: 0.212, c: 0, f: 0.043, ja: { label: '牛すね肉' } },
   pasta: { label: '干意面', unit: 'g', step: 50, max: 300, p: 0.12, c: 0.71, f: 0.015, ja: { label: '乾燥パスタ' } },
   fresh_noodle: { label: '冷藏鲜面', unit: 'g', step: 10, max: 600, p: 0.0869, c: 0.5469, f: 0.0123, kcal: 2.623, ja: { label: '冷蔵生麺' } },
   banana: { label: '香蕉', unit: '根', step: 1, max: 4, p: 1, c: 27, f: 0.25, ja: { label: 'バナナ', unit: '本' } },
@@ -267,7 +270,7 @@ export const DRINKS = {
 
 // ── §2.8 WEEKLY_SHOP_ITEMS (ordered) ──────────────────────────────────────────
 export const WEEKLY_SHOP_ITEMS = [
-  { key: 'beef', tone: 'red', source: 'protein', sourceKey: 'beef', label: '牛肉切り落とし', short: '牛肉', unit: 'g', step: 100, defaultTarget: 1200, max: 3000, buyHint: '晚餐主蛋白，先拿这个', ja: { label: '牛肉切り落とし', short: '牛肉', buyHint: '夕食の主役。まず取る' } },
+  { key: 'beef', tone: 'red', source: 'protein', sourceKey: 'beef', label: '牛すね肉', short: '牛すね', unit: 'g', step: 100, defaultTarget: 1200, max: 3000, buyHint: '晚餐主蛋白，先拿这个', ja: { label: '牛すね肉', short: '牛すね', buyHint: '夕食の主役。まず取る' } },
   { key: 'chicken', tone: 'red', source: 'protein', sourceKey: 'chicken', label: '速食鸡胸', short: '鸡胸', unit: '块', step: 1, defaultTarget: 3, max: 12, buyHint: '懒人备用蛋白', ja: { label: 'サラダチキン', short: 'チキン', unit: '個', buyHint: '忙しい日のたんぱく質' } },
   { key: 'pasta', tone: 'green', source: 'carb', sourceKey: 'pasta', label: '干意面', short: '意面', unit: 'g', step: 100, defaultTarget: 500, max: 2000, buyHint: '主力晚餐碳水', ja: { label: '乾燥パスタ', short: 'パスタ', buyHint: '夕食の主力炭水化物' } },
   { key: 'soba', tone: 'green', source: 'carb', sourceKey: 'soba', label: '荞麦面', short: '荞麦', unit: 'g', step: 100, defaultTarget: 400, max: 1600, buyHint: '清爽换口味', ja: { label: 'そば', short: 'そば', buyHint: '軽く味変できる' } },

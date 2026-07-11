@@ -25,7 +25,7 @@ const initialState = {
   proteinKeys: ['beef'],
   fatKeys: [],
   extraCarbs: {},
-  beefFat: 13,
+  beefFat: 5,
   pre: {},
   drinkKey: 'none',
   drinkMl: 0,
