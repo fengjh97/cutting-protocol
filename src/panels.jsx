@@ -19,7 +19,7 @@ const CARB_BANNER = {
 };
 
 /* map a solved item key -> localized display name + sprite key + unit */
-function itemDisplay(item, locale) {
+export function itemDisplay(item, locale) {
   const k = item.key || '';
   if (k.startsWith('carb-')) {
     const key = k.slice(5); const c = localize(CARB_PLANS[key], locale) || {};

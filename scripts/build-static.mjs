@@ -14,11 +14,23 @@ const LOADERS = {
 };
 
 /* Build one app (entry + css + html) into `outDir` with its own asset copy. */
-async function buildApp({ name, entry, css, html, outDir }) {
+async function buildApp({ name, entry, css, html, outDir, clayOverlay = false }) {
   const assets = path.join(outDir, 'assets');
   fs.mkdirSync(assets, { recursive: true });
   // copy static assets (sprites / scenes / fonts / char) into this app's tree
   if (fs.existsSync(publicDir)) fs.cpSync(publicDir, outDir, { recursive: true });
+
+  // minimal build: overlay the clay food icons onto food/<key>.png so the shared
+  // <Sprite> renders the 3D clay set (pixel/3d builds keep their pixel sprites).
+  if (clayOverlay) {
+    const clayDir = path.join(assets, 'clay');
+    const foodDir = path.join(assets, 'food');
+    if (fs.existsSync(clayDir)) {
+      for (const f of fs.readdirSync(clayDir)) {
+        if (f.endsWith('.png')) fs.copyFileSync(path.join(clayDir, f), path.join(foodDir, f));
+      }
+    }
+  }
 
   const cssSrc = fs.readFileSync(path.join(root, 'src', css), 'utf8');
   const cssHash = createHash('sha256').update(cssSrc).digest('hex').slice(0, 8);
@@ -56,13 +68,19 @@ async function buildApp({ name, entry, css, html, outDir }) {
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(dist, { recursive: true });
 
-// pixel version at the site root (unchanged)
+// minimal (Apple 净白) version at the site root — the default going forward
 await buildApp({
-  name: 'pixel', entry: 'main.jsx', css: 'pixel.css',
-  html: 'index.html', outDir: dist,
+  name: 'min', entry: 'mainMin.jsx', css: 'min.css',
+  html: 'indexMin.html', outDir: dist, clayOverlay: true,
 });
 
-// 3D version under /3d (coexists)
+// pixel version archived under /pixel
+await buildApp({
+  name: 'pixel', entry: 'main.jsx', css: 'pixel.css',
+  html: 'index.html', outDir: path.join(dist, 'pixel'),
+});
+
+// 3D version archived under /3d
 await buildApp({
   name: '3d', entry: 'main3d.jsx', css: 'glass.css',
   html: 'index3d.html', outDir: path.join(dist, '3d'),

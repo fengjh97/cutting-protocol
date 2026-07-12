@@ -69,23 +69,48 @@ export function Stepper({ value, onChange, step = 1, min = 0, max = Infinity, un
   );
 }
 
-export function NumInput({ value, onChange, min = 0, max = 99999, suffix = '', width = 90 }) {
+/* Robust numeric input.
+   Bug this avoids: clearing the field must NOT snap back to `min` mid-edit,
+   0 must be enterable, and partial input ("1.", "", "-") must be allowed while
+   typing. We keep a local text buffer; clamp only on blur; live-propagate only
+   when the value is already valid & in range so the model never sees garbage. */
+export function NumInput({ value, onChange, min = 0, max = 99999, suffix = '', width = 90, step }) {
+  const [buf, setBuf] = React.useState(value == null ? '' : String(value));
+  const focused = React.useRef(false);
+  const decimals = (step && step < 1) ? 2 : 0;
+
+  React.useEffect(() => {
+    if (!focused.current) setBuf(value == null || value === '' ? '' : String(value));
+  }, [value]);
+
+  const clampCommit = () => {
+    focused.current = false;
+    if (buf === '' || buf === '-' || buf === '.') { onChange(min); setBuf(String(min)); return; }
+    let n = Number(buf);
+    if (Number.isNaN(n)) { setBuf(value == null ? '' : String(value)); return; }
+    n = Math.max(min, Math.min(max, round(n, decimals)));
+    onChange(n); setBuf(String(n));
+  };
+
   return (
     <div className="row" style={{ gap: 4 }}>
       <input
-        className="num"
-        type="number"
-        value={value}
-        min={min} max={max}
+        className="num num-field"
+        type="text"
+        inputMode={decimals ? 'decimal' : 'numeric'}
+        value={buf}
+        onFocus={() => { focused.current = true; }}
         onChange={(e) => {
-          const v = e.target.value === '' ? '' : Number(e.target.value);
-          onChange(v === '' ? min : Math.max(min, Math.min(max, v)));
+          const t = e.target.value;
+          if (!/^-?\d*\.?\d*$/.test(t)) return;      // keep only valid partial numbers; allow ''
+          setBuf(t);
+          if (t === '' || t === '-' || t === '.') return;   // don't clamp while clearing
+          const n = Number(t);
+          if (!Number.isNaN(n) && n >= min && n <= max) onChange(n); // live only when in range
         }}
-        style={{
-          width, fontFamily: 'inherit', fontSize: 16, padding: '6px 8px',
-          background: '#fff6e2', border: '3px solid #6a4a2c', color: 'var(--ink)',
-          boxShadow: 'inset 0 3px 0 rgba(255,255,255,.5)',
-        }}
+        onBlur={clampCommit}
+        aria-label="number"
+        style={{ width }}
       />
       {suffix && <span className="muted">{suffix}</span>}
     </div>
