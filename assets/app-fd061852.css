@@ -132,7 +132,9 @@ button{font-family:inherit}
 .wood-sign{font-size:12px;font-weight:800;color:var(--ink3);letter-spacing:1px;text-transform:uppercase}
 
 /* buttons */
-.pbtn{border:0;background:var(--tile);color:var(--ink);font-size:15px;font-weight:700;white-space:nowrap;
+/* text-bearing controls must use an ADAPTIVE bg (not --tile, which is frozen
+   light for clay icon tiles) — otherwise light bg + light ink = invisible in dark */
+.pbtn{border:0;background:rgba(120,120,128,.14);color:var(--ink);font-size:15px;font-weight:700;white-space:nowrap;
   padding:11px 16px;border-radius:14px;cursor:pointer;transition:transform .12s cubic-bezier(.34,1.56,.64,1),background .18s}
 .pbtn:active{transform:scale(.93)}
 .pbtn.sm{padding:8px 13px;font-size:14px;border-radius:12px}
@@ -176,7 +178,7 @@ button{font-family:inherit}
 
 /* number field */
 .num-field{width:96px;font-family:var(--num);font-size:16px;font-weight:700;padding:10px 12px;
-  background:var(--tile);border:1.5px solid var(--line);border-radius:12px;color:var(--ink)}
+  background:rgba(120,120,128,.14);border:1.5px solid var(--line);border-radius:12px;color:var(--ink)}
 
 /* ============================================================
    Bottom sheet (Sheet widget)
