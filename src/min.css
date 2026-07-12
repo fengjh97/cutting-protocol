@@ -6,6 +6,7 @@
 @font-face{font-family:'Inter';src:url('./assets/fonts/inter-latin.woff2') format('woff2');font-weight:100 900;font-display:swap}
 
 :root{
+  color-scheme:light;
   --bg:#f5f5f7; --card:#fff; --ink:#141416; --ink2:#6b6b70; --ink3:#a6a6ac;
   --line:rgba(0,0,0,.07); --grn:#30d158; --grn-d:#1f9d43; --grn-tint:#e6f9ec;
   --amber-t:#fff2e0; --amber-d:#b4701a; --red:#ff5c5c; --carbc:#f0a01e; --fatc:#3d90e6;
@@ -14,11 +15,6 @@
   --num:'Grotesk','PingFang SC','Hiragino Sans',sans-serif;
   --tone-green:var(--grn);
 }
-@media (prefers-color-scheme:dark){:root{
-  --bg:#000; --card:#161618; --ink:#f2f2f4; --ink2:#9c9ca3; --ink3:#5f5f66;
-  --line:rgba(255,255,255,.10); --grn-tint:#0f2c1a; --amber-t:#2c1e0c;
-  --tile:#eff0f5; --shadow:0 12px 34px rgba(0,0,0,.55);}}
-
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{background:var(--bg)}
 body{font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
@@ -69,7 +65,6 @@ button{font-family:inherit}
 .chip-s .n{font-family:var(--num);font-weight:700}
 .chip-s.ok{background:var(--grn-tint);color:var(--grn-d)}
 .chip-s.hot{background:var(--amber-t);color:var(--amber-d)}
-@media (prefers-color-scheme:dark){.chip-s.ok{color:#4fe07d}.chip-s.hot{color:#e0913f}}
 .plate{margin-top:19px;padding-top:17px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:12px}
 .prow{display:flex;align-items:center;gap:13px}
 .prow .nm{font-size:16.5px;font-weight:600;flex:1}
@@ -153,7 +148,6 @@ button{font-family:inherit}
 .stepper .pbtn,.stepper .pbtn.sm{padding:0;width:42px;height:42px;font-size:22px;background:transparent;
   color:var(--grn-d);display:inline-flex;align-items:center;justify-content:center;border-radius:12px}
 .stepper .val{min-width:52px;text-align:center;font-family:var(--num);font-size:17px;font-weight:700}
-@media (prefers-color-scheme:dark){.stepper .pbtn{color:#4fe07d}}
 /* inline +/- inside generated food rows (FoodRow) */
 .grid-food .pbtn.sm,.food-row .pbtn.sm{min-width:38px;text-align:center}
 
