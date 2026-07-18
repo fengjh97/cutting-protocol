@@ -255,7 +255,7 @@ export const TALLY_ITEMS = {
 // ── §2.6 PRE_ITEMS ────────────────────────────────────────────────────────────
 export const PRE_ITEMS = {
   onigiri: { label: '饭团（普通）', unit: '个', step: 1, max: 3, p: 3, c: 39, f: 0.5, ja: { label: 'おにぎり（普通）', unit: '個' } },
-  gold_bread: { label: '711 金の食パン', unit: '片', step: 1, max: 2, p: 8.8, c: 45.4, f: 5.3, kcal: 261, ja: { label: 'セブン 金の食パン', unit: '枚' } },
+  chojuku_bread: { label: 'Pasco 超熟（6片装）', unit: '片', step: 1, max: 20, p: 4.9, c: 30.4, f: 2.5, kcal: 164, ja: { label: 'Pasco 超熟 6枚スライス', unit: '枚' } },
 };
 
 // ── §2.7 DRINKS (macros per 200ml) ────────────────────────────────────────────
