@@ -251,6 +251,7 @@ export const TALLY_ITEMS = {
   rice: { label: '米饭', unit: 'g', step: 50, max: 1000, p: 0.026, c: 0.28, f: 0.003, ja: { label: 'ごはん' } },
   beef: { label: '牛すね', unit: 'g', step: 50, max: 600, p: 0.212, c: 0, f: 0.043, ja: { label: '牛すね肉' } },
   pasta: { label: '干意面', unit: 'g', step: 50, max: 300, p: 0.12, c: 0.71, f: 0.015, ja: { label: '乾燥パスタ' } },
+  bifun: { label: '干米粉', unit: 'g', step: 10, max: 500, p: 0.06, c: 0.79, f: 0.005, kcal: 3.45, ja: { label: '乾燥ビーフン' } },
   fresh_noodle: { label: '冷藏鲜面', unit: 'g', step: 10, max: 600, p: 0.0869, c: 0.5469, f: 0.0123, kcal: 2.623, ja: { label: '冷蔵生麺' } },
   banana: { label: '香蕉', unit: '根', step: 1, max: 4, p: 1, c: 27, f: 0.25, ja: { label: 'バナナ', unit: '本' } },
 };
