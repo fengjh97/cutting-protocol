@@ -18,7 +18,7 @@ export const SPRITE = {
   // extras
   apple: 'apple', kiwi: 'kiwi', pineapple: 'pineapple', yogurt: 'yogurt',
   // tally / pre
-  egg: 'egg', onigiri: 'onigiri', rice: 'rice', gold_bread: 'bread',
+  egg: 'egg', onigiri: 'onigiri', rice: 'rice', chojuku_bread: 'bread',
   // drinks
   tomato: 'tomatojuice', yasai: 'vegjuice',
 };
