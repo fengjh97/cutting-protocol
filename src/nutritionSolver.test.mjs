@@ -123,18 +123,18 @@ function testDryWhiteRiceCarbPlanUsesTenGramSteps() {
   assert.match(source, /name:\s*'白米 · 生米干重'/);
 }
 
-function testPreTrainingOnlyOffersOnigiriAndSevenGoldBread() {
+function testPreTrainingOnlyOffersOnigiriAndChojukuBread() {
   const source = fs.readFileSync(new URL('./CuttingProtocol.jsx', import.meta.url), 'utf8');
   const preItems = source.match(/const PRE_ITEMS = \{([\s\S]*?)\n\};/);
 
   assert.ok(preItems, 'PRE_ITEMS should exist');
   assert.deepEqual(
     [...preItems[1].matchAll(/^\s{2}([a-z_]+):/gm)].map((match) => match[1]),
-    ['onigiri', 'gold_bread'],
+    ['onigiri', 'chojuku_bread'],
   );
   assert.match(source, /const PRE_ITEMS = {[\s\S]*onigiri:\s*{[\s\S]*label:\s*'饭团（普通）'[\s\S]*unit:\s*'个'[\s\S]*step:\s*1/);
-  assert.match(source, /const PRE_ITEMS = {[\s\S]*gold_bread:\s*{[\s\S]*label:\s*'711 金の食パン'[\s\S]*unit:\s*'片'[\s\S]*step:\s*1/);
-  assert.match(source, /gold_bread:\s*{[\s\S]*p:\s*8\.8,\s*c:\s*45\.4,\s*f:\s*5\.3,\s*kcal:\s*261/);
+  assert.match(source, /const PRE_ITEMS = {[\s\S]*chojuku_bread:\s*{[\s\S]*label:\s*'Pasco 超熟（6片装）'[\s\S]*unit:\s*'片'[\s\S]*step:\s*1/);
+  assert.match(source, /chojuku_bread:\s*{[\s\S]*p:\s*4\.9,\s*c:\s*30\.4,\s*f:\s*2\.5,\s*kcal:\s*164/);
   assert.doesNotMatch(source, /applyLightFuel|applyPineappleFuel/);
 }
 
@@ -436,7 +436,7 @@ testScaleMacroPreservesExplicitCalories();
 testFreshChilledNoodleCarbPlanUsesTenGramSteps();
 testBananaCarbPlanUsesWholeFruitStepsAndProteinYogurtIsRemoved();
 testDryWhiteRiceCarbPlanUsesTenGramSteps();
-testPreTrainingOnlyOffersOnigiriAndSevenGoldBread();
+testPreTrainingOnlyOffersOnigiriAndChojukuBread();
 testStaticBuildFingerprintsJavascriptAndCss();
 testMobileFlowHasCommandDockAndAnchoredSections();
 testIntakeFuelAndSnackUseOneEditor();
