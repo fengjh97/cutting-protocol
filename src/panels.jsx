@@ -110,7 +110,7 @@ function TargetFields({ S, up, t, withTdee }) {
 }
 
 /* MealPreferenceEditor — reused for lunch & dinner (spec §3.5) */
-function MealPreferenceEditor({ t, locale, proteinKeys, carbPlan, fatKeys, onProtein, onCarb, onFat }) {
+function MealPreferenceEditor({ t, locale, proteinKeys, carbPlan, fatKeys, onProtein, onCarb, onFat, proteinOptions = Object.keys(PROTEINS), carbKeys = Object.keys(CARB_PLANS) }) {
   const toggleProtein = (key) => {
     if (proteinKeys.includes(key)) {
       if (proteinKeys.length <= 1) return; // keep >=1 selected
@@ -126,7 +126,7 @@ function MealPreferenceEditor({ t, locale, proteinKeys, carbPlan, fatKeys, onPro
       <div className="stack" style={{ gap: 6 }}>
         <span className="eyebrow">{t('protein')}</span>
         <div className="grid-food">
-          {Object.keys(PROTEINS).map((key) => {
+          {proteinOptions.map((key) => {
             const it = localize(PROTEINS[key], locale);
             return (
               <FoodCard key={key} k={key} name={it.short} sub={it.note}
@@ -138,7 +138,7 @@ function MealPreferenceEditor({ t, locale, proteinKeys, carbPlan, fatKeys, onPro
       <div className="stack" style={{ gap: 6 }}>
         <span className="eyebrow">{t('carb')}</span>
         <div className="grid-food">
-          {Object.keys(CARB_PLANS).map((key) => {
+          {carbKeys.map((key) => {
             const it = localize(CARB_PLANS[key], locale);
             return (
               <FoodCard key={key} k={key} name={it.short} sub={it.sub}
@@ -219,6 +219,7 @@ export function IntakeSheet({ S, up, model, t, locale, onClose }) {
             </OptionBlock>
             <MealPreferenceEditor
               t={t} locale={locale}
+              carbKeys={Object.keys(CARB_PLANS)}
               proteinKeys={S.lunchProteinKeys} carbPlan={S.lunchCarbPlan} fatKeys={S.lunchFatKeys}
               onProtein={(v) => up({ lunchProteinKeys: v })}
               onCarb={(v) => up({ lunchCarbPlan: v })}
@@ -330,6 +331,8 @@ export function DinnerSheet({ S, up, model, t, locale, onClose }) {
       <OptionBlock title={t('dinnerPlannerTitle')}>
         <MealPreferenceEditor
           t={t} locale={locale}
+          proteinOptions={Object.keys(PROTEINS).filter((key) => key !== 'duck' && key !== 'kfc')}
+          carbKeys={Object.keys(CARB_PLANS).filter((key) => key !== 'pho')}
           proteinKeys={S.proteinKeys} carbPlan={S.carbPlan} fatKeys={S.fatKeys}
           onProtein={(v) => up({ proteinKeys: v })}
           onCarb={(v) => up({ carbPlan: v })}
