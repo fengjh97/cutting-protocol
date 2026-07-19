@@ -256,13 +256,21 @@ export const TALLY_ITEMS = {
   banana: { label: '香蕉', unit: '根', step: 1, max: 4, p: 1, c: 27, f: 0.25, ja: { label: 'バナナ', unit: '本' } },
 };
 
-// ── §2.6 PRE_ITEMS ────────────────────────────────────────────────────────────
+// ── §2.6 BREAKFAST_ITEMS ─────────────────────────────────────────────────────
+export const BREAKFAST_ITEMS = {
+  chojuku_bread: { label: '吐司 · Pasco 超熟（6片装）', unit: '片', step: 1, max: 20, p: 4.9, c: 30.4, f: 2.5, kcal: 164, ja: { label: '食パン · Pasco 超熟 6枚スライス', unit: '枚' } },
+  onigiri: { label: '饭团（普通）', unit: '个', step: 1, max: 6, p: 3, c: 39, f: 0.5, ja: { label: 'おにぎり（普通）', unit: '個' } },
+  tea_egg: { label: '茶叶蛋', unit: '个', step: 1, max: 10, p: 6, c: 0.5, f: 5, kcal: 71, ja: { label: '味付けゆで卵', unit: '個' } },
+  baguette: { label: '法棍', unit: 'g', step: 50, max: 500, p: 0.094, c: 0.575, f: 0.013, kcal: 2.8, ja: { label: 'バゲット' } },
+};
+
+// ── §2.7 PRE_ITEMS ────────────────────────────────────────────────────────────
 export const PRE_ITEMS = {
   onigiri: { label: '饭团（普通）', unit: '个', step: 1, max: 3, p: 3, c: 39, f: 0.5, ja: { label: 'おにぎり（普通）', unit: '個' } },
   chojuku_bread: { label: 'Pasco 超熟（6片装）', unit: '片', step: 1, max: 20, p: 4.9, c: 30.4, f: 2.5, kcal: 164, ja: { label: 'Pasco 超熟 6枚スライス', unit: '枚' } },
 };
 
-// ── §2.7 DRINKS (macros per 200ml) ────────────────────────────────────────────
+// ── §2.8 DRINKS (macros per 200ml) ────────────────────────────────────────────
 export const DRINKS = {
   tomato: { label: '无盐番茄汁', sub: 'K 600 / 200ml', p: 1.8, c: 7.1, f: 0, kcal: 39, k: 600, na: 5, ja: { label: '無塩トマトジュース', sub: 'K 600 / 200ml' } },
   yasai: { label: '野菜一日', sub: 'K 740 / 200ml', p: 3, c: 14.5, f: 0, kcal: 75, k: 740, na: 80, ja: { label: '野菜一日', sub: 'K 740 / 200ml' } },

@@ -6,7 +6,7 @@ import {
 import { localize } from './i18n.js';
 import { round, macroKcal, scaleMacro } from './nutritionSolver.js';
 import {
-  PROTEINS, CARB_PLANS, FAT_SOURCES, DINNER_EXTRAS, TALLY_ITEMS, PRE_ITEMS,
+  PROTEINS, CARB_PLANS, FAT_SOURCES, DINNER_EXTRAS, TALLY_ITEMS, BREAKFAST_ITEMS, PRE_ITEMS,
   DRINKS, WEEKLY_SHOP_ITEMS, CHEAT_ITEMS, DEFAULT_TARGET_PROFILE,
 } from './data.js';
 
@@ -192,10 +192,26 @@ export function IntakeSheet({ S, up, model, t, locale, onClose }) {
     <Sheet title={t('intakeHubTitle')} sub={t('intakeHubSub')} onClose={onClose}>
       <div className="grid2">
         <Pill k={t('beforeDinnerTotal')} v={round(bd.kcal)} sub={`P${round(bd.p)} C${round(bd.c)} F${round(bd.f)}`} />
+        <Pill k={t('breakfast')} v={round(model.breakfastMacro.kcal)} />
         <Pill k={t('lunch')} v={round(model.lunch.kcal)} />
         <Pill k={t('fuel')} v={round(model.preMacro.kcal + model.drinkMacro.kcal)} />
         <Pill k={t('snack')} v={round(model.snackMacro.kcal)} />
       </div>
+
+      <OptionBlock title={t('breakfast')}>
+        <div className="stack" style={{ gap: 2 }}>
+          {Object.entries(BREAKFAST_ITEMS).map(([key, item]) => {
+            const it = localize(item, locale);
+            const meta = `${round(macroKcal(scaleMacro(item, item.step)))} kcal / ${item.step}${it.unit}`;
+            return (
+              <StepperRow key={key} k={key} name={it.label} meta={meta}
+                value={S.breakfast[key] || 0} step={item.step} max={item.max} unit={it.unit}
+                onChange={(v) => up((s) => ({ breakfast: { ...s.breakfast, [key]: v } }))} />
+            );
+          })}
+        </div>
+        <Pbtn variant="ghost sm" onClick={() => up({ breakfast: {} })}>{t('clearBreakfast')}</Pbtn>
+      </OptionBlock>
 
       <OptionBlock title={t('lunch')}>
         <Segmented
@@ -490,6 +506,7 @@ export function DetailSheet({ S, up, model, t, onClose }) {
   return (
     <Sheet title={t('ledgerTitle')} onClose={onClose}>
       <div className="stack" style={{ gap: 0 }}>
+        <LedgerRow label={t('breakfast')} macro={model.breakfastMacro} />
         <LedgerRow label={t('lunch')} macro={model.lunch} />
         <LedgerRow label={t('preTraining')} macro={model.preMacro} />
         <LedgerRow label={t('drinkElectrolyte')} macro={model.drinkMacro} />

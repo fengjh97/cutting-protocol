@@ -31,6 +31,7 @@ import {
   FAT_SOURCES,
   DINNER_EXTRAS,
   TALLY_ITEMS,
+  BREAKFAST_ITEMS,
   PRE_ITEMS,
   DRINKS,
   WEEKLY_SHOP_ITEMS,
@@ -315,6 +316,7 @@ export function buildDailyPlanPayload(state = {}, model, options = {}) {
     targetProfile: targetProfileModel,
     targets: model.targets,
     mealSplitPct: state.mealSplitPct,
+    breakfast: { items: state.breakfast || {}, macro: model.breakfastMacro },
     lunch: model.lunch,
     lunchItems: model.lunchItems.map((item) => displayDinnerItem(item, locale)),
     pre: model.preMacro,
@@ -344,6 +346,7 @@ export function computeModel(state = {}) {
     lunchMode = 'planned',
     lunchKcal = 800,
     tally = {},
+    breakfast = {},
     mealSplitPct = 40,
     lunchCarbPlan = 'fresh_noodle',
     lunchProteinKeys = ['chicken'],
@@ -373,6 +376,10 @@ export function computeModel(state = {}) {
     (sum, [key, qty]) => addMacros(sum, scaleMacro(TALLY_ITEMS[key], qty)),
     emptyMacro,
   );
+  const breakfastMacro = Object.entries(breakfast).reduce(
+    (sum, [key, qty]) => addMacros(sum, scaleMacro(BREAKFAST_ITEMS[key], qty)),
+    emptyMacro,
+  );
   const preMacro = Object.entries(pre).reduce(
     (sum, [key, qty]) => addMacros(sum, scaleMacro(PRE_ITEMS[key], qty)),
     emptyMacro,
@@ -380,7 +387,7 @@ export function computeModel(state = {}) {
   const drink = DRINKS[drinkKey] || DRINKS.none;
   const drinkMacro = withKcal(scaleMacro(drink, drinkMl / 200));
   const snackMacro = withKcal(snack);
-  const fixedIntake = addMacros(preMacro, drinkMacro, snackMacro);
+  const fixedIntake = addMacros(breakfastMacro, preMacro, drinkMacro, snackMacro);
   const mealTargetsRaw = splitMealTargets(targets, fixedIntake, mealSplitPct / 100);
 
   const extraEntries = Object.entries(extraCarbs).filter(([key, qty]) => DINNER_EXTRAS[key] && qty > 0);
@@ -468,6 +475,7 @@ export function computeModel(state = {}) {
     targets,
     mealTargets,
     tallyMacro,
+    breakfastMacro,
     preMacro,
     drinkMacro,
     snackMacro,

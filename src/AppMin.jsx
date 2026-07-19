@@ -17,6 +17,7 @@ const initialState = {
   lunchMode: 'planned',
   lunchKcal: 800,
   tally: {},
+  breakfast: {},
   mealSplitPct: 40,
   lunchCarbPlan: 'fresh_noodle',
   lunchProteinKeys: ['chicken'],
@@ -181,7 +182,7 @@ export default function AppMin() {
         <Press className="card sum" onClick={() => setOpen('intake')}>
           <div className="sh"><Tile name="notebook" size="l" /><span className="st">{L('今日已吃', '食べたもの')}</span><span className="go">›</span></div>
           <div className="sd">
-            {L('午餐', '昼食')} {round(model.lunch.kcal)} kcal（{S.lunchMode === 'planned' ? L('计划', '計画') : L('记录', '記録')}）· {S.mealSplitPct}/{100 - S.mealSplitPct}
+            {L('早餐', '朝食')} {round(model.breakfastMacro.kcal)} kcal · {L('午餐', '昼食')} {round(model.lunch.kcal)} kcal（{S.lunchMode === 'planned' ? L('计划', '計画') : L('记录', '記録')}）· {S.mealSplitPct}/{100 - S.mealSplitPct}
           </div>
           <div className="tags">
             {preTags.map((p) => (
