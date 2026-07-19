@@ -16,6 +16,7 @@ const initialState = {
   lunchMode: 'planned',
   lunchKcal: 800,
   tally: {},
+  breakfast: {},
   mealSplitPct: 40,
   lunchCarbPlan: 'fresh_noodle',
   lunchProteinKeys: ['chicken'],

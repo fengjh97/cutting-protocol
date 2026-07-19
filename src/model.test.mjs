@@ -184,6 +184,7 @@ const DEFAULT_STATE = {
   lunchMode: 'planned',
   lunchKcal: 800,
   tally: {},
+  breakfast: {},
   mealSplitPct: 40,
   lunchCarbPlan: 'fresh_noodle',
   lunchProteinKeys: ['chicken'],
@@ -247,6 +248,13 @@ function testComputeModelElectrolytes() {
   assert.equal(m2.potassium, 2000 + 600 * (400 / 200));
 }
 
+function testBreakfastCountsTowardDailyIntake() {
+  const breakfast = { chojuku_bread: 2, onigiri: 1, tea_egg: 2, baguette: 100 };
+  const m = computeModel({ ...DEFAULT_STATE, breakfast });
+  assert.equal(round(m.breakfastMacro.kcal), 923);
+  assert.equal(round(m.fixedIntake.kcal), 923);
+}
+
 function testComputeModelShoppingAndRunPlan() {
   const m = computeModel(DEFAULT_STATE);
   assert.ok(Array.isArray(m.shopping) && m.shopping.length > 0);
@@ -291,6 +299,7 @@ const tests = [
   testComputeModelCarbDayClassification,
   testComputeModelDinnerFiniteAndSane,
   testComputeModelElectrolytes,
+  testBreakfastCountsTowardDailyIntake,
   testComputeModelShoppingAndRunPlan,
   testBuildDailyPlanPayloadIsPureWithInjectedNow,
 ];
