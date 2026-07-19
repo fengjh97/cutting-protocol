@@ -3,6 +3,7 @@ import {
   addMacros,
   buildShoppingRunPlan,
   buildWeeklyShopping,
+  classifyCarbDay,
   deriveMacroTargets,
   macroAnalysis,
   scaleMacro,
@@ -86,6 +87,15 @@ function testMacroAnalysisReportsPercentagesRatiosAndCarbDay() {
   assert.equal(report.proteinPerKg, 1.8);
   assert.equal(report.carbPerKg, 1.9);
   assert.equal(report.carbDay.label, '低碳');
+}
+
+function testCarbDayUsesThreeAndFiveGramBoundaries() {
+  assert.equal(classifyCarbDay(0, 75).label, '低碳');
+  assert.equal(classifyCarbDay(224.9, 75).label, '低碳');
+  assert.equal(classifyCarbDay(225, 75).label, '中碳');
+  assert.equal(classifyCarbDay(374.9, 75).label, '中碳');
+  assert.equal(classifyCarbDay(375, 75).label, '高碳');
+  assert.equal(classifyCarbDay(600, 75).label, '高碳');
 }
 
 function testShoppingRunPlanListsConcreteBuyItemsInAisleOrder() {
@@ -218,9 +228,9 @@ function testComputeModelDefaultTargets() {
 
 function testComputeModelCarbDayClassification() {
   const m = computeModel(DEFAULT_STATE);
-  // Solver aims total carbs near target 238.6 => ~2.9 g/kg over 83kg => 中碳.
-  assert.equal(m.carbDay.label, '中碳');
-  assert.equal(m.macroReport.carbDay.label, '中碳');
+  // Solver aims total carbs near target 238.6 => ~2.9 g/kg over 83kg => 低碳.
+  assert.equal(m.carbDay.label, '低碳');
+  assert.equal(m.macroReport.carbDay.label, '低碳');
 }
 
 function testComputeModelDinnerFiniteAndSane() {
@@ -288,6 +298,7 @@ const tests = [
   testSplitMealTargetsAppliesFortySixtyAfterFixedIntake,
   testMacroTargetsUseBodyweightProteinFatAndCarbRemainder,
   testMacroAnalysisReportsPercentagesRatiosAndCarbDay,
+  testCarbDayUsesThreeAndFiveGramBoundaries,
   testShoppingRunPlanListsConcreteBuyItemsInAisleOrder,
   testScoringAllowsSmallKcalOvershootForBetterBalance,
   testOptimizerImprovesASeedDinnerAcrossAllMacros,

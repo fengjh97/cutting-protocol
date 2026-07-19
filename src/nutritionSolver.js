@@ -80,26 +80,26 @@ export function deriveMacroTargets(profile = {}) {
 export function classifyCarbDay(carbs = 0, bodyWeightKg = 1) {
   const carbPerKg = clamp(carbs, 0, Infinity) / Math.max(1, clamp(bodyWeightKg, 1, 300));
 
-  if (carbPerKg < 2) {
+  if (carbPerKg < 3) {
     return {
       label: '低碳',
       tone: 'amber',
-      note: '碳水低于 2.0g/kg，今天算收紧日',
+      note: '碳水在 0-3.0g/kg，今天算低碳日',
     };
   }
 
-  if (carbPerKg < 3) {
+  if (carbPerKg < 5) {
     return {
       label: '中碳',
       tone: 'green',
-      note: '碳水在 2.0-3.0g/kg，训练和恢复都比较稳',
+      note: '碳水在 3.0-5.0g/kg，训练和恢复都比较稳',
     };
   }
 
   return {
     label: '高碳',
     tone: 'red',
-    note: '碳水超过 3.0g/kg，更像补糖或高活动日',
+    note: '碳水在 5.0-8.0g/kg，更像补糖或高活动日',
   };
 }
 
