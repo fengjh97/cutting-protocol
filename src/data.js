@@ -2,7 +2,7 @@
 // Pure data module (no logic). Every number/tag/color/ja override copied 1:1
 // from src/CuttingProtocol.jsx (the single source of truth per the spec).
 
-export const DEFAULT_TARGET_PROFILE = { bodyWeightKg: 78, proteinPerKg: 1.8, fatMinPerKg: 0.6, kcal: 2000 };
+export const DEFAULT_TARGET_PROFILE = { bodyWeightKg: 75, proteinPerKg: 1.8, fatMinPerKg: 0.7, kcal: 2500 };
 
 export const DEFAULT_TDEE = 2900;
 
